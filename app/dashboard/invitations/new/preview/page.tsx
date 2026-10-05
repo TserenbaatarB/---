@@ -1,8 +1,7 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 
-import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import WizardStepper from "@/components/WizardStepper";
@@ -37,6 +36,25 @@ type StoredInvitationMusic = {
   musicId: string | null;
   musicName: string | null;
   musicType: "none" | "custom";
+};
+
+type InvitationExtrasPreview = {
+  lat?: number | null;
+  lng?: number | null;
+  mapUrl?: string;
+  coverVideoId?: string | null;
+  coverVideoName?: string | null;
+  coverVideoPath?: string | null;
+  rsvp?: {
+    enabled?: boolean;
+    askGuests?: boolean;
+    deadline?: string;
+    visibility?: "open" | "anonymous" | "hidden";
+  };
+  note?: string;
+  program?: unknown;
+  appearance?: unknown;
+  [key: string]: unknown;
 };
 
 const DB_NAME = "urilga-invitation-db";
@@ -137,17 +155,11 @@ function getImageExtension(blob: Blob): string {
 function getMusicExtension(blob: Blob): string {
   const type = (blob.type || "").toLowerCase();
 
-  if (
-    type === "audio/mpeg" ||
-    type === "audio/mp3"
-  ) {
+  if (type === "audio/mpeg" || type === "audio/mp3") {
     return "mp3";
   }
 
-  if (
-    type === "audio/wav" ||
-    type === "audio/x-wav"
-  ) {
+  if (type === "audio/wav" || type === "audio/x-wav") {
     return "wav";
   }
 
@@ -155,10 +167,7 @@ function getMusicExtension(blob: Blob): string {
     return "ogg";
   }
 
-  if (
-    type === "audio/mp4" ||
-    type === "audio/x-m4a"
-  ) {
+  if (type === "audio/mp4" || type === "audio/x-m4a") {
     return "m4a";
   }
 
@@ -334,33 +343,6 @@ async function uploadInvitationImages(
  * =========================================================
  * UPLOAD INVITATION MUSIC
  * =========================================================
- *
- * Builder:
- *
- * sessionStorage["invitation-music"]
- *        ↓
- * musicId
- *        ↓
- * IndexedDB
- *        ↓
- * Blob
- *        ↓
- * Supabase Storage
- *
- * Bucket:
- *
- * invitation-music
- *
- * Path:
- *
- * USER_ID/
- *   INVITATION_ID/
- *     music.mp3
- *
- * DB:
- *
- * invitations.music_path
- * =========================================================
  */
 
 async function uploadInvitationMusic(
@@ -471,10 +453,6 @@ async function uploadInvitationMusic(
 
   /*
    * UPLOAD TO invitation-music
-   *
-   * IMPORTANT:
-   * MP3 нь invitation-images биш
-   * invitation-music bucket руу орно.
    */
 
   const {
@@ -526,13 +504,6 @@ async function uploadInvitationMusic(
  * =========================================================
  * UPLOAD COVER VIDEO
  * =========================================================
- *
- * Видео нь invitation-music bucket-д MP3-н хажууд хадгалагдана:
- * USER_ID/INVITATION_ID/video.ext
- *
- * MP3 байхгүй бол music_path нь видео руу заана
- * (видеоны өөрийн дуу тоглоно). MP3 байвал видео чимээгүй
- * дэвсгэр болж, MP3 тоглоно.
  */
 
 function getVideoExtension(blob: Blob): string {
@@ -783,6 +754,51 @@ function InvitationPreviewPageContent() {
     useState<string[]>([]);
 
   /*
+   * PUBLIC-STYLE PREVIEW STATE
+   */
+
+  const [
+    extras,
+    setExtras,
+  ] =
+    useState<InvitationExtrasPreview | null>(
+      null
+    );
+
+  const [
+    coverVideoUrl,
+    setCoverVideoUrl,
+  ] =
+    useState<string | null>(
+      null
+    );
+
+  const [
+    coverVideoEnded,
+    setCoverVideoEnded,
+  ] =
+    useState(false);
+
+  const [
+    galleryIndex,
+    setGalleryIndex,
+  ] =
+    useState(0);
+  const activeGalleryIndex =
+    galleryUrls.length > 0
+      ? galleryIndex % galleryUrls.length
+      : 0;
+
+  const [
+    musicPlaying,
+    setMusicPlaying,
+  ] =
+    useState(false);
+
+  const musicRef =
+    useRef<HTMLAudioElement | null>(null);
+
+  /*
    * MUSIC PREVIEW STATE
    */
 
@@ -983,6 +999,43 @@ function InvitationPreviewPageContent() {
         }
 
         /*
+         * EXTRAS
+         */
+
+        const storedExtras =
+          sessionStorage.getItem(
+            "invitation-extras"
+          );
+
+        let parsedExtras:
+          InvitationExtrasPreview | null =
+          null;
+
+        if (storedExtras) {
+          try {
+            parsedExtras =
+              JSON.parse(
+                storedExtras
+              );
+
+            if (!cancelled) {
+              setExtras(
+                parsedExtras
+              );
+            }
+          } catch (extrasError) {
+            console.error(
+              "Extras load error:",
+              extrasError
+            );
+
+            if (!cancelled) {
+              setExtras(null);
+            }
+          }
+        }
+
+        /*
          * IMAGES
          */
 
@@ -1062,6 +1115,50 @@ function InvitationPreviewPageContent() {
               loadedGallery
             );
           }
+        }
+
+        /*
+         * COVER VIDEO
+         */
+
+        const coverVideoId =
+          parsedExtras?.coverVideoId;
+
+        if (coverVideoId) {
+          try {
+            const videoBlob =
+              await getStoredImage(
+                coverVideoId
+              );
+
+            if (
+              videoBlob &&
+              !cancelled
+            ) {
+              const videoUrl =
+                URL.createObjectURL(
+                  videoBlob
+                );
+
+              setCoverVideoUrl(
+                videoUrl
+              );
+              setCoverVideoEnded(false);
+            } else if (!cancelled) {
+              setCoverVideoEnded(true);
+            }
+          } catch (videoError) {
+            console.error(
+              "Cover video load error:",
+              videoError
+            );
+
+            if (!cancelled) {
+              setCoverVideoEnded(true);
+            }
+          }
+        } else if (!cancelled) {
+          setCoverVideoEnded(true);
         }
 
         /*
@@ -1162,6 +1259,31 @@ function InvitationPreviewPageContent() {
 
   /*
    * =========================================================
+   * GALLERY SLIDESHOW
+   * =========================================================
+   */
+
+  useEffect(() => {
+    if (galleryUrls.length <= 1) {
+      return;
+    }
+
+    const timer =
+      window.setInterval(() => {
+        setGalleryIndex(
+          (current) =>
+            (current + 1) %
+            galleryUrls.length
+        );
+      }, 4000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [galleryUrls.length]);
+
+  /*
+   * =========================================================
    * CLEANUP BLOB URLS
    * =========================================================
    */
@@ -1196,12 +1318,61 @@ function InvitationPreviewPageContent() {
           musicUrl
         );
       }
+
+      if (
+        coverVideoUrl &&
+        coverVideoUrl.startsWith(
+          "blob:"
+        )
+      ) {
+        URL.revokeObjectURL(
+          coverVideoUrl
+        );
+      }
     };
   }, [
     backgroundUrl,
     galleryUrls,
     musicUrl,
+    coverVideoUrl,
   ]);
+
+  /*
+   * =========================================================
+   * MUSIC TOGGLE
+   * =========================================================
+   */
+
+  async function toggleMusic() {
+    if (
+      !musicUrl ||
+      musicType !== "custom"
+    ) {
+      return;
+    }
+
+    const audio =
+      musicRef.current;
+
+    if (!audio) {
+      return;
+    }
+
+    try {
+      if (audio.paused) {
+        await audio.play();
+        setMusicPlaying(true);
+      } else {
+        audio.pause();
+        setMusicPlaying(false);
+      }
+    } catch (error) {
+      console.error(
+        "Music play error:",
+        error
+      );
+    }
+  }
 
   /*
    * =========================================================
@@ -2293,7 +2464,7 @@ function InvitationPreviewPageContent() {
 
   /*
    * =========================================================
-   * DESIGN
+   * PUBLIC STYLE
    * =========================================================
    */
 
@@ -2314,53 +2485,142 @@ function InvitationPreviewPageContent() {
     "garden";
 
   let pageBackground =
-    "bg-[#F7EFE7]";
+    "bg-[#f9f1f1]";
+
+  let cardBackground =
+    "bg-[#fffafa]";
 
   let textColor =
-    "text-[#4B3A32]";
+    "text-[#392a2d]";
 
   let accentColor =
-    "#A48663";
+    "#a66a78";
+
+  let accentSoft =
+    "#f5e5e8";
+
+  let borderColor =
+    "border-[#e5cdd2]";
+
+  let buttonBackground =
+    "#8e5967";
 
   if (isLuxury) {
     pageBackground =
-      "bg-[#28221D]";
+      "bg-[#f4efe5]";
+
+    cardBackground =
+      "bg-[#fffdf8]";
 
     textColor =
-      "text-[#F4E8D4]";
+      "text-[#2c241b]";
 
     accentColor =
-      "#D5B98C";
+      "#b08d57";
+
+    accentSoft =
+      "#f3ead9";
+
+    borderColor =
+      "border-[#d8c7a8]";
+
+    buttonBackground =
+      "#2c241b";
   }
 
   if (isMinimal) {
     pageBackground =
-      "bg-[#F4F4F2]";
+      "bg-[#f5f5f3]";
+
+    cardBackground =
+      "bg-white";
 
     textColor =
-      "text-[#252525]";
+      "text-[#202020]";
 
     accentColor =
-      "#55514B";
+      "#555555";
+
+    accentSoft =
+      "#eeeeec";
+
+    borderColor =
+      "border-[#ddddda]";
+
+    buttonBackground =
+      "#202020";
   }
 
   if (isGarden) {
     pageBackground =
-      "bg-[#E7EEE4]";
+      "bg-[#eef4eb]";
+
+    cardBackground =
+      "bg-[#fffef9]";
 
     textColor =
-      "text-[#304334]";
+      "text-[#263326]";
 
     accentColor =
-      "#66745E";
+      "#6d8b63";
+
+    accentSoft =
+      "#e4eee0";
+
+    borderColor =
+      "border-[#cbd9c6]";
+
+    buttonBackground =
+      "#4f6849";
   }
+
+  const hasMap =
+    typeof extras?.lat === "number" &&
+    typeof extras?.lng === "number";
+
+  const mapLatitude =
+    typeof extras?.lat === "number"
+      ? extras.lat
+      : null;
+
+  const mapLongitude =
+    typeof extras?.lng === "number"
+      ? extras.lng
+      : null;
+
+  const mapUrl =
+    typeof extras?.mapUrl === "string"
+      ? extras.mapUrl
+      : "";
+
+  const rsvpSettings =
+    extras?.rsvp;
+
+  const rsvpEnabled =
+    rsvpSettings?.enabled === true;
+
+  const rsvpDeadline =
+    rsvpSettings?.deadline || "";
+
+  const rsvpDeadlineFormatted =
+    rsvpDeadline
+      ? formatDate(
+          rsvpDeadline
+        )
+      : "";
+
+  /*
+   * =========================================================
+   * PREVIEW
+   * =========================================================
+   */
 
   return (
     <main className="min-h-screen bg-[#F4F1EC] text-[#171717]">
       {/* HEADER */}
 
       <header className="sticky top-0 z-50 border-b border-black/10 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-5">
           <div>
             <div className="text-[10px] font-semibold uppercase tracking-[0.25em] text-black/35">
               URILGA
@@ -2372,6 +2632,10 @@ function InvitationPreviewPageContent() {
           </div>
 
           <div className="flex items-center gap-2">
+            <div className="hidden rounded-full bg-black/[0.04] px-3 py-2 text-[10px] font-medium text-black/45 sm:block">
+              Төлбөр төлөхөөс өмнөх Preview
+            </div>
+
             <button
               type="button"
               onClick={
@@ -2385,7 +2649,7 @@ function InvitationPreviewPageContent() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-6xl px-5 pt-6">
+      <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-5">
         <WizardStepper
           step={4}
           onStepClick={(target) => {
@@ -2406,315 +2670,821 @@ function InvitationPreviewPageContent() {
 
       {/* CONTENT */}
 
-      <section className="px-4 py-8 sm:px-6 lg:py-12">
-        <div className="mx-auto flex max-w-6xl flex-col items-center gap-8 lg:flex-row lg:items-start lg:justify-center">
-          {/* PHONE */}
+      <section className="px-4 py-8 sm:px-6 lg:py-10">
+        <div className="mx-auto flex max-w-7xl flex-col items-stretch gap-8 lg:flex-row lg:items-start">
+          {/* =================================================
+              PUBLIC INVITATION PREVIEW
+              ================================================= */}
 
-          <div className="w-full max-w-[430px]">
-            <div className="rounded-[42px] border-[8px] border-[#171717] bg-[#171717] p-1.5 shadow-2xl">
-              <div
-                className={`relative overflow-hidden rounded-[32px] ${pageBackground}`}
-              >
-                {backgroundUrl && (
-                  <img
-                    src={backgroundUrl}
-                    alt=""
-                    className="absolute inset-0 h-full w-full object-cover"
-                  />
-                )}
+          <div className="min-w-0 flex-1">
+            <div className="mb-4 text-center lg:text-left">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-black/35">
+                PUBLIC PREVIEW
+              </div>
 
-                <div
-                  className={`absolute inset-0 ${
-                    backgroundUrl
-                      ? "bg-black/25"
-                      : ""
-                  }`}
-                />
+              <h2 className="mt-2 text-xl font-semibold sm:text-2xl">
+                Төлбөр төлсний дараа ингэж харагдана
+              </h2>
 
-                <div
-                  className={`relative z-10 min-h-[820px] ${textColor}`}
-                >
-                  {/* HERO */}
+              <p className="mt-2 text-sm leading-6 text-black/45">
+                Доорх урилга нь нийтлэгдсэн public link-ийн
+                харагдацыг урьдчилж үзүүлж байна.
+              </p>
+            </div>
 
-                  <section className="flex min-h-[470px] flex-col items-center justify-center px-8 text-center">
-                    <div
-                      className="text-[10px] font-semibold uppercase tracking-[0.32em]"
-                      style={{
-                        color:
-                          backgroundUrl
-                            ? "rgba(255,255,255,0.8)"
-                            : accentColor,
-                      }}
-                    >
-                      {draft.title ||
-                        "OUR SPECIAL DAY"}
-                    </div>
+            {/* PUBLIC-LIKE INVITATION */}
 
-                    <h2
-                      className="mt-8 max-w-[340px] font-serif text-4xl leading-tight"
-                      style={{
-                        textShadow:
-                          backgroundUrl
-                            ? "0 2px 8px rgba(0,0,0,0.35)"
-                            : "none",
-                      }}
-                    >
-                      {draft.names ||
-                        "Бат & Номин"}
-                    </h2>
+            <div
+              className={`relative mx-auto w-full max-w-2xl overflow-hidden rounded-[32px] border ${borderColor} ${pageBackground} shadow-2xl`}
+            >
+              {/* FULL-SCREEN-LIKE GALLERY BACKGROUND */}
 
-                    <div
-                      className="mt-7 text-sm"
-                      style={{
-                        color:
-                          backgroundUrl
-                            ? "rgba(255,255,255,0.85)"
-                            : undefined,
-                      }}
-                    >
-                      {draft.date
-                        ? formatDate(
-                            draft.date
-                          )
-                        : "2027 оны 6 сарын 20"}
-                    </div>
-
-                    {draft.time && (
-                      <div className="mt-1 text-sm">
-                        {draft.time}
-                      </div>
-                    )}
-
-                    {draft.venue && (
-                      <div className="mt-6 text-sm font-semibold">
-                        {draft.venue}
-                      </div>
-                    )}
-                  </section>
-
-                  {/* DETAILS */}
-
-                  <section className="px-6 pb-8">
-                    <div
-                      className={`rounded-[28px] p-6 text-center backdrop-blur-md ${
-                        backgroundUrl
-                          ? "bg-white/85 text-[#24211E]"
-                          : "bg-white/60"
-                      }`}
-                    >
-                      <div className="text-[9px] font-semibold uppercase tracking-[0.25em] opacity-45">
-                        Event Details
-                      </div>
-
-                      {draft.date && (
-                        <div className="mt-4 text-sm font-semibold">
-                          📅{" "}
-                          {formatDate(
-                            draft.date
-                          )}
-                        </div>
-                      )}
-
-                      {draft.time && (
-                        <div className="mt-1 text-sm opacity-65">
-                          🕐{" "}
-                          {draft.time}
-                        </div>
-                      )}
-
-                      {draft.venue && (
-                        <div className="mt-4 text-sm font-semibold">
-                          {draft.venue}
-                        </div>
-                      )}
-
-                      {draft.address && (
-                        <div className="mt-1 text-xs opacity-55">
-                          {draft.address}
-                        </div>
-                      )}
-                    </div>
-                  </section>
-
-                  {/* MESSAGE */}
-
-                  {draft.message && (
-                    <section className="px-8 py-8 text-center">
-                      <div
-                        className="mx-auto h-px w-12"
-                        style={{
-                          backgroundColor:
-                            accentColor,
-                        }}
+              {galleryUrls.length > 0 ? (
+                <div className="pointer-events-none absolute inset-0">
+                  {galleryUrls.map(
+                    (
+                      url,
+                      index
+                    ) => (
+                      <img
+                        key={`${url}-${index}`}
+                        src={url}
+                        alt=""
+                        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ${
+                          activeGalleryIndex ===
+                          index
+                            ? "opacity-100"
+                            : "opacity-0"
+                        }`}
                       />
-
-                      <p className="mt-5 text-sm leading-7 opacity-75">
-                        {draft.message}
-                      </p>
-                    </section>
+                    )
                   )}
 
-                  {/* GALLERY */}
+                  <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/10 to-black/30" />
+                </div>
+              ) : null}
 
-                  {galleryUrls.length >
-                    0 && (
-                    <section className="px-6 pb-8">
-                      <div className="mb-4 text-center text-[9px] font-semibold uppercase tracking-[0.25em] opacity-45">
-                        Gallery
-                      </div>
+              {/* CARD */}
 
-                      <div className="grid grid-cols-2 gap-3">
-                        {galleryUrls.map(
-                          (
-                            url,
-                            index
-                          ) => (
-                            <div
-                              key={`${url}-${index}`}
-                              className="aspect-square overflow-hidden rounded-2xl"
-                            >
-                              <img
-                                src={url}
-                                alt=""
-                                className="h-full w-full object-cover"
-                              />
-                            </div>
+              <div
+                className={`relative z-10 min-h-[900px] overflow-hidden rounded-[32px] border ${borderColor} ${cardBackground} shadow-2xl backdrop-blur`}
+              >
+                {/* MUSIC */}
+
+                {musicUrl &&
+                  musicType ===
+                    "custom" && (
+                    <>
+                      <audio
+                        ref={musicRef}
+                        src={musicUrl}
+                        loop
+                        preload="auto"
+                        onPlay={() =>
+                          setMusicPlaying(
+                            true
                           )
+                        }
+                        onPause={() =>
+                          setMusicPlaying(
+                            false
+                          )
+                        }
+                      />
+
+                      <button
+                        type="button"
+                        onClick={
+                          toggleMusic
+                        }
+                        className="absolute right-4 top-4 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-black/70 text-white shadow-lg backdrop-blur"
+                        aria-label="Хөгжим"
+                      >
+                        <span
+                          className={
+                            musicPlaying
+                              ? "animate-pulse"
+                              : ""
+                          }
+                        >
+                          {musicPlaying
+                            ? "♫"
+                            : "♪"}
+                        </span>
+                      </button>
+                    </>
+                  )}
+
+                {/* COVER VIDEO */}
+
+                {coverVideoUrl &&
+                !coverVideoEnded ? (
+                  <section className="relative flex min-h-[900px] items-center justify-center bg-black p-5">
+                    <video
+                      src={coverVideoUrl}
+                      autoPlay
+                      muted
+                      playsInline
+                      onEnded={() =>
+                        setCoverVideoEnded(
+                          true
+                        )
+                      }
+                      onError={() =>
+                        setCoverVideoEnded(
+                          true
+                        )
+                      }
+                      className="max-h-[820px] w-full rounded-[28px] object-contain shadow-2xl"
+                    />
+
+                    <div className="pointer-events-none absolute bottom-10 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-4 py-2 text-xs text-white backdrop-blur">
+                      Урилгын видеог үзэж байна...
+                    </div>
+                  </section>
+                ) : (
+                  <>
+                    {/* =================================================
+                        COVER
+                        ================================================= */}
+
+                    <section
+                      className={`relative flex min-h-[620px] flex-col items-center justify-center overflow-hidden px-8 text-center ${pageBackground}`}
+                    >
+                      {backgroundUrl && (
+                        <>
+                          <img
+                            src={
+                              backgroundUrl
+                            }
+                            alt=""
+                            className="absolute inset-0 h-full w-full object-cover"
+                          />
+
+                          <div className="absolute inset-0 bg-black/25" />
+                        </>
+                      )}
+
+                      <div className="relative z-10">
+                        <div
+                          className="text-[10px] font-semibold uppercase tracking-[0.32em]"
+                          style={{
+                            color:
+                              backgroundUrl
+                                ? "rgba(255,255,255,0.88)"
+                                : accentColor,
+                          }}
+                        >
+                          {draft.title ||
+                            "OUR SPECIAL DAY"}
+                        </div>
+
+                        <h2
+                          className="mt-8 max-w-[560px] font-serif text-4xl leading-tight sm:text-5xl"
+                          style={{
+                            color:
+                              backgroundUrl
+                                ? "#ffffff"
+                                : undefined,
+                            textShadow:
+                              backgroundUrl
+                                ? "0 2px 12px rgba(0,0,0,0.4)"
+                                : "none",
+                          }}
+                        >
+                          {draft.names ||
+                            "Бат & Номин"}
+                        </h2>
+
+                        {draft.date && (
+                          <div
+                            className="mt-8 text-sm"
+                            style={{
+                              color:
+                                backgroundUrl
+                                  ? "rgba(255,255,255,0.9)"
+                                  : undefined,
+                            }}
+                          >
+                            {formatDate(
+                              draft.date
+                            )}
+                          </div>
+                        )}
+
+                        {draft.time && (
+                          <div
+                            className="mt-1 text-sm"
+                            style={{
+                              color:
+                                backgroundUrl
+                                  ? "rgba(255,255,255,0.82)"
+                                  : undefined,
+                            }}
+                          >
+                            {draft.time}
+                          </div>
+                        )}
+
+                        {draft.venue && (
+                          <div
+                            className="mt-7 text-sm font-semibold"
+                            style={{
+                              color:
+                                backgroundUrl
+                                  ? "#ffffff"
+                                  : undefined,
+                            }}
+                          >
+                            {draft.venue}
+                          </div>
+                        )}
+
+                        {galleryUrls.length >
+                          1 && (
+                          <div
+                            className="mt-8 flex items-center justify-center gap-2"
+                            aria-label="Gallery"
+                          >
+                            {galleryUrls.map(
+                              (
+                                _,
+                                index
+                              ) => (
+                                <button
+                                  key={
+                                    index
+                                  }
+                                  type="button"
+                                  onClick={() =>
+                                    setGalleryIndex(
+                                      index
+                                    )
+                                  }
+                                  className={`h-1.5 rounded-full transition-all ${
+                                    activeGalleryIndex ===
+                                    index
+                                      ? "w-6 bg-white"
+                                      : "w-1.5 bg-white/50"
+                                  }`}
+                                  aria-label={`Зураг ${index + 1}`}
+                                />
+                              )
+                            )}
+                          </div>
                         )}
                       </div>
                     </section>
-                  )}
 
-                  {/* MUSIC */}
+                    {/* =================================================
+                        EVENT DETAILS
+                        ================================================= */}
 
-                  {musicType ===
-                    "custom" &&
-                    musicUrl && (
-                      <section className="px-6 pb-8">
-                        <div
-                          className={`rounded-[28px] p-5 ${
-                            backgroundUrl
-                              ? "bg-white/85 text-[#24211E]"
-                              : "bg-white/60"
-                          }`}
-                        >
-                          <div className="text-center">
-                            <div className="text-2xl">
-                              🎵
-                            </div>
-
-                            <div className="mt-2 text-[9px] font-semibold uppercase tracking-[0.25em] opacity-45">
-                              Invitation Music
-                            </div>
-
-                            <div className="mt-2 truncate text-sm font-semibold">
-                              {musicName ||
-                                "Таны сонгосон дуу"}
-                            </div>
-                          </div>
-
-                          <audio
-                            controls
-                            preload="metadata"
-                            src={musicUrl}
-                            className="mt-4 w-full"
-                          />
-                        </div>
-                      </section>
-                    )}
-
-                  {/* LOCATION */}
-
-                  {(draft.venue ||
-                    draft.address) && (
-                    <section className="px-6 pb-8">
+                    <section className="px-5 py-6 sm:px-7">
                       <div
-                        className={`rounded-[28px] p-6 text-center ${
-                          backgroundUrl
-                            ? "bg-white/85 text-[#24211E]"
-                            : "bg-black/[0.04]"
-                        }`}
+                        className="rounded-[28px] p-6 text-center"
+                        style={{
+                          backgroundColor:
+                            accentSoft,
+                        }}
                       >
-                        <div className="text-2xl">
-                          📍
+                        <div
+                          className="text-[9px] font-semibold uppercase tracking-[0.25em]"
+                          style={{
+                            color:
+                              accentColor,
+                          }}
+                        >
+                          Тусгай өдөр
                         </div>
 
-                        <div className="mt-3 text-sm font-semibold">
-                          {draft.venue ||
-                            "Байршил"}
-                        </div>
+                        {draft.date && (
+                          <div className="mt-5 text-base font-semibold">
+                            📅{" "}
+                            {formatDate(
+                              draft.date
+                            )}
+                          </div>
+                        )}
+
+                        {draft.time && (
+                          <div className="mt-2 text-sm opacity-65">
+                            🕐{" "}
+                            {draft.time}
+                          </div>
+                        )}
+
+                        {draft.venue && (
+                          <div className="mt-5 text-sm font-semibold">
+                            {draft.venue}
+                          </div>
+                        )}
 
                         {draft.address && (
                           <div className="mt-1 text-xs opacity-55">
                             {draft.address}
                           </div>
                         )}
+                      </div>
+                    </section>
 
-                        <button
-                          type="button"
-                          className="mt-4 rounded-full px-5 py-2.5 text-xs font-semibold text-white"
+                    {/* =================================================
+                        CALENDAR
+                        ================================================= */}
+
+                    {draft.date && (
+                      <section className="px-5 pb-7 sm:px-7">
+                        <div
+                          className={`rounded-[28px] border ${borderColor} ${cardBackground} p-6 text-center`}
+                        >
+                          <div
+                            className="text-[9px] font-semibold uppercase tracking-[0.25em]"
+                            style={{
+                              color:
+                                accentColor,
+                            }}
+                          >
+                            Огноо хадгалах
+                          </div>
+
+                          <div className="mt-4 text-xl font-semibold">
+                            {formatDate(
+                              draft.date
+                            )}
+                          </div>
+
+                          {draft.time && (
+                            <div className="mt-2 text-sm opacity-60">
+                              {draft.time}
+                            </div>
+                          )}
+
+                          <button
+                            type="button"
+                            className="mt-5 rounded-full px-5 py-2.5 text-xs font-semibold text-white"
+                            style={{
+                              backgroundColor:
+                                buttonBackground,
+                            }}
+                          >
+                            📅 Calendar-д нэмэх
+                          </button>
+                        </div>
+                      </section>
+                    )}
+
+                    {/* =================================================
+                        MESSAGE
+                        ================================================= */}
+
+                    {draft.message && (
+                      <section className="px-7 py-9 text-center sm:px-10">
+                        <div
+                          className="mx-auto h-px w-12"
                           style={{
                             backgroundColor:
                               accentColor,
                           }}
+                        />
+
+                        <div
+                          className="mt-5 text-[9px] font-semibold uppercase tracking-[0.25em]"
+                          style={{
+                            color:
+                              accentColor,
+                          }}
                         >
-                          Газрын зураг
-                        </button>
-                      </div>
-                    </section>
-                  )}
+                          Урилга
+                        </div>
 
-                  {/* RSVP */}
+                        <p className="mx-auto mt-5 max-w-lg whitespace-pre-line text-sm leading-8 opacity-75">
+                          {draft.message}
+                        </p>
+                      </section>
+                    )}
 
-                  {draft.phone && (
-                    <section className="px-6 pb-10">
+                    {/* =================================================
+                        GALLERY
+                        ================================================= */}
+
+                    {galleryUrls.length >
+                      0 && (
+                      <section className="px-5 pb-8 sm:px-7">
+                        <div className="mb-5 text-center">
+                          <div
+                            className="text-[9px] font-semibold uppercase tracking-[0.25em]"
+                            style={{
+                              color:
+                                accentColor,
+                            }}
+                          >
+                            Дурсамж
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          {galleryUrls.map(
+                            (
+                              url,
+                              index
+                            ) => (
+                              <button
+                                type="button"
+                                key={`${url}-${index}`}
+                                onClick={() =>
+                                  setGalleryIndex(
+                                    index
+                                  )
+                                }
+                                className="group aspect-square overflow-hidden rounded-2xl"
+                              >
+                                <img
+                                  src={url}
+                                  alt=""
+                                  className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                                />
+                              </button>
+                            )
+                          )}
+                        </div>
+                      </section>
+                    )}
+
+                    {/* =================================================
+                        MUSIC
+                        ================================================= */}
+
+                    {musicUrl &&
+                      musicType ===
+                        "custom" && (
+                        <section className="px-5 pb-8 sm:px-7">
+                          <div
+                            className={`rounded-[28px] border ${borderColor} p-6 text-center`}
+                          >
+                            <div className="text-2xl">
+                              🎵
+                            </div>
+
+                            <div
+                              className="mt-3 text-[9px] font-semibold uppercase tracking-[0.25em]"
+                              style={{
+                                color:
+                                  accentColor,
+                              }}
+                            >
+                              Урилгын хөгжим
+                            </div>
+
+                            <div className="mt-2 truncate text-sm font-semibold">
+                              {musicName ||
+                                "Таны сонгосон дуу"}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={
+                                toggleMusic
+                              }
+                              className="mt-5 rounded-full px-5 py-2.5 text-xs font-semibold text-white"
+                              style={{
+                                backgroundColor:
+                                  buttonBackground,
+                              }}
+                            >
+                              {musicPlaying
+                                ? "⏸ Хөгжим зогсоох"
+                                : "▶ Хөгжим сонсох"}
+                            </button>
+                          </div>
+                        </section>
+                      )}
+
+                    {/* =================================================
+                        LOCATION
+                        ================================================= */}
+
+                    {(draft.venue ||
+                      draft.address ||
+                      hasMap ||
+                      mapUrl) && (
+                      <section className="px-5 pb-8 sm:px-7">
+                        <div
+                          className={`overflow-hidden rounded-[28px] border ${borderColor}`}
+                        >
+                          <div
+                            className="p-6 text-center"
+                            style={{
+                              backgroundColor:
+                                accentSoft,
+                            }}
+                          >
+                            <div
+                              className="text-[9px] font-semibold uppercase tracking-[0.25em]"
+                              style={{
+                                color:
+                                  accentColor,
+                              }}
+                            >
+                              Байршил
+                            </div>
+
+                            <div className="mt-4 text-base font-semibold">
+                              {draft.venue ||
+                                "Байршил"}
+                            </div>
+
+                            {draft.address && (
+                              <div className="mt-1 text-xs opacity-55">
+                                {draft.address}
+                              </div>
+                            )}
+                          </div>
+
+                          {hasMap &&
+                            mapLatitude !==
+                              null &&
+                            mapLongitude !==
+                              null && (
+                              <div className="aspect-[16/10] overflow-hidden bg-black/5">
+                                <iframe
+                                  title="Урилгын байршил"
+                                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${mapLongitude - 0.01}%2C${mapLatitude - 0.01}%2C${mapLongitude + 0.01}%2C${mapLatitude + 0.01}&layer=mapnik&marker=${mapLatitude}%2C${mapLongitude}`}
+                                  className="h-full w-full border-0"
+                                  loading="lazy"
+                                />
+                              </div>
+                            )}
+
+                          <div className="flex flex-wrap justify-center gap-2 p-5">
+                            {hasMap &&
+                              mapLatitude !==
+                                null &&
+                              mapLongitude !==
+                                null && (
+                                <a
+                                  href={`https://www.google.com/maps/dir/?api=1&destination=${mapLatitude},${mapLongitude}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="rounded-full px-5 py-2.5 text-xs font-semibold text-white"
+                                  style={{
+                                    backgroundColor:
+                                      buttonBackground,
+                                  }}
+                                >
+                                  📍 Чиглэл харах
+                                </a>
+                              )}
+
+                            {mapUrl && (
+                              <a
+                                href={
+                                  mapUrl
+                                }
+                                target="_blank"
+                                rel="noreferrer"
+                                className={`rounded-full border ${borderColor} px-5 py-2.5 text-xs font-semibold`}
+                              >
+                                🗺️ Газрын зураг
+                              </a>
+                            )}
+
+                            {!hasMap &&
+                              !mapUrl &&
+                              draft.address && (
+                                <button
+                                  type="button"
+                                  className="rounded-full px-5 py-2.5 text-xs font-semibold text-white"
+                                  style={{
+                                    backgroundColor:
+                                      buttonBackground,
+                                  }}
+                                >
+                                  📍 Байршил
+                                </button>
+                              )}
+                          </div>
+                        </div>
+                      </section>
+                    )}
+
+                    {/* =================================================
+                        RSVP
+                        ================================================= */}
+
+                    {rsvpEnabled && (
+                      <section className="px-5 pb-10 sm:px-7">
+                        <div
+                          className={`rounded-[28px] border ${borderColor} p-6`}
+                        >
+                          <div className="text-center">
+                            <div
+                              className="text-[9px] font-semibold uppercase tracking-[0.25em]"
+                              style={{
+                                color:
+                                  accentColor,
+                              }}
+                            >
+                              Оролцох эсэх
+                            </div>
+
+                            <h3 className="mt-3 text-xl font-semibold">
+                              Таны хариуг хүлээж байна
+                            </h3>
+
+                            {rsvpDeadlineFormatted && (
+                              <p className="mt-2 text-xs opacity-55">
+                                Хариу өгөх эцсийн
+                                хугацаа:{" "}
+                                {
+                                  rsvpDeadlineFormatted
+                                }
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="mt-6 space-y-3">
+                            <div>
+                              <div className="mb-1 text-[10px] font-medium opacity-50">
+                                Нэр
+                              </div>
+
+                              <div className="rounded-2xl border border-black/10 px-4 py-3 text-sm text-black/35">
+                                Таны нэр
+                              </div>
+                            </div>
+
+                            <div>
+                              <div className="mb-1 text-[10px] font-medium opacity-50">
+                                Утас
+                              </div>
+
+                              <div className="rounded-2xl border border-black/10 px-4 py-3 text-sm text-black/35">
+                                99112233
+                              </div>
+                            </div>
+
+                            <div>
+                              <div className="mb-2 text-[10px] font-medium opacity-50">
+                                Та оролцох уу?
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  className="rounded-2xl px-4 py-3 text-xs font-semibold text-white"
+                                  style={{
+                                    backgroundColor:
+                                      buttonBackground,
+                                  }}
+                                >
+                                  ✓ Тийм
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className={`rounded-2xl border ${borderColor} px-4 py-3 text-xs font-semibold`}
+                                >
+                                  Үгүй
+                                </button>
+                              </div>
+                            </div>
+
+                            {rsvpSettings?.askGuests && (
+                              <div>
+                                <div className="mb-1 text-[10px] font-medium opacity-50">
+                                  Хэдэн хүнтэй ирэх вэ?
+                                </div>
+
+                                <div className="rounded-2xl border border-black/10 px-4 py-3 text-sm text-black/35">
+                                  1 хүн
+                                </div>
+                              </div>
+                            )}
+
+                            <div>
+                              <div className="mb-1 text-[10px] font-medium opacity-50">
+                                Мессеж
+                              </div>
+
+                              <div className="min-h-20 rounded-2xl border border-black/10 px-4 py-3 text-sm text-black/30">
+                                Баярын мэндчилгээ...
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              className="w-full rounded-2xl px-4 py-3.5 text-sm font-semibold text-white"
+                              style={{
+                                backgroundColor:
+                                  buttonBackground,
+                              }}
+                            >
+                              Хариу илгээх
+                            </button>
+                          </div>
+
+                          <div className="mt-5 text-center text-[10px] opacity-35">
+                            Энэ бол зөвхөн Preview.
+                            Энд оруулсан мэдээлэл
+                            хадгалагдахгүй.
+                          </div>
+                        </div>
+                      </section>
+                    )}
+
+                    {/* =================================================
+                        PHONE CONTACT FALLBACK
+                        ================================================= */}
+
+                    {!rsvpEnabled &&
+                      draft.phone && (
+                        <section className="px-5 pb-10 sm:px-7">
+                          <div
+                            className={`rounded-[28px] border ${borderColor} p-6 text-center`}
+                          >
+                            <div
+                              className="text-[9px] font-semibold uppercase tracking-[0.25em]"
+                              style={{
+                                color:
+                                  accentColor,
+                              }}
+                            >
+                              Холбоо барих
+                            </div>
+
+                            <div className="mt-3 text-lg font-semibold">
+                              {draft.phone}
+                            </div>
+
+                            <a
+                              href={`tel:${draft.phone}`}
+                              className="mt-4 inline-flex rounded-full px-5 py-2.5 text-xs font-semibold text-white"
+                              style={{
+                                backgroundColor:
+                                  buttonBackground,
+                              }}
+                            >
+                              📞 Залгах
+                            </a>
+                          </div>
+                        </section>
+                      )}
+
+                    {/* =================================================
+                        FOOTER
+                        ================================================= */}
+
+                    <footer className="px-7 pb-10 text-center">
                       <div
-                        className={`rounded-[28px] p-6 text-center ${
-                          backgroundUrl
-                            ? "bg-white/85 text-[#24211E]"
-                            : "bg-white/60"
-                        }`}
+                        className="mx-auto mb-5 h-px w-12"
+                        style={{
+                          backgroundColor:
+                            accentColor,
+                        }}
+                      />
+
+                      <div
+                        className="text-[9px] font-semibold uppercase tracking-[0.3em]"
+                        style={{
+                          color:
+                            accentColor,
+                        }}
                       >
-                        <div className="text-[9px] font-semibold uppercase tracking-[0.25em] opacity-45">
-                          RSVP
-                        </div>
-
-                        <div className="mt-3 text-sm opacity-60">
-                          Холбоо барих
-                        </div>
-
-                        <div className="mt-2 text-lg font-semibold">
-                          {draft.phone}
-                        </div>
+                        Танд зориулсан
                       </div>
-                    </section>
-                  )}
 
-                  {/* BOTTOM */}
+                      <div className="mt-2 font-serif text-xl">
+                        Онцгой урилга
+                      </div>
 
-                  <div className="pb-8 text-center">
-                    <div
-                      className="text-[9px] font-semibold uppercase tracking-[0.3em]"
-                      style={{
-                        color:
-                          accentColor,
-                      }}
-                    >
-                      With Love
-                    </div>
-                  </div>
-                </div>
+                      <div className="mt-6 text-[10px] opacity-35">
+                        Урилгын линкийг хуваалцаарай
+                      </div>
+                    </footer>
+                  </>
+                )}
               </div>
             </div>
 
-            <p className="mt-4 text-center text-[10px] text-black/30">
-              Гар утасны урилгын харагдац
-            </p>
+            <div className="mt-4 rounded-2xl bg-white px-5 py-4 text-center shadow-sm">
+              <p className="text-xs font-medium text-black/55">
+                ✓ Энэ харагдац нь төлбөр төлсний дараах
+                public invitation-ийн preview
+              </p>
+
+              <p className="mt-1 text-[10px] leading-5 text-black/35">
+                Төлбөр төлөхөөсөө өмнө бүх мэдээлэл,
+                зураг, хөгжим, байршил, RSVP хэсгийг
+                шалгаарай.
+              </p>
+            </div>
           </div>
 
-          {/* SIDE PANEL */}
+          {/* =================================================
+              SIDE PANEL
+              ================================================= */}
 
-          <div className="w-full max-w-md lg:pt-8">
+          <div className="w-full shrink-0 lg:w-[380px] lg:pt-8">
             <div className="rounded-[28px] bg-white p-6 shadow-sm">
               <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-black/35">
                 Invitation Preview
@@ -2835,6 +3605,64 @@ function InvitationPreviewPageContent() {
                 </div>
               </div>
 
+              {/* EXTRA STATUS */}
+
+              <div className="mt-3 rounded-2xl border border-black/10 p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-black/45">
+                    Map
+                  </span>
+
+                  <span
+                    className={`text-xs font-semibold ${
+                      hasMap || mapUrl
+                        ? "text-green-700"
+                        : "text-black/30"
+                    }`}
+                  >
+                    {hasMap || mapUrl
+                      ? "✓ Added"
+                      : "None"}
+                  </span>
+                </div>
+
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-xs text-black/45">
+                    RSVP
+                  </span>
+
+                  <span
+                    className={`text-xs font-semibold ${
+                      rsvpEnabled
+                        ? "text-green-700"
+                        : "text-black/30"
+                    }`}
+                  >
+                    {rsvpEnabled
+                      ? "✓ Enabled"
+                      : "None"}
+                  </span>
+                </div>
+
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-xs text-black/45">
+                    Cover video
+                  </span>
+
+                  <span
+                    className={`text-xs font-semibold ${
+                      coverVideoUrl
+                        ? "text-green-700"
+                        : "text-black/30"
+                    }`}
+                  >
+                    {coverVideoUrl
+                      ? "✓ Added"
+                      : "None"}
+                  </span>
+                </div>
+              </div>
+
               {/* MUSIC STATUS */}
 
               <div className="mt-3 rounded-2xl border border-black/10 p-4">
@@ -2937,7 +3765,9 @@ function InvitationPreviewPageContent() {
         </div>
       </section>
 
-      {/* PAYMENT MODAL */}
+      {/* =====================================================
+          PAYMENT MODAL
+          ===================================================== */}
 
       {showPaymentModal && (
         <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 p-3 backdrop-blur-sm sm:items-center sm:p-6">
