@@ -238,19 +238,19 @@ export default function Home() {
       ========================================================= */}
       <section className="relative overflow-hidden border-b border-black/[0.06]">
         {/* Decorative lights */}
-        <div className="pointer-events-none absolute -left-32 top-20 h-80 w-80 rounded-full bg-[#D6C1A5]/30 blur-[100px]" />
-        <div className="pointer-events-none absolute right-[-100px] top-[-100px] h-[500px] w-[500px] rounded-full bg-[#E1D4C2]/60 blur-[120px]" />
+        <div className="pointer-events-none absolute -left-32 top-10 h-72 w-72 rounded-full bg-[#D6C1A5]/30 blur-[100px]" />
+        <div className="pointer-events-none absolute right-[-100px] top-[-100px] h-[450px] w-[450px] rounded-full bg-[#E1D4C2]/60 blur-[120px]" />
 
-        <div className="relative mx-auto grid max-w-[1440px] items-center gap-16 px-5 py-20 sm:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:px-12 lg:py-28 xl:py-32">
+        <div className="relative mx-auto grid max-w-[1440px] items-center gap-10 px-5 py-12 sm:px-8 sm:py-16 lg:grid-cols-[1.05fr_0.95fr] lg:gap-10 lg:px-12 lg:py-12 xl:py-14">
 
           {/* LEFT */}
           <div className="relative z-10 max-w-3xl">
-            <div className="mb-8 inline-flex items-center gap-3 rounded-full border border-black/10 bg-white/60 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-black/45 shadow-sm backdrop-blur-sm">
+            <div className="mb-5 inline-flex items-center gap-3 rounded-full border border-black/10 bg-white/60 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-black/45 shadow-sm backdrop-blur-sm">
               <span className="h-1.5 w-1.5 rounded-full bg-[#B99163] shadow-[0_0_12px_rgba(185,145,99,0.6)]" />
               AI-powered digital invitations
             </div>
 
-            <h1 className="max-w-4xl font-serif text-[4rem] font-normal leading-[0.91] tracking-[-0.045em] sm:text-[5.3rem] lg:text-[6.3rem] xl:text-[7rem]">
+            <h1 className="max-w-4xl font-serif text-[3.5rem] font-normal leading-[0.91] tracking-[-0.045em] sm:text-[4.5rem] lg:text-[4.8rem] xl:text-[5.4rem]">
               {isMN ? (
                 <>
                   Таны онцгой
@@ -276,16 +276,16 @@ export default function Home() {
               )}
             </h1>
 
-            <p className="mt-8 max-w-xl text-[15px] leading-7 text-black/50 sm:text-base">
+            <p className="mt-5 max-w-xl text-[14px] leading-6 text-black/50 sm:text-[15px]">
               {isMN
                 ? "Хурим, төрсөн өдөр, сэвлэг үргээх, төгсөлт болон бусад онцгой мөчдөө зориулан AI ашиглан өөрийн дижитал урилгаа бүтээгээрэй."
                 : "Create beautiful digital invitations for weddings, birthdays, baby ceremonies, graduations and every special moment with AI."}
             </p>
 
-            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <button
                 onClick={goToCreate}
-                className="group rounded-full bg-[#171513] px-7 py-4 text-sm font-semibold text-white shadow-xl shadow-black/10 transition duration-300 hover:-translate-y-1 hover:bg-black hover:shadow-2xl"
+                className="group rounded-full bg-[#171513] px-6 py-3.5 text-sm font-semibold text-white shadow-xl shadow-black/10 transition duration-300 hover:-translate-y-1 hover:bg-black hover:shadow-2xl"
               >
                 {isMN ? "Урилга үүсгэх" : "Create invitation"}
                 <span className="ml-3 inline-block transition-transform duration-300 group-hover:translate-x-1">
@@ -295,13 +295,13 @@ export default function Home() {
 
               <a
                 href="#events"
-                className="rounded-full border border-black/10 bg-white/60 px-7 py-4 text-center text-sm font-semibold shadow-sm backdrop-blur-sm transition duration-300 hover:-translate-y-1 hover:bg-white"
+                className="rounded-full border border-black/10 bg-white/60 px-6 py-3.5 text-center text-sm font-semibold shadow-sm backdrop-blur-sm transition duration-300 hover:-translate-y-1 hover:bg-white"
               >
                 {isMN ? "Загварууд үзэх" : "Explore templates"}
               </a>
             </div>
 
-            <div className="mt-10 flex flex-wrap items-center gap-x-7 gap-y-3 text-[10px] font-medium uppercase tracking-[0.16em] text-black/35">
+            <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-[9px] font-medium uppercase tracking-[0.16em] text-black/35">
               <span>✦ AI Designer</span>
               <span>✦ Live Preview</span>
               <span>✦ QR Share</span>
@@ -309,52 +309,52 @@ export default function Home() {
           </div>
 
           {/* HERO INVITATION */}
-          <div className="relative mx-auto w-full max-w-[500px] lg:ml-auto">
+          <div className="relative mx-auto w-full max-w-[430px] lg:ml-auto">
             <div className="pointer-events-none absolute -right-16 top-10 h-56 w-56 rounded-full bg-[#C8AD8D]/30 blur-[80px]" />
             <div className="pointer-events-none absolute -bottom-16 -left-16 h-56 w-56 rounded-full bg-[#B9C4B5]/30 blur-[80px]" />
 
             <div className="relative rotate-[2deg] transition duration-700 hover:rotate-0">
 
               {/* Back card */}
-              <div className="absolute -right-4 top-8 h-full w-full rotate-[5deg] rounded-[38px] border border-black/5 bg-[#E5DDD2] shadow-xl" />
+              <div className="absolute -right-4 top-8 h-full w-full rotate-[5deg] rounded-[34px] border border-black/5 bg-[#E5DDD2] shadow-xl" />
 
               {/* Main card */}
-              <div className="relative rounded-[38px] border border-white/70 bg-white/80 p-3 shadow-[0_35px_90px_rgba(50,40,30,0.16)] backdrop-blur-sm">
-                <div className="overflow-hidden rounded-[30px] bg-[#E9E0D4]">
-                  <div className="relative flex min-h-[590px] flex-col items-center justify-between overflow-hidden px-8 py-12 text-center">
+              <div className="relative rounded-[34px] border border-white/70 bg-white/80 p-3 shadow-[0_30px_75px_rgba(50,40,30,0.16)] backdrop-blur-sm">
+                <div className="overflow-hidden rounded-[27px] bg-[#E9E0D4]">
+                  <div className="relative flex min-h-[500px] flex-col items-center justify-between overflow-hidden px-7 py-9 text-center">
 
                     <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.8),transparent_40%)]" />
 
                     <div className="relative">
-                      <div className="text-[9px] font-medium uppercase tracking-[0.45em] text-black/40">
+                      <div className="text-[8px] font-medium uppercase tracking-[0.45em] text-black/40">
                         OUR WEDDING
                       </div>
 
-                      <div className="mx-auto mt-4 h-px w-12 bg-black/15" />
+                      <div className="mx-auto mt-3 h-px w-10 bg-black/15" />
                     </div>
 
                     <div className="relative">
-                      <div className="font-serif text-[3.7rem] font-normal italic leading-none tracking-[-0.04em] text-black/80">
+                      <div className="font-serif text-[3rem] font-normal italic leading-none tracking-[-0.04em] text-black/80">
                         Bat & Nomin
                       </div>
 
-                      <div className="mt-6 text-[10px] font-medium tracking-[0.35em] text-black/40">
+                      <div className="mt-5 text-[9px] font-medium tracking-[0.35em] text-black/40">
                         JUNE 20 · 2027
                       </div>
                     </div>
 
-                    <div className="relative flex h-44 w-44 items-center justify-center rounded-full border-[10px] border-white/70 bg-[#D5C1AA] shadow-xl">
-                      <div className="text-5xl drop-shadow-sm">
+                    <div className="relative flex h-36 w-36 items-center justify-center rounded-full border-[9px] border-white/70 bg-[#D5C1AA] shadow-xl">
+                      <div className="text-4xl drop-shadow-sm">
                         💍
                       </div>
                     </div>
 
                     <div className="relative">
-                      <div className="text-[11px] font-medium tracking-wide">
+                      <div className="text-[10px] font-medium tracking-wide">
                         Уригч Бат & Номин
                       </div>
 
-                      <div className="mt-2 text-[9px] uppercase tracking-[0.2em] text-black/40">
+                      <div className="mt-2 text-[8px] uppercase tracking-[0.2em] text-black/40">
                         Ulaanbaatar · Mongolia
                       </div>
                     </div>
@@ -363,12 +363,12 @@ export default function Home() {
               </div>
 
               {/* Floating label */}
-              <div className="absolute -bottom-5 -left-6 rounded-2xl border border-black/10 bg-white/90 px-5 py-4 shadow-[0_18px_40px_rgba(0,0,0,0.12)] backdrop-blur-md">
-                <div className="text-[8px] font-medium uppercase tracking-[0.2em] text-black/35">
+              <div className="absolute -bottom-4 -left-5 rounded-2xl border border-black/10 bg-white/90 px-4 py-3 shadow-[0_15px_35px_rgba(0,0,0,0.12)] backdrop-blur-md">
+                <div className="text-[7px] font-medium uppercase tracking-[0.2em] text-black/35">
                   Crafted with
                 </div>
 
-                <div className="mt-1 text-xs font-semibold tracking-[0.22em]">
+                <div className="mt-1 text-[11px] font-semibold tracking-[0.22em]">
                   URILGA
                 </div>
               </div>
@@ -377,8 +377,8 @@ export default function Home() {
         </div>
 
         {/* bottom scroll hint */}
-        <div className="hidden pb-8 text-center lg:block">
-          <span className="text-[9px] font-medium uppercase tracking-[0.35em] text-black/25">
+        <div className="hidden pb-4 text-center lg:block">
+          <span className="text-[8px] font-medium uppercase tracking-[0.35em] text-black/20">
             Scroll to discover
           </span>
         </div>
