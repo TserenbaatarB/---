@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
+import * as QRCode from "qrcode";
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -855,7 +856,11 @@ function InvitationPreviewPageContent() {
     setPublishedSlug,
   ] =
     useState("");
-
+const [
+  qrCodeUrl,
+  setQrCodeUrl,
+] =
+  useState<string | null>(null);
   /*
    * PAYMENT STATE
    */
@@ -1961,6 +1966,9 @@ function InvitationPreviewPageContent() {
       setPublishMessage(
         "Төлбөр амжилттай баталгаажлаа. Урилга нийтлэгдлээ ✓"
       );
+      void generatePublicQrCode(
+  finalSlug
+);
 
       /*
        * LOCAL DRAFT
@@ -2343,7 +2351,7 @@ function InvitationPreviewPageContent() {
       setPublishMessage(
         "Урилга амжилттай нийтлэгдлээ ✓"
       );
-
+      void generatePublicQrCode(publicSlug);
       setShowPaymentModal(
         false
       );
@@ -2396,7 +2404,39 @@ function InvitationPreviewPageContent() {
         );
       });
   }
+async function generatePublicQrCode(
+  slug: string
+) {
+  if (!slug) {
+    return;
+  }
 
+  try {
+    const publicUrl =
+      `${window.location.origin}/u/${slug}`;
+
+    const qrDataUrl =
+      await QRCode.toDataURL(
+        publicUrl,
+        {
+          width: 320,
+          margin: 2,
+          errorCorrectionLevel: "H",
+        }
+      );
+
+    setQrCodeUrl(
+      qrDataUrl
+    );
+  } catch (error) {
+    console.error(
+      "QR CODE ERROR:",
+      error
+    );
+
+    setQrCodeUrl(null);
+  }
+}
   function openPublicLink() {
     if (!publishedSlug) {
       return;
@@ -2948,6 +2988,47 @@ function InvitationPreviewPageContent() {
                   </button>
                 </>
               )}
+              {qrCodeUrl && (
+  <div className="mt-5 rounded-3xl border border-black/10 bg-white p-5 text-center">
+    <p className="text-sm font-bold text-black/80">
+      📱 QR кодоор хуваалцах
+    </p>
+
+    <p className="mt-1 text-xs text-black/45">
+      QR кодыг уншуулаад урилгаа шууд нээнэ.
+    </p>
+
+    <div className="mt-4 flex justify-center">
+      <img
+        src={qrCodeUrl}
+        alt="Урилгын QR код"
+        className="h-56 w-56 rounded-2xl"
+      />
+      <button
+  type="button"
+  onClick={() => {
+    if (!qrCodeUrl) {
+      return;
+    }
+
+    const link =
+      document.createElement("a");
+
+    link.href = qrCodeUrl;
+    link.download =
+      "urilga-qr-code.png";
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }}
+  className="mt-4 w-full rounded-2xl bg-black px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-black/80"
+>
+  ⬇️ QR код татах
+</button>
+    </div>
+  </div>
+)}
 
               <p className="mt-4 text-center text-[10px] leading-5 text-black/30">
                 Нэг урилга нийтлэх үнэ ·
