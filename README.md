@@ -16,6 +16,18 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Gemini AI Designer
+
+The invitation builder uses Gemini 3.8 Flash to select a design style. Add a
+Google Gemini API key to `.env.local` in the project root:
+
+```env
+GEMINI_API_KEY=your_gemini_api_key
+```
+
+Keep this key server-side; do not prefix it with `NEXT_PUBLIC_`. Set the same
+environment variable in your deployment environment.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
