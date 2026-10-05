@@ -92,18 +92,14 @@ export default function Home() {
 
     if (!rating) {
       setFeedbackError(
-        isMN
-          ? "Үнэлгээгээ сонгоно уу."
-          : "Please select a rating."
+        isMN ? "Үнэлгээгээ сонгоно уу." : "Please select a rating."
       );
       return;
     }
 
     if (!message) {
       setFeedbackError(
-        isMN
-          ? "Санал хүсэлтээ бичнэ үү."
-          : "Please write your feedback."
+        isMN ? "Санал хүсэлтээ бичнэ үү." : "Please write your feedback."
       );
       return;
     }
@@ -111,12 +107,10 @@ export default function Home() {
     setSendingFeedback(true);
     setFeedbackError("");
 
-    const { error } = await supabase
-      .from("feedback")
-      .insert({
-        rating,
-        message,
-      });
+    const { error } = await supabase.from("feedback").insert({
+      rating,
+      message,
+    });
 
     setSendingFeedback(false);
 
@@ -145,9 +139,7 @@ export default function Home() {
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#F5F1EA] text-[#171513] selection:bg-[#C7A47A]/20">
 
-      {/* =========================================================
-          NAVBAR
-      ========================================================= */}
+      {/* NAVBAR */}
       <nav className="sticky top-0 z-50 border-b border-[#171513]/[0.07] bg-[#F5F1EA]/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1440px] items-center justify-between px-5 py-4 sm:px-8 lg:px-12">
           <BrandLogo />
@@ -176,7 +168,6 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* LANGUAGE */}
             <div className="hidden rounded-full border border-black/10 bg-white/60 p-1 shadow-sm sm:flex">
               <button
                 onClick={() => setLanguage("mn")}
@@ -233,31 +224,27 @@ export default function Home() {
         </div>
       </nav>
 
-      {/* =========================================================
-          HERO
-      ========================================================= */}
+      {/* HERO */}
       <section className="relative overflow-hidden border-b border-black/[0.06]">
-        {/* Decorative lights */}
-        <div className="pointer-events-none absolute -left-32 top-10 h-72 w-72 rounded-full bg-[#D6C1A5]/30 blur-[100px]" />
-        <div className="pointer-events-none absolute right-[-100px] top-[-100px] h-[450px] w-[450px] rounded-full bg-[#E1D4C2]/60 blur-[120px]" />
+        <div className="pointer-events-none absolute -left-32 top-0 h-64 w-64 rounded-full bg-[#D6C1A5]/30 blur-[90px]" />
+        <div className="pointer-events-none absolute right-[-100px] top-[-100px] h-[400px] w-[400px] rounded-full bg-[#E1D4C2]/60 blur-[110px]" />
 
-        <div className="relative mx-auto grid max-w-[1440px] items-center gap-10 px-5 py-12 sm:px-8 sm:py-16 lg:grid-cols-[1.05fr_0.95fr] lg:gap-10 lg:px-12 lg:py-12 xl:py-14">
+        <div className="relative mx-auto grid max-w-[1440px] items-center gap-12 px-5 py-12 sm:px-8 sm:py-14 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14 lg:px-12 lg:py-14 xl:py-16">
 
           {/* LEFT */}
-          <div className="relative z-10 max-w-3xl">
-            <div className="mb-5 inline-flex items-center gap-3 rounded-full border border-black/10 bg-white/60 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-black/45 shadow-sm backdrop-blur-sm">
+          <div className="relative z-10 flex flex-col justify-center lg:pr-4">
+
+            <div className="mb-5 inline-flex w-fit items-center gap-3 rounded-full border border-black/10 bg-white/60 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-black/45 shadow-sm backdrop-blur-sm">
               <span className="h-1.5 w-1.5 rounded-full bg-[#B99163] shadow-[0_0_12px_rgba(185,145,99,0.6)]" />
               AI-powered digital invitations
             </div>
 
-            <h1 className="max-w-4xl font-serif text-[3.5rem] font-normal leading-[0.91] tracking-[-0.045em] sm:text-[4.5rem] lg:text-[4.8rem] xl:text-[5.4rem]">
+            <h1 className="max-w-4xl font-serif text-[3.9rem] font-normal leading-[0.9] tracking-[-0.045em] sm:text-[4.8rem] lg:text-[5.25rem] xl:text-[5.65rem]">
               {isMN ? (
                 <>
                   Таны онцгой
                   <br />
-                  <span className="italic text-[#A27A4F]">
-                    мөч,
-                  </span>{" "}
+                  <span className="italic text-[#A27A4F]">мөч,</span>{" "}
                   таны
                   <br />
                   урилга.
@@ -266,9 +253,7 @@ export default function Home() {
                 <>
                   Your special
                   <br />
-                  <span className="italic text-[#A27A4F]">
-                    moment,
-                  </span>{" "}
+                  <span className="italic text-[#A27A4F]">moment,</span>{" "}
                   your
                   <br />
                   invitation.
@@ -276,16 +261,16 @@ export default function Home() {
               )}
             </h1>
 
-            <p className="mt-5 max-w-xl text-[14px] leading-6 text-black/50 sm:text-[15px]">
+            <p className="mt-6 max-w-2xl text-[15px] leading-7 text-black/50 sm:text-base">
               {isMN
                 ? "Хурим, төрсөн өдөр, сэвлэг үргээх, төгсөлт болон бусад онцгой мөчдөө зориулан AI ашиглан өөрийн дижитал урилгаа бүтээгээрэй."
                 : "Create beautiful digital invitations for weddings, birthdays, baby ceremonies, graduations and every special moment with AI."}
             </p>
 
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <button
                 onClick={goToCreate}
-                className="group rounded-full bg-[#171513] px-6 py-3.5 text-sm font-semibold text-white shadow-xl shadow-black/10 transition duration-300 hover:-translate-y-1 hover:bg-black hover:shadow-2xl"
+                className="group rounded-full bg-[#171513] px-8 py-4 text-sm font-semibold text-white shadow-xl shadow-black/10 transition duration-300 hover:-translate-y-1 hover:bg-black hover:shadow-2xl"
               >
                 {isMN ? "Урилга үүсгэх" : "Create invitation"}
                 <span className="ml-3 inline-block transition-transform duration-300 group-hover:translate-x-1">
@@ -295,13 +280,13 @@ export default function Home() {
 
               <a
                 href="#events"
-                className="rounded-full border border-black/10 bg-white/60 px-6 py-3.5 text-center text-sm font-semibold shadow-sm backdrop-blur-sm transition duration-300 hover:-translate-y-1 hover:bg-white"
+                className="rounded-full border border-black/10 bg-white/60 px-8 py-4 text-center text-sm font-semibold shadow-sm backdrop-blur-sm transition duration-300 hover:-translate-y-1 hover:bg-white"
               >
                 {isMN ? "Загварууд үзэх" : "Explore templates"}
               </a>
             </div>
 
-            <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-[9px] font-medium uppercase tracking-[0.16em] text-black/35">
+            <div className="mt-7 flex flex-wrap items-center gap-x-8 gap-y-2 text-[10px] font-medium uppercase tracking-[0.16em] text-black/35">
               <span>✦ AI Designer</span>
               <span>✦ Live Preview</span>
               <span>✦ QR Share</span>
@@ -309,24 +294,24 @@ export default function Home() {
           </div>
 
           {/* HERO INVITATION */}
-          <div className="relative mx-auto w-full max-w-[430px] lg:ml-auto">
-            <div className="pointer-events-none absolute -right-16 top-10 h-56 w-56 rounded-full bg-[#C8AD8D]/30 blur-[80px]" />
-            <div className="pointer-events-none absolute -bottom-16 -left-16 h-56 w-56 rounded-full bg-[#B9C4B5]/30 blur-[80px]" />
+          <div className="relative mx-auto w-full max-w-[410px] lg:ml-auto">
+            <div className="pointer-events-none absolute -right-14 top-8 h-48 w-48 rounded-full bg-[#C8AD8D]/30 blur-[70px]" />
+            <div className="pointer-events-none absolute -bottom-14 -left-14 h-48 w-48 rounded-full bg-[#B9C4B5]/30 blur-[70px]" />
 
             <div className="relative rotate-[2deg] transition duration-700 hover:rotate-0">
 
               {/* Back card */}
-              <div className="absolute -right-4 top-8 h-full w-full rotate-[5deg] rounded-[34px] border border-black/5 bg-[#E5DDD2] shadow-xl" />
+              <div className="absolute -right-4 top-7 h-full w-full rotate-[5deg] rounded-[30px] border border-black/5 bg-[#E5DDD2] shadow-xl" />
 
               {/* Main card */}
-              <div className="relative rounded-[34px] border border-white/70 bg-white/80 p-3 shadow-[0_30px_75px_rgba(50,40,30,0.16)] backdrop-blur-sm">
-                <div className="overflow-hidden rounded-[27px] bg-[#E9E0D4]">
-                  <div className="relative flex min-h-[500px] flex-col items-center justify-between overflow-hidden px-7 py-9 text-center">
+              <div className="relative rounded-[30px] border border-white/70 bg-white/80 p-2.5 shadow-[0_25px_60px_rgba(50,40,30,0.14)] backdrop-blur-sm">
+                <div className="overflow-hidden rounded-[24px] bg-[#E9E0D4]">
+                  <div className="relative flex min-h-[470px] flex-col items-center justify-between overflow-hidden px-7 py-8 text-center">
 
                     <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.8),transparent_40%)]" />
 
                     <div className="relative">
-                      <div className="text-[8px] font-medium uppercase tracking-[0.45em] text-black/40">
+                      <div className="text-[9px] font-medium uppercase tracking-[0.45em] text-black/40">
                         OUR WEDDING
                       </div>
 
@@ -334,7 +319,7 @@ export default function Home() {
                     </div>
 
                     <div className="relative">
-                      <div className="font-serif text-[3rem] font-normal italic leading-none tracking-[-0.04em] text-black/80">
+                      <div className="font-serif text-[2.65rem] font-normal italic leading-none tracking-[-0.04em] text-black/80">
                         Bat & Nomin
                       </div>
 
@@ -343,7 +328,7 @@ export default function Home() {
                       </div>
                     </div>
 
-                    <div className="relative flex h-36 w-36 items-center justify-center rounded-full border-[9px] border-white/70 bg-[#D5C1AA] shadow-xl">
+                    <div className="relative flex h-32 w-32 items-center justify-center rounded-full border-[8px] border-white/70 bg-[#D5C1AA] shadow-xl">
                       <div className="text-4xl drop-shadow-sm">
                         💍
                       </div>
@@ -363,12 +348,12 @@ export default function Home() {
               </div>
 
               {/* Floating label */}
-              <div className="absolute -bottom-4 -left-5 rounded-2xl border border-black/10 bg-white/90 px-4 py-3 shadow-[0_15px_35px_rgba(0,0,0,0.12)] backdrop-blur-md">
-                <div className="text-[7px] font-medium uppercase tracking-[0.2em] text-black/35">
+              <div className="absolute -bottom-3 -left-4 rounded-2xl border border-black/10 bg-white/90 px-3.5 py-2.5 shadow-[0_12px_30px_rgba(0,0,0,0.11)] backdrop-blur-md">
+                <div className="text-[6px] font-medium uppercase tracking-[0.2em] text-black/35">
                   Crafted with
                 </div>
 
-                <div className="mt-1 text-[11px] font-semibold tracking-[0.22em]">
+                <div className="mt-1 text-[10px] font-semibold tracking-[0.22em]">
                   URILGA
                 </div>
               </div>
@@ -376,67 +361,66 @@ export default function Home() {
           </div>
         </div>
 
-        {/* bottom scroll hint */}
-        <div className="hidden pb-4 text-center lg:block">
-          <span className="text-[8px] font-medium uppercase tracking-[0.35em] text-black/20">
+        <div className="hidden pb-3 text-center lg:block">
+          <span className="text-[7px] font-medium uppercase tracking-[0.35em] text-black/20">
             Scroll to discover
           </span>
         </div>
       </section>
 
-      {/* =========================================================
-          EVENTS
-      ========================================================= */}
+      {/* EVENTS */}
       <section id="events" className="bg-[#FBF9F6]">
-        <div className="mx-auto max-w-[1440px] px-5 py-24 sm:px-8 lg:px-12 lg:py-32">
+        <div className="mx-auto max-w-[1440px] px-5 py-20 sm:px-8 lg:px-12 lg:py-24">
 
-          <div className="flex flex-col justify-between gap-8 lg:flex-row lg:items-end">
+          <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.3em] text-[#A27A4F]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#A27A4F]">
                 {isMN ? "Боломжууд" : "Occasions"}
               </div>
 
-              <h2 className="mt-4 font-serif text-5xl font-normal leading-none tracking-[-0.035em] sm:text-6xl">
+              <h2 className="mt-3 font-serif text-5xl font-normal leading-[0.95] tracking-[-0.035em] sm:text-6xl lg:text-[4.4rem]">
                 {isMN
                   ? "Ямар ч онцгой мөчид."
                   : "For every special moment."}
               </h2>
             </div>
 
-            <p className="max-w-md text-sm leading-7 text-black/45 lg:text-right">
+            <p className="max-w-md text-[15px] leading-7 text-black/45 lg:pb-1 lg:text-right">
               {isMN
                 ? "Өөрт тохирох төрлөө сонгоод урилгаа эхлүүлээрэй."
                 : "Choose an occasion and start creating your invitation."}
             </p>
           </div>
 
-          <div className="mt-14 grid grid-cols-2 gap-3 md:grid-cols-4 lg:gap-4">
+          <div className="mt-10 grid grid-cols-2 gap-4 md:grid-cols-4 lg:mt-12 lg:gap-5">
             {eventTypes.map((event, index) => (
               <button
                 key={event.type}
                 onClick={() => goToEvent(event.type)}
-                className="group relative overflow-hidden rounded-[28px] border border-black/[0.08] bg-white p-6 text-left shadow-sm transition duration-500 hover:-translate-y-1 hover:border-[#B99163]/30 hover:shadow-[0_20px_50px_rgba(50,40,30,0.09)] sm:p-7"
+                className="group relative min-h-[190px] overflow-hidden rounded-[28px] border border-black/[0.08] bg-white p-6 text-left shadow-sm transition duration-500 hover:-translate-y-1 hover:border-[#B99163]/30 hover:shadow-[0_20px_50px_rgba(50,40,30,0.09)] sm:min-h-[210px] sm:p-7 lg:min-h-[220px] lg:p-8"
               >
-                <div className="absolute right-[-25px] top-[-25px] h-24 w-24 rounded-full bg-[#E9DFD2] opacity-0 blur-2xl transition duration-500 group-hover:opacity-100" />
+                <div className="absolute right-[-25px] top-[-25px] h-28 w-28 rounded-full bg-[#E9DFD2] opacity-0 blur-2xl transition duration-500 group-hover:opacity-100" />
 
-                <div className="relative">
-                  <div className="flex items-center justify-between">
-                    <span className="text-3xl transition duration-500 group-hover:scale-110">
+                <div className="relative flex h-full flex-col">
+                  <div className="flex items-start justify-between">
+                    <span className="text-4xl transition duration-500 group-hover:scale-110 sm:text-[2.7rem]">
                       {event.icon}
                     </span>
 
-                    <span className="font-serif text-xs italic text-black/20">
+                    <span className="font-serif text-sm italic text-black/20">
                       0{index + 1}
                     </span>
                   </div>
 
-                  <div className="mt-12 text-sm font-semibold">
-                    {isMN ? event.mn : event.en}
-                  </div>
+                  <div className="mt-auto pt-10">
+                    <div className="text-base font-semibold sm:text-lg">
+                      {isMN ? event.mn : event.en}
+                    </div>
 
-                  <div className="mt-2 text-[10px] font-medium uppercase tracking-[0.12em] text-black/30 transition duration-300 group-hover:text-[#A27A4F]">
-                    {isMN ? "Урилга үүсгэх" : "Create invitation"}
-                    <span className="ml-2">→</span>
+                    <div className="mt-3 text-[11px] font-medium uppercase tracking-[0.12em] text-black/30 transition duration-300 group-hover:text-[#A27A4F]">
+                      {isMN ? "Урилга үүсгэх" : "Create invitation"}
+                      <span className="ml-2">→</span>
+                    </div>
                   </div>
                 </div>
               </button>
@@ -445,33 +429,31 @@ export default function Home() {
         </div>
       </section>
 
-      {/* =========================================================
-          AI SECTION
-      ========================================================= */}
+      {/* AI SECTION */}
       <section id="ai" className="relative overflow-hidden bg-[#171513] text-white">
         <div className="pointer-events-none absolute left-[-150px] top-[-100px] h-[500px] w-[500px] rounded-full bg-[#A27A4F]/10 blur-[120px]" />
         <div className="pointer-events-none absolute bottom-[-200px] right-[-100px] h-[500px] w-[500px] rounded-full bg-[#CDB99E]/10 blur-[120px]" />
 
-        <div className="relative mx-auto grid max-w-[1440px] gap-16 px-5 py-24 sm:px-8 lg:grid-cols-2 lg:px-12 lg:py-32">
+        <div className="relative mx-auto grid max-w-[1440px] items-center gap-12 px-5 py-20 sm:px-8 lg:grid-cols-2 lg:gap-16 lg:px-12 lg:py-24">
 
           <div className="flex flex-col justify-center">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.3em] text-[#CBA77C]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#CBA77C]">
               AI DESIGNER
             </div>
 
-            <h2 className="mt-6 max-w-xl font-serif text-5xl font-normal leading-[0.98] tracking-[-0.035em] sm:text-6xl">
+            <h2 className="mt-5 max-w-xl font-serif text-5xl font-normal leading-[0.95] tracking-[-0.035em] sm:text-6xl lg:text-[4.4rem]">
               {isMN
                 ? "Зүгээр л хүссэн зүйлээ хэл."
                 : "Just tell us what you want."}
             </h2>
 
-            <p className="mt-7 max-w-xl text-sm leading-7 text-white/45 sm:text-base">
+            <p className="mt-6 max-w-xl text-[15px] leading-7 text-white/45 sm:text-base">
               {isMN
                 ? "“Luxury, romantic, cream өнгөтэй хуримын урилга хий” гэж бичихэд AI таны санааг ойлгож, урилгыг шууд бүтээнэ."
                 : "Tell AI what you want — for example, “Create a luxury romantic wedding invitation in cream tones” — and watch your invitation come to life."}
             </p>
 
-            <div className="mt-9 space-y-2">
+            <div className="mt-8 space-y-2.5">
               {[
                 isMN
                   ? "🎨 Загвар, өнгө, typography"
@@ -488,16 +470,15 @@ export default function Home() {
               ].map((item) => (
                 <div
                   key={item}
-                  className="group flex items-center rounded-2xl border border-white/[0.08] bg-white/[0.035] px-5 py-4 text-sm text-white/65 transition duration-300 hover:border-white/15 hover:bg-white/[0.06] hover:text-white/85"
+                  className="group flex items-center rounded-2xl border border-white/[0.08] bg-white/[0.035] px-5 py-3.5 text-sm text-white/65 transition duration-300 hover:border-white/15 hover:bg-white/[0.06] hover:text-white/85"
                 >
-                  <span className="mr-3 h-1 w-1 rounded-full bg-[#CBA77C] opacity-70" />
+                  <span className="mr-3 h-1.5 w-1.5 rounded-full bg-[#CBA77C] opacity-70" />
                   {item}
                 </div>
               ))}
             </div>
           </div>
 
-          {/* AI MOCKUP */}
           <div className="flex items-center">
             <div className="relative w-full">
               <div className="absolute -inset-5 rounded-[40px] bg-[#C5A77F]/5 blur-2xl" />
@@ -508,6 +489,7 @@ export default function Home() {
                   <div className="flex items-center justify-between border-b border-white/[0.07] pb-5">
                     <div className="flex items-center gap-2">
                       <div className="h-2 w-2 rounded-full bg-[#CBA77C]" />
+
                       <div className="text-[9px] font-medium uppercase tracking-[0.2em] text-white/35">
                         URILGA AI
                       </div>
@@ -563,25 +545,23 @@ export default function Home() {
         </div>
       </section>
 
-      {/* =========================================================
-          HOW IT WORKS
-      ========================================================= */}
+      {/* HOW IT WORKS */}
       <section id="how" className="bg-[#F5F1EA]">
-        <div className="mx-auto max-w-[1440px] px-5 py-24 sm:px-8 lg:px-12 lg:py-32">
+        <div className="mx-auto max-w-[1440px] px-5 py-20 sm:px-8 lg:px-12 lg:py-24">
 
           <div className="text-center">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.3em] text-[#A27A4F]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#A27A4F]">
               {isMN ? "Хялбархан" : "Simple"}
             </div>
 
-            <h2 className="mt-4 font-serif text-5xl font-normal tracking-[-0.035em] sm:text-6xl">
+            <h2 className="mt-3 font-serif text-5xl font-normal leading-none tracking-[-0.035em] sm:text-6xl lg:text-[4.4rem]">
               {isMN
                 ? "3 алхам. Тэгээд л боллоо."
                 : "3 steps. That's it."}
             </h2>
           </div>
 
-          <div className="mt-16 grid gap-4 md:grid-cols-3">
+          <div className="mt-12 grid gap-4 md:grid-cols-3 lg:gap-5">
             {[
               {
                 number: "01",
@@ -607,11 +587,11 @@ export default function Home() {
             ].map((step) => (
               <div
                 key={step.number}
-                className="group relative overflow-hidden rounded-[30px] border border-black/[0.08] bg-white p-8 shadow-sm transition duration-500 hover:-translate-y-1 hover:shadow-[0_25px_60px_rgba(40,30,20,0.08)] sm:p-9"
+                className="group relative overflow-hidden rounded-[30px] border border-black/[0.08] bg-white p-7 shadow-sm transition duration-500 hover:-translate-y-1 hover:shadow-[0_25px_60px_rgba(40,30,20,0.08)] sm:p-8 lg:min-h-[255px]"
               >
                 <div className="absolute right-[-30px] top-[-30px] h-32 w-32 rounded-full bg-[#E9DFD2] opacity-0 blur-3xl transition duration-500 group-hover:opacity-70" />
 
-                <div className="relative">
+                <div className="relative flex h-full flex-col">
                   <div className="flex items-center justify-between">
                     <div className="font-serif text-5xl italic text-[#B68D60]">
                       {step.number}
@@ -622,13 +602,15 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <h3 className="mt-14 font-serif text-3xl font-normal tracking-tight">
-                    {step.title}
-                  </h3>
+                  <div className="mt-auto pt-10">
+                    <h3 className="font-serif text-3xl font-normal tracking-tight">
+                      {step.title}
+                    </h3>
 
-                  <p className="mt-4 max-w-xs text-sm leading-7 text-black/45">
-                    {step.text}
-                  </p>
+                    <p className="mt-3 max-w-sm text-sm leading-6 text-black/45">
+                      {step.text}
+                    </p>
+                  </div>
                 </div>
               </div>
             ))}
@@ -636,40 +618,38 @@ export default function Home() {
         </div>
       </section>
 
-      {/* =========================================================
-          PRICING
-      ========================================================= */}
+      {/* PRICING */}
       <section className="bg-[#FBF9F6]">
-        <div className="mx-auto max-w-4xl px-5 py-24 text-center sm:px-8 lg:py-32">
+        <div className="mx-auto max-w-4xl px-5 py-20 text-center sm:px-8 lg:py-24">
 
-          <div className="text-[10px] font-semibold uppercase tracking-[0.3em] text-[#A27A4F]">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#A27A4F]">
             {isMN ? "Энгийн үнэ" : "Simple pricing"}
           </div>
 
-          <h2 className="mx-auto mt-4 max-w-xl font-serif text-5xl font-normal tracking-[-0.035em] sm:text-6xl">
+          <h2 className="mx-auto mt-3 max-w-xl font-serif text-5xl font-normal leading-none tracking-[-0.035em] sm:text-6xl">
             {isMN
               ? "Онцгой мөчид зориулсан."
               : "Made for special moments."}
           </h2>
 
-          <div className="mx-auto mt-14 max-w-md rounded-[36px] border border-black/[0.08] bg-white p-2 shadow-[0_30px_80px_rgba(50,40,30,0.10)]">
-            <div className="rounded-[30px] bg-[#F5F1EA] px-8 py-10 sm:px-10 sm:py-12">
+          <div className="mx-auto mt-10 max-w-md rounded-[36px] border border-black/[0.08] bg-white p-2 shadow-[0_30px_80px_rgba(50,40,30,0.10)]">
+            <div className="rounded-[30px] bg-[#F5F1EA] px-8 py-9 sm:px-10 sm:py-10">
 
-              <div className="text-[9px] font-semibold uppercase tracking-[0.3em] text-black/35">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.3em] text-black/35">
                 ONE INVITATION
               </div>
 
-              <h3 className="mt-5 font-serif text-7xl font-normal tracking-[-0.05em] text-[#A27A4F]">
+              <h3 className="mt-4 font-serif text-7xl font-normal leading-none tracking-[-0.05em] text-[#A27A4F]">
                 19,900₮
               </h3>
 
-              <p className="mx-auto mt-5 max-w-sm text-sm leading-7 text-black/50">
+              <p className="mx-auto mt-5 max-w-sm text-sm leading-6 text-black/50">
                 {isMN
                   ? "Нэг урилга. Бүх боломж. Хүссэнээрээ засварлаад арга хэмжээ дуустал ашиглаарай."
                   : "One invitation. Everything included. Edit it as much as you want until your event."}
               </p>
 
-              <div className="my-8 h-px bg-black/[0.08]" />
+              <div className="my-7 h-px bg-black/[0.08]" />
 
               <ul className="mx-auto space-y-3 text-left text-sm text-black/60">
                 {(isMN
@@ -687,7 +667,7 @@ export default function Home() {
                     ]
                 ).map((item) => (
                   <li key={item} className="flex items-center gap-3">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#B99163]/10 text-[10px] text-[#A27A4F]">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#B99163]/10 text-[10px] text-[#A27A4F]">
                       ✓
                     </span>
                     {item}
@@ -697,7 +677,7 @@ export default function Home() {
 
               <button
                 onClick={goToCreate}
-                className="group mt-9 w-full rounded-full bg-[#171513] px-8 py-4 text-sm font-semibold text-white shadow-xl shadow-black/10 transition duration-300 hover:-translate-y-1 hover:bg-black hover:shadow-2xl"
+                className="group mt-8 w-full rounded-full bg-[#171513] px-8 py-4 text-sm font-semibold text-white shadow-xl shadow-black/10 transition duration-300 hover:-translate-y-1 hover:bg-black hover:shadow-2xl"
               >
                 {isMN ? "Урилгаа эхлүүлэх" : "Start creating"}
                 <span className="ml-3 inline-block transition-transform duration-300 group-hover:translate-x-1">
@@ -709,39 +689,36 @@ export default function Home() {
         </div>
       </section>
 
-      {/* =========================================================
-          FEEDBACK
-      ========================================================= */}
+      {/* FEEDBACK */}
       <section className="border-t border-black/[0.06] bg-[#F5F1EA]">
-        <div className="mx-auto max-w-3xl px-5 py-24 text-center sm:px-8 lg:py-28">
+        <div className="mx-auto max-w-3xl px-5 py-20 text-center sm:px-8 lg:py-24">
 
-          <div className="text-[10px] font-semibold uppercase tracking-[0.3em] text-[#A27A4F]">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#A27A4F]">
             {isMN ? "Санал хүсэлт" : "Feedback"}
           </div>
 
-          <h2 className="mt-4 font-serif text-4xl font-normal tracking-[-0.035em] sm:text-5xl">
+          <h2 className="mt-3 font-serif text-4xl font-normal leading-tight tracking-[-0.035em] sm:text-5xl">
             {isMN
               ? "Таны санал бидэнд чухал."
               : "We'd love to hear from you."}
           </h2>
 
-          <p className="mx-auto mt-5 max-w-lg text-sm leading-7 text-black/45">
+          <p className="mx-auto mt-4 max-w-lg text-sm leading-7 text-black/45">
             {isMN
               ? "URILGA-г улам сайжруулахын тулд санал хүсэлтээ хуваалцаарай."
               : "Help us make URILGA better by sharing your feedback."}
           </p>
 
-          <div className="mx-auto mt-10 max-w-xl rounded-[34px] border border-black/[0.08] bg-white p-2 shadow-[0_25px_70px_rgba(50,40,30,0.08)]">
-            <div className="rounded-[28px] bg-[#FBF9F6] p-6 sm:p-9">
+          <div className="mx-auto mt-8 max-w-xl rounded-[34px] border border-black/[0.08] bg-white p-2 shadow-[0_25px_70px_rgba(50,40,30,0.08)]">
+            <div className="rounded-[28px] bg-[#FBF9F6] p-6 sm:p-8">
 
-              {/* RATING */}
               <div>
                 <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black/35">
                   {isMN ? "Таны үнэлгээ" : "Your rating"}
                 </div>
 
                 <div
-                  className="mt-5 flex justify-center gap-1"
+                  className="mt-4 flex justify-center gap-1"
                   onMouseLeave={() => setHoverRating(0)}
                 >
                   {[1, 2, 3, 4, 5].map((star) => {
@@ -752,9 +729,7 @@ export default function Home() {
                       <button
                         key={star}
                         type="button"
-                        onMouseEnter={() =>
-                          setHoverRating(star)
-                        }
+                        onMouseEnter={() => setHoverRating(star)}
                         onClick={() => {
                           setRating(star);
                           setFeedbackError("");
@@ -781,12 +756,9 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* MESSAGE */}
-              <div className="mt-7 text-left">
+              <div className="mt-6 text-left">
                 <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-black/35">
-                  {isMN
-                    ? "Санал хүсэлт"
-                    : "Your feedback"}
+                  {isMN ? "Санал хүсэлт" : "Your feedback"}
                 </label>
 
                 <textarea
@@ -810,14 +782,12 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* ERROR */}
               {feedbackError && (
                 <div className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">
                   {feedbackError}
                 </div>
               )}
 
-              {/* SUCCESS */}
               {feedbackSent && (
                 <div className="mt-4 rounded-2xl border border-[#B99163]/20 bg-[#B99163]/10 px-4 py-3 text-sm text-[#80613E]">
                   {isMN
@@ -826,7 +796,6 @@ export default function Home() {
                 </div>
               )}
 
-              {/* SUBMIT */}
               <button
                 type="button"
                 onClick={submitFeedback}
@@ -846,9 +815,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* =========================================================
-          FOOTER
-      ========================================================= */}
+      {/* FOOTER */}
       <footer className="border-t border-black/[0.07] bg-[#171513] text-white">
         <div className="mx-auto flex max-w-[1440px] flex-col gap-7 px-5 py-10 sm:px-8 md:flex-row md:items-center md:justify-between lg:px-12">
           <div className="[&_img]:brightness-0 [&_img]:invert">
