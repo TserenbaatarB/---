@@ -1536,8 +1536,9 @@ function InvitationBuilderPageContent() {
             </div>
 
             <AppearanceControls
-              appearance={appearance}
-            />
+  appearance={appearance}
+  backgroundImage={backgroundImage ?? undefined}
+/>
 
             {/* =================================================
                 MUSIC
@@ -2270,30 +2271,32 @@ function InvitationBuilderPageContent() {
                     </div>
                   </div>
 
-                  <FrameBox
-                    frame={appearance.frame}
-                    accent={appearance.accent}
-                    className="h-24 w-24 shrink-0 shadow-xl"
-                  >
-                    <div
-                      className="flex h-full w-full items-center justify-center overflow-hidden backdrop-blur-sm"
-                      style={{
-                        backgroundColor: `${appearance.accent}33`,
-                      }}
-                    >
-                      {photos[0] ? (
-                        <img
-                          src={photos[0].url}
-                          alt=""
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-3xl">
-                          💍
-                        </span>
-                      )}
-                    </div>
-                  </FrameBox>
+                  {!backgroundImage && (
+  <FrameBox
+    frame={appearance.frame}
+    accent={appearance.accent}
+    className="h-24 w-24 shrink-0 shadow-xl"
+  >
+    <div
+      className="flex h-full w-full items-center justify-center overflow-hidden backdrop-blur-sm"
+      style={{
+        backgroundColor: `${appearance.accent}33`,
+      }}
+    >
+      {photos[0] ? (
+        <img
+          src={photos[0].url}
+          alt=""
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <span className="text-3xl">
+          💍
+        </span>
+      )}
+    </div>
+  </FrameBox>
+)}
 
                   <div className="max-w-[230px]">
                     <p

@@ -55,10 +55,11 @@ function Chips({
 
 export default function AppearanceControls({
   appearance,
+  backgroundImage,
 }: {
   appearance: Appearance;
+  backgroundImage?: string | null;
 }) {
-
   function update(patch: Partial<Appearance>) {
     const next = { ...appearance, ...patch };
 
@@ -84,29 +85,35 @@ export default function AppearanceControls({
         )}
       >
         <div className="relative z-10 flex h-full items-center justify-center gap-5 px-6">
-          <FrameBox
-            frame={appearance.frame}
-            accent={appearance.accent}
-            className="h-28 w-24 shrink-0"
-          >
-            <div
-              className="h-full w-full"
-              style={{
-                background: `linear-gradient(135deg, ${appearance.accent}55, ${appearance.accent}cc)`,
-              }}
-            />
-          </FrameBox>
+          {!backgroundImage && (
+            <FrameBox
+              frame={appearance.frame}
+              accent={appearance.accent}
+              className="h-28 w-24 shrink-0"
+            >
+              <div
+                className="h-full w-full"
+                style={{
+                  background: `linear-gradient(135deg, ${appearance.accent}55, ${appearance.accent}cc)`,
+                }}
+              />
+            </FrameBox>
+          )}
 
           <div
             className="text-left"
             style={{
               color:
-                appearance.tone === "dark" ? "#fff" : "#2c241b",
+                appearance.tone === "dark"
+                  ? "#fff"
+                  : "#2c241b",
             }}
           >
             <div
               className="text-[10px] font-semibold uppercase tracking-[0.25em]"
-              style={{ color: appearance.accent }}
+              style={{
+                color: appearance.accent,
+              }}
             >
               Хэзээ
             </div>
@@ -128,12 +135,14 @@ export default function AppearanceControls({
         />
       </div>
 
-      <Chips
-        title="Зургийн хүрээ"
-        options={FRAMES}
-        value={appearance.frame}
-        onChange={(frame) => update({ frame })}
-      />
+      {!backgroundImage && (
+        <Chips
+          title="Зургийн хүрээ"
+          options={FRAMES}
+          value={appearance.frame}
+          onChange={(frame) => update({ frame })}
+        />
+      )}
 
       <div className="mt-6">
         <div className="text-xs font-semibold uppercase tracking-[0.15em] text-black/40">
@@ -149,10 +158,12 @@ export default function AppearanceControls({
               onClick={() => update({ accent: color })}
               className={`h-8 w-8 rounded-full border-2 transition ${
                 appearance.accent === color
-                  ? "border-black scale-110"
+                  ? "scale-110 border-black"
                   : "border-white shadow"
               }`}
-              style={{ backgroundColor: color }}
+              style={{
+                backgroundColor: color,
+              }}
             />
           ))}
 
@@ -160,7 +171,9 @@ export default function AppearanceControls({
             type="color"
             value={appearance.accent}
             onChange={(event) =>
-              update({ accent: event.target.value })
+              update({
+                accent: event.target.value,
+              })
             }
             aria-label="Өөр өнгө сонгох"
             className="h-8 w-10 cursor-pointer rounded border border-black/10 bg-white"
@@ -171,12 +184,20 @@ export default function AppearanceControls({
       <Chips
         title="Суурь өнгө"
         options={[
-          { id: "dark", label: "Бараан" },
-          { id: "light", label: "Цайвар" },
+          {
+            id: "dark",
+            label: "Бараан",
+          },
+          {
+            id: "light",
+            label: "Цайвар",
+          },
         ]}
         value={appearance.tone}
         onChange={(tone) =>
-          update({ tone: tone as Appearance["tone"] })
+          update({
+            tone: tone as Appearance["tone"],
+          })
         }
       />
 
@@ -184,21 +205,27 @@ export default function AppearanceControls({
         title="Арын хээ"
         options={PATTERNS}
         value={appearance.pattern}
-        onChange={(pattern) => update({ pattern })}
+        onChange={(pattern) =>
+          update({ pattern })
+        }
       />
 
       <Chips
         title="Анимэйшн"
         options={ANIMATIONS}
         value={appearance.animation}
-        onChange={(animation) => update({ animation })}
+        onChange={(animation) =>
+          update({ animation })
+        }
       />
 
       <Chips
         title="Урилга нээх хэлбэр"
         options={OPEN_STYLES}
         value={appearance.open}
-        onChange={(open) => update({ open })}
+        onChange={(open) =>
+          update({ open })
+        }
       />
     </div>
   );

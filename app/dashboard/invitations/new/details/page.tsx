@@ -403,6 +403,38 @@ const exampleDataByEvent: Record<
 };
 
 /* =========================================================
+   DEFAULT EVENT ICON
+========================================================= */
+
+function getEventIcon(eventType: string): string {
+  switch (eventType) {
+    case "wedding":
+      return "💍";
+
+    case "birthday":
+      return "🎂";
+
+    case "baby":
+      return "👶";
+
+    case "anniversary":
+      return "🥂";
+
+    case "graduation":
+      return "🎓";
+
+    case "engagement":
+      return "💐";
+
+    case "housewarming":
+      return "🏡";
+
+    default:
+      return "🎉";
+  }
+}
+
+/* =========================================================
    INDEXED DB
 ========================================================= */
 
@@ -580,7 +612,7 @@ async function clearStoredInvitationImages(): Promise<void> {
         reject(
           transaction.error ??
             new Error(
-              "Зураг болон дуу цэвэрлэх transaction зогслоо."
+              "Зураг болон дуу хадгалах transaction зогслоо."
             )
         );
       };
@@ -1941,7 +1973,7 @@ function InvitationDetailsPageContent() {
                       />
                     ) : (
                       <span className="text-4xl">
-                        💍
+                        {getEventIcon(eventType)}
                       </span>
                     )}
                   </div>
