@@ -229,17 +229,17 @@ export default function Home() {
         <div className="pointer-events-none absolute -left-32 top-0 h-64 w-64 rounded-full bg-[#D6C1A5]/30 blur-[90px]" />
         <div className="pointer-events-none absolute right-[-100px] top-[-100px] h-[400px] w-[400px] rounded-full bg-[#E1D4C2]/60 blur-[110px]" />
 
-        <div className="relative mx-auto grid max-w-[1440px] items-center gap-12 px-5 py-12 sm:px-8 sm:py-14 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14 lg:px-12 lg:py-14 xl:py-16">
+        <div className="relative mx-auto grid max-w-[1440px] items-center gap-8 px-5 py-8 sm:px-8 sm:py-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-10 lg:px-12 lg:py-8 xl:py-10">
 
           {/* LEFT */}
           <div className="relative z-10 flex flex-col justify-center lg:pr-4">
 
-            <div className="mb-5 inline-flex w-fit items-center gap-3 rounded-full border border-black/10 bg-white/60 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-black/45 shadow-sm backdrop-blur-sm">
+            <div className="mb-4 inline-flex w-fit items-center gap-3 rounded-full border border-black/10 bg-white/60 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-black/45 shadow-sm backdrop-blur-sm">
               <span className="h-1.5 w-1.5 rounded-full bg-[#B99163] shadow-[0_0_12px_rgba(185,145,99,0.6)]" />
               AI-powered digital invitations
             </div>
 
-            <h1 className="max-w-4xl font-serif text-[3.9rem] font-normal leading-[0.9] tracking-[-0.045em] sm:text-[4.8rem] lg:text-[5.25rem] xl:text-[5.65rem]">
+            <h1 className="max-w-4xl font-serif text-[3.5rem] font-normal leading-[0.88] tracking-[-0.045em] sm:text-[4.2rem] lg:text-[4.6rem] xl:text-[4.9rem]">
               {isMN ? (
                 <>
                   Таны онцгой
@@ -261,16 +261,16 @@ export default function Home() {
               )}
             </h1>
 
-            <p className="mt-6 max-w-2xl text-[15px] leading-7 text-black/50 sm:text-base">
+            <p className="mt-5 max-w-2xl text-[14px] leading-6 text-black/50 sm:text-[15px]">
               {isMN
                 ? "Хурим, төрсөн өдөр, сэвлэг үргээх, төгсөлт болон бусад онцгой мөчдөө зориулан AI ашиглан өөрийн дижитал урилгаа бүтээгээрэй."
                 : "Create beautiful digital invitations for weddings, birthdays, baby ceremonies, graduations and every special moment with AI."}
             </p>
 
-            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <button
                 onClick={goToCreate}
-                className="group rounded-full bg-[#171513] px-8 py-4 text-sm font-semibold text-white shadow-xl shadow-black/10 transition duration-300 hover:-translate-y-1 hover:bg-black hover:shadow-2xl"
+                className="group rounded-full bg-[#171513] px-8 py-3.5 text-sm font-semibold text-white shadow-xl shadow-black/10 transition duration-300 hover:-translate-y-1 hover:bg-black hover:shadow-2xl"
               >
                 {isMN ? "Урилга үүсгэх" : "Create invitation"}
                 <span className="ml-3 inline-block transition-transform duration-300 group-hover:translate-x-1">
@@ -280,13 +280,13 @@ export default function Home() {
 
               <a
                 href="#events"
-                className="rounded-full border border-black/10 bg-white/60 px-8 py-4 text-center text-sm font-semibold shadow-sm backdrop-blur-sm transition duration-300 hover:-translate-y-1 hover:bg-white"
+                className="rounded-full border border-black/10 bg-white/60 px-8 py-3.5 text-center text-sm font-semibold shadow-sm backdrop-blur-sm transition duration-300 hover:-translate-y-1 hover:bg-white"
               >
                 {isMN ? "Загварууд үзэх" : "Explore templates"}
               </a>
             </div>
 
-            <div className="mt-7 flex flex-wrap items-center gap-x-8 gap-y-2 text-[10px] font-medium uppercase tracking-[0.16em] text-black/35">
+            <div className="mt-5 flex flex-wrap items-center gap-x-7 gap-y-2 text-[9px] font-medium uppercase tracking-[0.16em] text-black/35">
               <span>✦ AI Designer</span>
               <span>✦ Live Preview</span>
               <span>✦ QR Share</span>
@@ -294,52 +294,52 @@ export default function Home() {
           </div>
 
           {/* HERO INVITATION */}
-          <div className="relative mx-auto w-full max-w-[410px] lg:ml-auto">
-            <div className="pointer-events-none absolute -right-14 top-8 h-48 w-48 rounded-full bg-[#C8AD8D]/30 blur-[70px]" />
-            <div className="pointer-events-none absolute -bottom-14 -left-14 h-48 w-48 rounded-full bg-[#B9C4B5]/30 blur-[70px]" />
+          <div className="relative mx-auto w-full max-w-[390px] lg:ml-auto">
+            <div className="pointer-events-none absolute -right-14 top-8 h-44 w-44 rounded-full bg-[#C8AD8D]/30 blur-[70px]" />
+            <div className="pointer-events-none absolute -bottom-14 -left-14 h-44 w-44 rounded-full bg-[#B9C4B5]/30 blur-[70px]" />
 
             <div className="relative rotate-[2deg] transition duration-700 hover:rotate-0">
 
               {/* Back card */}
-              <div className="absolute -right-4 top-7 h-full w-full rotate-[5deg] rounded-[30px] border border-black/5 bg-[#E5DDD2] shadow-xl" />
+              <div className="absolute -right-4 top-6 h-full w-full rotate-[5deg] rounded-[30px] border border-black/5 bg-[#E5DDD2] shadow-xl" />
 
               {/* Main card */}
               <div className="relative rounded-[30px] border border-white/70 bg-white/80 p-2.5 shadow-[0_25px_60px_rgba(50,40,30,0.14)] backdrop-blur-sm">
                 <div className="overflow-hidden rounded-[24px] bg-[#E9E0D4]">
-                  <div className="relative flex min-h-[470px] flex-col items-center justify-between overflow-hidden px-7 py-8 text-center">
+                  <div className="relative flex min-h-[390px] flex-col items-center justify-between overflow-hidden px-6 py-6 text-center">
 
                     <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.8),transparent_40%)]" />
 
                     <div className="relative">
-                      <div className="text-[9px] font-medium uppercase tracking-[0.45em] text-black/40">
+                      <div className="text-[8px] font-medium uppercase tracking-[0.45em] text-black/40">
                         OUR WEDDING
                       </div>
 
-                      <div className="mx-auto mt-3 h-px w-10 bg-black/15" />
+                      <div className="mx-auto mt-2 h-px w-10 bg-black/15" />
                     </div>
 
                     <div className="relative">
-                      <div className="font-serif text-[2.65rem] font-normal italic leading-none tracking-[-0.04em] text-black/80">
+                      <div className="font-serif text-[2.35rem] font-normal italic leading-none tracking-[-0.04em] text-black/80">
                         Bat & Nomin
                       </div>
 
-                      <div className="mt-5 text-[9px] font-medium tracking-[0.35em] text-black/40">
+                      <div className="mt-4 text-[8px] font-medium tracking-[0.35em] text-black/40">
                         JUNE 20 · 2027
                       </div>
                     </div>
 
-                    <div className="relative flex h-32 w-32 items-center justify-center rounded-full border-[8px] border-white/70 bg-[#D5C1AA] shadow-xl">
-                      <div className="text-4xl drop-shadow-sm">
+                    <div className="relative flex h-28 w-28 items-center justify-center rounded-full border-[7px] border-white/70 bg-[#D5C1AA] shadow-xl">
+                      <div className="text-3xl drop-shadow-sm">
                         💍
                       </div>
                     </div>
 
                     <div className="relative">
-                      <div className="text-[10px] font-medium tracking-wide">
+                      <div className="text-[9px] font-medium tracking-wide">
                         Уригч Бат & Номин
                       </div>
 
-                      <div className="mt-2 text-[8px] uppercase tracking-[0.2em] text-black/40">
+                      <div className="mt-1.5 text-[7px] uppercase tracking-[0.2em] text-black/40">
                         Ulaanbaatar · Mongolia
                       </div>
                     </div>
@@ -348,12 +348,12 @@ export default function Home() {
               </div>
 
               {/* Floating label */}
-              <div className="absolute -bottom-3 -left-4 rounded-2xl border border-black/10 bg-white/90 px-3.5 py-2.5 shadow-[0_12px_30px_rgba(0,0,0,0.11)] backdrop-blur-md">
+              <div className="absolute -bottom-3 -left-4 rounded-2xl border border-black/10 bg-white/90 px-3 py-2 shadow-[0_12px_30px_rgba(0,0,0,0.11)] backdrop-blur-md">
                 <div className="text-[6px] font-medium uppercase tracking-[0.2em] text-black/35">
                   Crafted with
                 </div>
 
-                <div className="mt-1 text-[10px] font-semibold tracking-[0.22em]">
+                <div className="mt-1 text-[9px] font-semibold tracking-[0.22em]">
                   URILGA
                 </div>
               </div>
@@ -361,7 +361,7 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="hidden pb-3 text-center lg:block">
+        <div className="hidden pb-2 text-center lg:block">
           <span className="text-[7px] font-medium uppercase tracking-[0.35em] text-black/20">
             Scroll to discover
           </span>
@@ -722,8 +722,7 @@ export default function Home() {
                   onMouseLeave={() => setHoverRating(0)}
                 >
                   {[1, 2, 3, 4, 5].map((star) => {
-                    const active =
-                      star <= (hoverRating || rating);
+                    const active = star <= (hoverRating || rating);
 
                     return (
                       <button
@@ -816,7 +815,7 @@ export default function Home() {
       </section>
 
       {/* FOOTER */}
-      <footer className="border-t border-black/[0.07] bg-[#171513] text-white">
+      <footer className="border-t border-[#171513]/[0.07] bg-[#171513] text-white">
         <div className="mx-auto flex max-w-[1440px] flex-col gap-7 px-5 py-10 sm:px-8 md:flex-row md:items-center md:justify-between lg:px-12">
           <div className="[&_img]:brightness-0 [&_img]:invert">
             <BrandLogo />
