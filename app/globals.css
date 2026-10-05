@@ -1,26 +1,183 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
+  --background: #f8f5f0;
   --foreground: #171717;
+  --gold: #a48663;
+  --gold-soft: #dcc7aa;
+  --ink: #171717;
+  --card: #ffffff;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-gold: var(--gold);
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-serif: var(--font-cormorant), Georgia, serif;
+  --font-display: var(--font-cormorant), Georgia, serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), system-ui, sans-serif;
+  text-rendering: optimizeLegibility;
 }
+
+/* Нэг загварын гарчиг. Урилгын хуудас --heading-font: inherit гэж дарна. */
+h1,
+h2,
+h3 {
+  font-family: var(--heading-font, var(--font-cormorant)), Georgia, serif;
+  letter-spacing: -0.01em;
+}
+
+h1,
+h2 {
+  font-weight: 600;
+}
+
+[data-invitation] {
+  --heading-font: inherit;
+}
+
+::selection {
+  background: #dcc7aa;
+  color: #171717;
+}
+
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+button:not(:disabled),
+[role="button"],
+select {
+  cursor: pointer;
+}
+
+.u-gold-text {
+  background: linear-gradient(120deg, #8a6d45 0%, #c9a66b 45%, #a48663 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.u-grain {
+  background-image: radial-gradient(
+      circle at 15% 10%,
+      rgba(220, 199, 170, 0.35),
+      transparent 40%
+    ),
+    radial-gradient(
+      circle at 85% 80%,
+      rgba(185, 194, 177, 0.3),
+      transparent 40%
+    );
+}
+
+@keyframes u-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes u-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--r, 0deg));
+  }
+  50% {
+    transform: translateY(-8px) rotate(var(--r, 0deg));
+  }
+}
+
+.u-rise {
+  animation: u-rise 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.u-float {
+  animation: u-float 6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .u-rise,
+  .u-float {
+    animation: none;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}
+/* Invitation effects */
+@keyframes fx-fall {
+  0% { transform: translate3d(0, -10vh, 0) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translate3d(var(--fx-dx, 20px), 110vh, 0) rotate(360deg); opacity: 0.9; }
+}
+@keyframes fx-rise {
+  0% { transform: translate3d(0, 110vh, 0) scale(0.8); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translate3d(var(--fx-dx, 20px), -20vh, 0) scale(1.1); opacity: 0.9; }
+}
+@keyframes fx-twinkle {
+  0%, 100% { opacity: 0; transform: translate3d(0, 0, 0) scale(0.6); }
+  50% { opacity: 1; transform: translate3d(var(--fx-dx, 20px), -24px, 0) scale(1.2); }
+}
+@keyframes fx-meteor {
+  0% { transform: translate3d(0, 0, 0) rotate(35deg); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translate3d(-60vw, 70vh, 0) rotate(35deg); opacity: 0; }
+}
+@keyframes fx-burst {
+  0% { transform: scale(0.1); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+@keyframes fx-drift {
+  0% { transform: translate3d(-30vw, 0, 0); }
+  100% { transform: translate3d(130vw, 0, 0); }
+}
+@keyframes fx-aurora {
+  0%, 100% { transform: translateX(-8%) skewX(-8deg); opacity: 0.35; }
+  50% { transform: translateX(8%) skewX(8deg); opacity: 0.7; }
+}
+@keyframes fx-fog {
+  0%, 100% { transform: translate3d(-6%, 0, 0); opacity: 0.35; }
+  50% { transform: translate3d(6%, -4%, 0); opacity: 0.6; }
+}
+@keyframes gate-fade { to { opacity: 0; visibility: hidden; } }
+@keyframes gate-light {
+  0% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(2.4); }
+}
+@keyframes gate-blur {
+  0% { opacity: 1; backdrop-filter: blur(24px); }
+  100% { opacity: 0; backdrop-filter: blur(0); }
+}
+@keyframes gate-slide { to { transform: translateY(-105%); } }
+@keyframes gate-left { to { transform: translateX(-102%); } }
+@keyframes gate-right { to { transform: translateX(102%); } }
+@keyframes gate-flap {
+  0% { transform: rotateX(0deg); }
+  100% { transform: rotateX(180deg); }
+}
+@keyframes gate-iris {
+  0% { width: 0; height: 0; }
+  100% { width: 320vmax; height: 320vmax; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fx-layer * { animation: none !important; }
+}
+
