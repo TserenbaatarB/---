@@ -2213,50 +2213,50 @@ async function generatePublicQrCode(
                   </button>
                 </>
               )}
-              {qrCodeUrl && (
-  <div className="mt-5 rounded-3xl border border-black/10 bg-white p-5 text-center">
-    <p className="text-sm font-bold text-black/80">
-      📱 QR кодоор хуваалцах
-    </p>
+                            {qrCodeUrl && (
+                <div className="mt-5 rounded-3xl border border-black/10 bg-white p-5 text-center">
+                  <p className="text-sm font-bold text-black/80">
+                    📱 QR кодоор хуваалцах
+                  </p>
 
-    <p className="mt-1 text-xs text-black/45">
-      QR кодыг уншуулаад урилгаа шууд нээнэ.
-    </p>
+                  <p className="mt-1 text-xs text-black/45">
+                    QR кодыг уншуулаад урилгаа шууд нээнэ.
+                  </p>
 
-                <div className="mt-4 flex flex-col items-center">
-                  <img
-                    src={qrCodeUrl}
-                    alt="Урилгын QR код"
-                    className="h-56 w-56 rounded-2xl"
-                  />
+                  <div className="mt-4 flex flex-col items-center">
+                    <img
+                      src={qrCodeUrl}
+                      alt="Урилгын QR код"
+                      className="h-56 w-56 rounded-2xl"
+                    />
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const link = document.createElement("a");
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const link = document.createElement("a");
 
-                      link.href = qrCodeUrl;
-                      link.download = "urilga-qr-code.png";
+                        link.href = qrCodeUrl;
+                        link.download = "urilga-qr-code.png";
 
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                    }}
-                    className="mt-4 w-full rounded-2xl bg-black px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-black/80"
-                  >
-                    ⬇️ QR код татах
-                  </button>
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                      }}
+                      className="mt-4 w-full rounded-2xl bg-black px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-black/80"
+                    >
+                      ⬇️ QR код татах
+                    </button>
+                  </div>
                 </div>
+              )}
 
-                <p className="mt-4 text-center text-[10px] leading-5 text-black/30">
-                  Сарын эрх идэвхтэй үед урилгаа нийтлэх боломжтой.
-                </p>
-              </div>
-            )}
+              <p className="mt-4 text-center text-[10px] leading-5 text-black/30">
+                Сарын эрх идэвхтэй үед урилгаа нийтлэх боломжтой.
+              </p>
+            </div>
           </div>
         </div>
       </section>
-
     </main>
   );
 }
