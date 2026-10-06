@@ -58,7 +58,9 @@ export async function GET(
     const { data, error } =
       await supabase
         .from("invitations")
-        .select("id, extras")
+        .select(
+          "id, user_id, extras, background_id, gallery_ids, gallery_urls"
+        )
         .eq("public_slug", slug)
         .eq("status", "published")
         .maybeSingle();
@@ -117,6 +119,84 @@ export async function GET(
         ? rawExtras.mapUrl
         : "";
 
+    const storagePrefix = `${data.user_id}/${data.id}/`;
+    const backgroundPath =
+      typeof data.background_id === "string" &&
+      data.background_id.startsWith(storagePrefix)
+        ? data.background_id
+        : null;
+    const galleryPaths = Array.isArray(data.gallery_ids)
+      ? data.gallery_ids
+          .filter(
+            (path): path is string =>
+              typeof path === "string" &&
+              path.startsWith(storagePrefix)
+          )
+          .slice(0, 30)
+      : [];
+    const allImagePaths = [
+      ...(backgroundPath ? [backgroundPath] : []),
+      ...galleryPaths,
+    ];
+
+    const signedUrlByPath = new Map<string, string>();
+    if (allImagePaths.length > 0) {
+      const { data: signedImages, error: signedImagesError } =
+        await supabase.storage
+          .from("invitation-images")
+          .createSignedUrls(allImagePaths, 60 * 60 * 24);
+
+      if (signedImagesError) {
+        console.error(
+          "PUBLIC INVITATION IMAGE URL ERROR:",
+          signedImagesError
+        );
+
+        return NextResponse.json(
+          { error: "Failed to load invitation images" },
+          { status: 500 }
+        );
+      }
+
+      for (const item of signedImages ?? []) {
+        if (item.error) {
+          console.error(
+            "PUBLIC INVITATION IMAGE SIGN ERROR:",
+            item.path,
+            item.error
+          );
+
+          return NextResponse.json(
+            { error: "Failed to load invitation images" },
+            { status: 500 }
+          );
+        }
+
+        if (typeof item.path === "string" && item.signedUrl) {
+          signedUrlByPath.set(item.path, item.signedUrl);
+        }
+      }
+
+      if (allImagePaths.some((path) => !signedUrlByPath.has(path))) {
+        console.error(
+          "PUBLIC INVITATION IMAGE SIGN ERROR: Missing signed image URL"
+        );
+
+        return NextResponse.json(
+          { error: "Failed to load invitation images" },
+          { status: 500 }
+        );
+      }
+    }
+
+    const legacyGalleryUrls = Array.isArray(data.gallery_urls)
+      ? data.gallery_urls.filter(
+          (url): url is string =>
+            typeof url === "string" &&
+            (url.startsWith("https://") || url.startsWith("http://"))
+        )
+      : [];
+
     return NextResponse.json(
       {
         id: data.id,
@@ -125,6 +205,15 @@ export async function GET(
           lng,
           mapUrl,
         },
+        backgroundUrl: backgroundPath
+          ? signedUrlByPath.get(backgroundPath) ?? null
+          : null,
+        galleryUrls:
+          galleryPaths.length > 0
+            ? galleryPaths
+                .map((path) => signedUrlByPath.get(path))
+                .filter((url): url is string => Boolean(url))
+            : legacyGalleryUrls,
       },
       {
         status: 200,

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { notFound, useParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
 import EventCalendar from "./EventCalendar";
@@ -22,12 +22,12 @@ type PublicInvitation = {
   selected_style: string;
   active_section: string;
   background_id: string | null;
+  background_url: string | null;
   gallery_ids: unknown;
   gallery_urls: unknown;
   music_path: string | null;
   public_slug: string;
   published_at: string | null;
-
   extras?: {
     lat: number | null;
     lng: number | null;
@@ -123,8 +123,9 @@ export default function PublicInvitationPage() {
     useState<PublicInvitation | null>(null);
 
   const [loading, setLoading] = useState(true);
-
   const [currentSlide, setCurrentSlide] = useState(0);
+
+  const [autoScroll, setAutoScroll] = useState(true);
 
   const [musicUrl, setMusicUrl] =
     useState<string | null>(null);
@@ -141,22 +142,31 @@ export default function PublicInvitationPage() {
   const [videoUrl, setVideoUrl] =
     useState<string | null>(null);
 
-  /*
-   * false = cover video хараахан дуусаагүй
-   * true  = cover video дууссан / video байхгүй
-   */
-  const [videoDone, setVideoDone] = useState(false);
+  const [videoDone, setVideoDone] =
+    useState(false);
 
-  /*
-   * Cover video хайлт дууссан эсэх.
-   */
   const [videoChecked, setVideoChecked] =
     useState(false);
+
+  const videoRef =
+    useRef<HTMLVideoElement | null>(null);
 
   const musicIsVideo =
     /\.(mp4|webm|mov)$/i.test(
       invitation?.music_path ?? ""
     );
+
+  const galleryUrls = useMemo(() => {
+    if (!invitation) {
+      return [];
+    }
+
+    return getGalleryUrls(invitation.gallery_urls);
+  }, [invitation]);
+
+  const showInvitation =
+    videoChecked &&
+    (videoDone || (!videoUrl && !musicIsVideo));
 
   /*
    * LOAD PUBLIC INVITATION
@@ -174,12 +184,13 @@ export default function PublicInvitationPage() {
 
         const supabase = getSupabase();
 
-        const { data, error } = await supabase.rpc(
-          "get_public_invitation",
-          {
-            p_slug: slug,
-          }
-        );
+        const { data, error } =
+          await supabase.rpc(
+            "get_public_invitation",
+            {
+              p_slug: slug,
+            }
+          );
 
         if (error) {
           console.error(
@@ -196,7 +207,9 @@ export default function PublicInvitationPage() {
         }
 
         const result = (
-          Array.isArray(data) ? data[0] : null
+          Array.isArray(data)
+            ? data[0]
+            : null
         ) as PublicInvitation | undefined;
 
         if (!result) {
@@ -208,29 +221,42 @@ export default function PublicInvitationPage() {
           return;
         }
 
-        /*
-         * PUBLIC MAP DATA
-         *
-         * get_public_invitation RPC нь extras
-         * буцаахгүй байгаа учраас тусдаа public API
-         * route-оос зөвхөн map-ийн lat/lng/mapUrl авна.
-         */
-        let mapExtras: PublicInvitation["extras"] =
-          null;
+        let mapExtras:
+          | PublicInvitation["extras"]
+          | null = null;
+
+        let backgroundUrl:
+          | string
+          | null = null;
+
+        let publishedGalleryUrls: string[] = [];
 
         try {
-          const mapResponse = await fetch(
-            `/api/public-invitation/${encodeURIComponent(
-              slug
-            )}`,
-            {
-              method: "GET",
-              cache: "no-store",
-            }
-          );
+          const mapResponse =
+            await fetch(
+              `/api/ai/design/public-invitation/${encodeURIComponent(
+                slug
+              )}`,
+              {
+                method: "GET",
+                cache: "no-store",
+              }
+            );
 
           if (mapResponse.ok) {
-            const mapData = await mapResponse.json();
+            const mapData =
+              await mapResponse.json();
+
+            backgroundUrl =
+              typeof mapData?.backgroundUrl ===
+              "string"
+                ? mapData.backgroundUrl
+                : null;
+
+            publishedGalleryUrls =
+              getGalleryUrls(
+                mapData?.galleryUrls
+              );
 
             if (mapData?.extras) {
               mapExtras = {
@@ -251,6 +277,12 @@ export default function PublicInvitationPage() {
                     : "",
               };
             }
+          } else {
+            console.error(
+              "PUBLIC INVITATION EXTRAS RESPONSE ERROR:",
+              mapResponse.status,
+              await mapResponse.text()
+            );
           }
         } catch (mapError) {
           console.error(
@@ -262,6 +294,11 @@ export default function PublicInvitationPage() {
         if (!cancelled) {
           setInvitation({
             ...result,
+            background_url: backgroundUrl,
+            gallery_urls:
+              publishedGalleryUrls.length > 0
+                ? publishedGalleryUrls
+                : result.gallery_urls,
             extras: mapExtras,
           });
 
@@ -288,34 +325,21 @@ export default function PublicInvitationPage() {
   }, [slug]);
 
   /*
-   * GALLERY
-   */
-  const galleryUrls = useMemo(() => {
-    if (!invitation) {
-      return [];
-    }
-
-    return getGalleryUrls(
-      invitation.gallery_urls
-    );
-  }, [invitation]);
-
-  /*
-   * BACKGROUND MUSIC / COVER VIDEO SIGNED URL
+   * LOAD MUSIC / COVER VIDEO
    */
   useEffect(() => {
     let cancelled = false;
 
-    async function loadMusic() {
+    async function loadMedia() {
       if (!invitation?.music_path) {
         if (!cancelled) {
           setMusicUrl(null);
-          setAudioReady(false);
-          setMusicPlaying(false);
-          setMusicError(false);
           setVideoUrl(null);
           setVideoChecked(true);
           setVideoDone(true);
+          setAudioReady(false);
+          setMusicPlaying(false);
+          setMusicError(false);
         }
 
         return;
@@ -326,125 +350,73 @@ export default function PublicInvitationPage() {
         setAudioReady(false);
         setMusicPlaying(false);
         setMusicUrl(null);
+        setVideoUrl(null);
+
+        const supabase = getSupabase();
 
         /*
-         * Хэрэв music_path өөрөө video бол
-         * тэр video нь cover video болно.
+         * music_path өөрөө video бол
          */
         if (musicIsVideo) {
           setVideoChecked(false);
           setVideoDone(false);
         }
 
-        const supabase = getSupabase();
+        const {
+          data,
+          error,
+        } = await supabase.storage
+          .from("invitation-music")
+          .createSignedUrl(
+            invitation.music_path,
+            60 * 60 * 24
+          );
 
-        const { data, error } =
-          await supabase.storage
-            .from("invitation-music")
-            .createSignedUrl(
-              invitation.music_path,
-              60 * 60 * 24
-            );
-
-        if (error) {
+        if (error || !data?.signedUrl) {
           console.error(
-            "MUSIC SIGNED URL ERROR:",
+            "MEDIA SIGNED URL ERROR:",
             error
           );
 
           if (!cancelled) {
             setMusicError(true);
-
-            if (musicIsVideo) {
-              setVideoChecked(true);
-              setVideoDone(true);
-            }
+            setMusicUrl(null);
+            setVideoChecked(true);
+            setVideoDone(true);
           }
 
           return;
         }
 
-        if (!cancelled) {
-          const signedUrl =
-            data?.signedUrl || null;
-
-          setMusicUrl(signedUrl);
-
-          if (!signedUrl) {
-            setMusicError(true);
-
-            if (musicIsVideo) {
-              setVideoChecked(true);
-              setVideoDone(true);
-            }
-          }
+        if (cancelled) {
+          return;
         }
-      } catch (error) {
-        console.error(
-          "MUSIC LOAD ERROR:",
-          error
-        );
 
-        if (!cancelled) {
-          setMusicUrl(null);
-          setMusicError(true);
+        const signedUrl =
+          data.signedUrl;
 
-          if (musicIsVideo) {
-            setVideoChecked(true);
-            setVideoDone(true);
-          }
+        setMusicUrl(signedUrl);
+
+        /*
+         * music_path өөрөө video бол
+         * шууд тэр signed URL-ийг video болгон ашиглана.
+         */
+        if (musicIsVideo) {
+          setVideoUrl(signedUrl);
+          setVideoChecked(true);
+          setVideoDone(false);
+          return;
         }
-      }
-    }
 
-    loadMusic();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [invitation?.music_path, musicIsVideo]);
-
-  /*
-   * COVER VIDEO
-   *
-   * MP3-тэй хамт:
-   *
-   * invitation-music
-   * └── userId
-   *     └── invitationId
-   *         ├── music.mp3
-   *         └── video.mp4
-   */
-  useEffect(() => {
-    const musicPath =
-      invitation?.music_path;
-
-    /*
-     * music_path өөрөө video бол
-     * loadMusic() signed URL-ийг ашиглана.
-     */
-    if (!musicPath || musicIsVideo) {
-      if (!musicPath) {
-        setVideoUrl(null);
-        setVideoChecked(true);
-        setVideoDone(true);
-      }
-
-      return;
-    }
-
-    let cancelled = false;
-
-    async function loadVideo(path: string) {
-      try {
-        setVideoChecked(false);
-
-        const supabase = getSupabase();
-
-        const folder = path
-          .split("/")
-          .slice(0, -1)
-          .join("/");
+        /*
+         * Энгийн MP3 байгаа үед тухайн
+         * invitation folder дотроос video.mp4 хайна.
+         */
+        const folder =
+          invitation.music_path
+            .split("/")
+            .slice(0, -1)
+            .join("/");
 
         const bucket =
           supabase.storage.from(
@@ -471,16 +443,16 @@ export default function PublicInvitationPage() {
           return;
         }
 
-        const video = files?.find((file) =>
-          /^video\.(mp4|webm|mov)$/i.test(
-            file.name
-          )
-        );
-
         /*
-         * Video байхгүй бол invitation
-         * шууд харагдана.
+         * video.mp4 / video.webm / video.mov
          */
+        const video =
+          files?.find((file) =>
+            /^video\.(mp4|webm|mov)$/i.test(
+              file.name
+            )
+          );
+
         if (!video) {
           if (!cancelled) {
             setVideoUrl(null);
@@ -491,21 +463,25 @@ export default function PublicInvitationPage() {
           return;
         }
 
+        const videoPath =
+          `${folder}/${video.name}`;
+
         const {
-          data,
-          error,
-        } = await bucket.createSignedUrl(
-          `${folder}/${video.name}`,
-          60 * 60 * 24
-        );
+          data: videoData,
+          error: videoError,
+        } =
+          await bucket.createSignedUrl(
+            videoPath,
+            60 * 60 * 24
+          );
 
         if (
-          error ||
-          !data?.signedUrl
+          videoError ||
+          !videoData?.signedUrl
         ) {
           console.error(
             "COVER VIDEO SIGNED URL ERROR:",
-            error
+            videoError
           );
 
           if (!cancelled) {
@@ -518,30 +494,69 @@ export default function PublicInvitationPage() {
         }
 
         if (!cancelled) {
-          setVideoUrl(data.signedUrl);
+          setVideoUrl(
+            videoData.signedUrl
+          );
           setVideoChecked(true);
           setVideoDone(false);
         }
       } catch (error) {
         console.error(
-          "COVER VIDEO LOAD ERROR:",
+          "MEDIA LOAD ERROR:",
           error
         );
 
         if (!cancelled) {
+          setMusicUrl(null);
           setVideoUrl(null);
           setVideoChecked(true);
           setVideoDone(true);
+          setMusicError(true);
         }
       }
     }
 
-    loadVideo(musicPath);
+    loadMedia();
 
     return () => {
       cancelled = true;
     };
-  }, [invitation?.music_path, musicIsVideo]);
+  }, [
+    invitation?.music_path,
+    musicIsVideo,
+  ]);
+
+  /*
+   * VIDEO AUTOPLAY
+   */
+  useEffect(() => {
+    if (!videoUrl || videoDone) {
+      return;
+    }
+
+    const video =
+      videoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    video.muted = true;
+    video.playsInline = true;
+
+    const playVideo = async () => {
+      try {
+        await video.play();
+      } catch (error) {
+        console.warn(
+          "VIDEO AUTOPLAY BLOCKED:",
+          error
+        );
+      }
+    };
+
+    void playVideo();
+  }, [videoUrl, videoDone]);
 
   /*
    * SLIDESHOW
@@ -552,14 +567,14 @@ export default function PublicInvitationPage() {
       return;
     }
 
-    const timer = window.setInterval(() => {
-      setCurrentSlide((current) => {
-        return (
-          (current + 1) %
-          galleryUrls.length
+    const timer =
+      window.setInterval(() => {
+        setCurrentSlide(
+          (current) =>
+            (current + 1) %
+            galleryUrls.length
         );
-      });
-    }, 4000);
+      }, 4000);
 
     return () => {
       window.clearInterval(timer);
@@ -567,36 +582,166 @@ export default function PublicInvitationPage() {
   }, [galleryUrls.length]);
 
   /*
-   * MUSIC / VIDEO EVENTS
+   * AUTO SCROLL
    */
   useEffect(() => {
+    if (!showInvitation || !autoScroll) {
+      return;
+    }
+
+    let frameId = 0;
+    let previousTime = 0;
+
+    const stopForUserInput = () => {
+      setAutoScroll(false);
+    };
+
+    const stopForScrollKey = (
+      event: KeyboardEvent
+    ) => {
+      if (
+        [
+          "ArrowDown",
+          "ArrowUp",
+          "PageDown",
+          "PageUp",
+          "Home",
+          "End",
+          " ",
+        ].includes(event.key)
+      ) {
+        setAutoScroll(false);
+      }
+    };
+
+    const advanceScroll = (
+      time: number
+    ) => {
+      if (previousTime > 0) {
+        const elapsedSeconds =
+          Math.min(
+            (time - previousTime) / 1000,
+            0.05
+          );
+
+        const maxScroll =
+          document.documentElement
+            .scrollHeight -
+          window.innerHeight;
+
+        if (
+          maxScroll <= 0 ||
+          window.scrollY >=
+            maxScroll - 2
+        ) {
+          setAutoScroll(false);
+          return;
+        }
+
+        window.scrollBy(
+          0,
+          elapsedSeconds * 18
+        );
+      }
+
+      previousTime = time;
+
+      frameId =
+        window.requestAnimationFrame(
+          advanceScroll
+        );
+    };
+
+    window.addEventListener(
+      "wheel",
+      stopForUserInput,
+      { passive: true }
+    );
+
+    window.addEventListener(
+      "touchstart",
+      stopForUserInput,
+      { passive: true }
+    );
+
+    window.addEventListener(
+      "pointerdown",
+      stopForUserInput,
+      { passive: true }
+    );
+
+    window.addEventListener(
+      "keydown",
+      stopForScrollKey
+    );
+
+    frameId =
+      window.requestAnimationFrame(
+        advanceScroll
+      );
+
+    return () => {
+      window.cancelAnimationFrame(
+        frameId
+      );
+
+      window.removeEventListener(
+        "wheel",
+        stopForUserInput
+      );
+
+      window.removeEventListener(
+        "touchstart",
+        stopForUserInput
+      );
+
+      window.removeEventListener(
+        "pointerdown",
+        stopForUserInput
+      );
+
+      window.removeEventListener(
+        "keydown",
+        stopForScrollKey
+      );
+    };
+  }, [
+    autoScroll,
+    showInvitation,
+  ]);
+
+  /*
+   * AUDIO EVENTS
+   */
+  useEffect(() => {
+    if (
+      !musicUrl ||
+      musicIsVideo
+    ) {
+      setAudioReady(false);
+      setMusicPlaying(false);
+      return;
+    }
+
     const media =
       document.getElementById(
         "invitation-background-music"
-      ) as HTMLMediaElement | null;
+      ) as HTMLAudioElement | null;
 
-    if (!media || !musicUrl) {
-      setAudioReady(false);
-      setMusicPlaying(false);
-
-      if (!musicUrl && !musicIsVideo) {
-        setMusicError(false);
-      }
-
+    if (!media) {
       return;
     }
 
     setAudioReady(false);
+    setMusicPlaying(false);
     setMusicError(false);
 
     const handleCanPlay = () => {
       setAudioReady(true);
-      setMusicError(false);
     };
 
     const handleLoadedData = () => {
       setAudioReady(true);
-      setMusicError(false);
     };
 
     const handlePlay = () => {
@@ -607,30 +752,18 @@ export default function PublicInvitationPage() {
       setMusicPlaying(false);
     };
 
-    const handleEnded = () => {
-      setMusicPlaying(false);
-
-      if (musicIsVideo) {
-        setVideoDone(true);
-      }
-    };
-
     const handleError = () => {
       console.error(
-        "BACKGROUND MEDIA LOAD ERROR"
+        "BACKGROUND MUSIC LOAD ERROR"
       );
 
       setAudioReady(false);
       setMusicPlaying(false);
       setMusicError(true);
-
-      if (musicIsVideo) {
-        setVideoDone(true);
-      }
     };
 
     media.addEventListener(
-      "canplaythrough",
+      "canplay",
       handleCanPlay
     );
 
@@ -650,11 +783,6 @@ export default function PublicInvitationPage() {
     );
 
     media.addEventListener(
-      "ended",
-      handleEnded
-    );
-
-    media.addEventListener(
       "error",
       handleError
     );
@@ -665,7 +793,7 @@ export default function PublicInvitationPage() {
 
     return () => {
       media.removeEventListener(
-        "canplaythrough",
+        "canplay",
         handleCanPlay
       );
 
@@ -685,16 +813,14 @@ export default function PublicInvitationPage() {
       );
 
       media.removeEventListener(
-        "ended",
-        handleEnded
-      );
-
-      media.removeEventListener(
         "error",
         handleError
       );
     };
-  }, [musicUrl, musicIsVideo]);
+  }, [
+    musicUrl,
+    musicIsVideo,
+  ]);
 
   /*
    * MUSIC PLAY / PAUSE
@@ -710,30 +836,18 @@ export default function PublicInvitationPage() {
     }
 
     try {
-      /*
-       * Cover video дээр mute/unmute.
-       */
       if (musicIsVideo) {
-        const nextMuted =
-          !media.muted;
-
-        media.muted = nextMuted;
-
-        setMusicPlaying(!nextMuted);
-
-        if (
-          media.paused &&
-          !videoDone
-        ) {
+        if (media.paused) {
           await media.play();
+          setMusicPlaying(true);
+        } else {
+          media.pause();
+          setMusicPlaying(false);
         }
 
         return;
       }
 
-      /*
-       * Энгийн MP3
-       */
       if (media.paused) {
         await media.play();
         setMusicPlaying(true);
@@ -767,7 +881,19 @@ export default function PublicInvitationPage() {
   }
 
   if (!invitation) {
-    notFound();
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-black px-6 text-white">
+        <div className="text-center">
+          <h1 className="text-xl font-semibold">
+            Урилга олдсонгүй
+          </h1>
+
+          <p className="mt-2 text-sm text-white/60">
+            Урилгын линк буруу эсвэл нийтлэгдээгүй байна.
+          </p>
+        </div>
+      </main>
+    );
   }
 
   const style = getStyle(
@@ -788,41 +914,31 @@ export default function PublicInvitationPage() {
     typeof mapLat === "number" &&
     typeof mapLng === "number";
 
-  const googleMapsUrl = hasCoordinates
-    ? `https://www.google.com/maps/dir/?api=1&destination=${mapLat},${mapLng}`
-    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-        `${invitation.venue} ${invitation.address}`
-      )}`;
+  const googleMapsUrl =
+    hasCoordinates
+      ? `https://www.google.com/maps/dir/?api=1&destination=${mapLat},${mapLng}`
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+          `${invitation.venue} ${invitation.address}`
+        )}`;
 
-  /*
-   * OpenStreetMap embed.
-   *
-   * Координат байгаа үед builder дээр сонгосон
-   * яг тэр цэгийг харуулна.
-   */
-  const mapEmbedUrl = hasCoordinates
-    ? `https://www.openstreetmap.org/export/embed.html?bbox=${(
-        mapLng! - 0.008
-      ).toFixed(6)}%2C${(
-        mapLat! - 0.005
-      ).toFixed(6)}%2C${(
-        mapLng! + 0.008
-      ).toFixed(6)}%2C${(
-        mapLat! + 0.005
-      ).toFixed(6)}&layer=mapnik&marker=${mapLat}%2C${mapLng}`
-    : "";
+  const mapEmbedUrl =
+    hasCoordinates
+      ? `https://www.openstreetmap.org/export/embed.html?bbox=${(
+          mapLng! - 0.008
+        ).toFixed(6)}%2C${(
+          mapLat! - 0.005
+        ).toFixed(6)}%2C${(
+          mapLng! + 0.008
+        ).toFixed(6)}%2C${(
+          mapLat! + 0.005
+        ).toFixed(
+          6
+        )}&layer=mapnik&marker=${mapLat}%2C${mapLng}`
+      : "";
 
-  /*
-   * MAIN DISPLAY LOGIC
-   */
-  const hasVideoUrl =
-    Boolean(videoUrl);
-
-  const showInvitation =
-    videoDone ||
-    (videoChecked &&
-      !hasVideoUrl &&
-      !musicIsVideo);
+  const hasAnyBackground =
+    galleryUrls.length > 0 ||
+    Boolean(invitation.background_url);
 
   return (
     <main
@@ -832,71 +948,77 @@ export default function PublicInvitationPage() {
       /*
        * BACKGROUND MUSIC
        */
-      {musicUrl &&
-        !musicIsVideo && (
-          <audio
-            id="invitation-background-music"
-            src={musicUrl}
-            loop
-            preload="auto"
-          />
-        )}
+      {musicUrl && !musicIsVideo && (
+        <audio
+          id="invitation-background-music"
+          src={musicUrl}
+          loop
+          preload="auto"
+        />
+      )}
+
+      /*
+       * AUTO SCROLL BUTTON
+       */
+      {showInvitation && (
+        <button
+          type="button"
+          onClick={() =>
+            setAutoScroll(
+              (current) => !current
+            )
+          }
+          className="fixed bottom-4 left-4 z-50 rounded-full bg-black/55 px-4 py-2.5 text-xs font-medium text-white shadow-lg backdrop-blur-md"
+          aria-pressed={autoScroll}
+        >
+          {autoScroll
+            ? "Авто гүйлгэлт зогсоох"
+            : "Авто гүйлгэж эхлүүлэх"}
+        </button>
+      )}
 
       /*
        * COVER VIDEO
-       *
-       * Жижиг centered video.
        */
-      {musicUrl &&
-        musicIsVideo &&
-        !videoDone && (
-          <section className="relative z-20 px-4 pt-4 sm:px-6 sm:pt-8">
-            <div className="mx-auto max-w-2xl overflow-hidden rounded-[28px] shadow-2xl">
-              <video
-                id="invitation-background-music"
-                src={musicUrl}
-                className="block aspect-video w-full bg-black object-contain"
-                autoPlay
-                muted
-                playsInline
-                preload="auto"
-                onEnded={() => {
-                  setMusicPlaying(false);
-                  setVideoDone(true);
-                }}
-                onError={() => {
-                  setMusicPlaying(false);
-                  setVideoDone(true);
-                }}
-              />
-            </div>
-          </section>
-        )}
+      {videoUrl && !videoDone && (
+        <section className="relative z-20 px-4 pt-4 sm:px-6 sm:pt-8">
+          <div className="mx-auto max-w-2xl overflow-hidden rounded-[28px] shadow-2xl">
+            <video
+              ref={videoRef}
+              id={
+                musicIsVideo
+                  ? "invitation-background-music"
+                  : "invitation-cover-video"
+              }
+              src={videoUrl}
+              className="block aspect-video w-full bg-black object-contain"
+              autoPlay
+              muted
+              playsInline
+              preload="auto"
+              controls={false}
+              onPlay={() =>
+                setMusicPlaying(true)
+              }
+              onPause={() =>
+                setMusicPlaying(false)
+              }
+              onEnded={() => {
+                setMusicPlaying(false);
+                setVideoDone(true);
+              }}
+              onError={() => {
+                console.error(
+                  "INVITATION VIDEO ERROR"
+                );
 
-      /*
-       * FOLDER ДОТОРХ video.mp4
-       */
-      {videoUrl !== null &&
-        !videoDone && (
-          <section className="relative z-20 px-4 pt-4 sm:px-6 sm:pt-8">
-            <div className="mx-auto max-w-2xl overflow-hidden rounded-[28px] shadow-2xl">
-              <video
-                src={videoUrl}
-                className="block aspect-video w-full bg-black object-contain"
-                autoPlay
-                muted
-                playsInline
-                preload="auto"
-                onEnded={() => {
-                  setVideoDone(true);
-                }}
-                onError={() => {
-                  setVideoDone(true);
-                }}
-              />
-            </div>
-          </section>
-        )}
+                setMusicPlaying(false);
+                setVideoDone(true);
+              }}
+            />
+          </div>
+        </section>
+      )}
 
       /*
        * BACKGROUND SLIDESHOW
@@ -907,8 +1029,7 @@ export default function PublicInvitationPage() {
             {galleryUrls.map(
               (url, index) => {
                 const isActive =
-                  index ===
-                  currentSlide;
+                  index === currentSlide;
 
                 return (
                   <div
@@ -936,9 +1057,28 @@ export default function PublicInvitationPage() {
         )}
 
       /*
-       * FALLBACK BACKGROUND
+       * SINGLE BACKGROUND IMAGE
        */
-      {galleryUrls.length === 0 &&
+      {invitation.background_url &&
+        galleryUrls.length === 0 &&
+        showInvitation && (
+          <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+            <img
+              src={invitation.background_url}
+              alt=""
+              className="h-full w-full object-cover"
+            />
+
+            <div className="absolute inset-0 bg-black/25" />
+          </div>
+        )}
+
+      /*
+       * FALLBACK BACKGROUND
+       *
+       * Зөвхөн ямар ч зураг байхгүй үед гарна.
+       */
+      {!hasAnyBackground &&
         showInvitation && (
           <div className="pointer-events-none fixed inset-0 z-0">
             <div
@@ -963,9 +1103,13 @@ export default function PublicInvitationPage() {
             <button
               type="button"
               onClick={toggleMusic}
-              disabled={!audioReady}
+              disabled={
+                !audioReady &&
+                !musicIsVideo
+              }
               className={`flex h-12 w-12 items-center justify-center rounded-full border border-white/30 bg-black/45 text-lg text-white shadow-lg backdrop-blur-md transition hover:bg-black/60 ${
-                !audioReady
+                !audioReady &&
+                !musicIsVideo
                   ? "cursor-wait opacity-60"
                   : ""
               }`}
@@ -995,9 +1139,17 @@ export default function PublicInvitationPage() {
                * COVER
                */
               <section className="relative min-h-[620px] overflow-hidden px-6 pb-16 pt-16 text-center sm:px-12 sm:pt-24">
-                {galleryUrls.length > 0 && (
+                {invitation.background_url && (
                   <div className="absolute inset-0 -z-10">
-                    <div className="absolute inset-0 bg-black/20" />
+                    <img
+                      src={
+                        invitation.background_url
+                      }
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+
+                    <div className="absolute inset-0 bg-white/65" />
                   </div>
                 )}
 
@@ -1039,19 +1191,24 @@ export default function PublicInvitationPage() {
                   <div className="mt-8 space-y-2">
                     {invitation.event_date && (
                       <p className="text-lg font-medium">
-                        {invitation.event_date}
+                        {
+                          invitation.event_date
+                        }
                       </p>
                     )}
 
                     {invitation.event_time && (
                       <p className="text-sm opacity-70">
-                        {invitation.event_time}
+                        {
+                          invitation.event_time
+                        }
                       </p>
                     )}
                   </div>
                 )}
 
-                {galleryUrls.length > 1 && (
+                {galleryUrls.length >
+                  1 && (
                   <div className="absolute bottom-7 left-1/2 flex -translate-x-1/2 gap-2">
                     {galleryUrls.map(
                       (_, index) => (
@@ -1069,7 +1226,8 @@ export default function PublicInvitationPage() {
                   </div>
                 )}
 
-                {galleryUrls.length > 0 && (
+                {galleryUrls.length >
+                  0 && (
                   <div className="absolute bottom-7 right-6 text-xs text-white/70">
                     {currentSlide + 1} /{" "}
                     {galleryUrls.length}
@@ -1109,7 +1267,9 @@ export default function PublicInvitationPage() {
 
                     {invitation.address && (
                       <p className="mx-auto mt-3 max-w-lg text-sm leading-6 opacity-75">
-                        {invitation.address}
+                        {
+                          invitation.address
+                        }
                       </p>
                     )}
 
@@ -1119,14 +1279,18 @@ export default function PublicInvitationPage() {
                         {invitation.event_date && (
                           <div className="rounded-full bg-white/80 px-5 py-2 text-sm">
                             📅{" "}
-                            {invitation.event_date}
+                            {
+                              invitation.event_date
+                            }
                           </div>
                         )}
 
                         {invitation.event_time && (
                           <div className="rounded-full bg-white/80 px-5 py-2 text-sm">
                             🕐{" "}
-                            {invitation.event_time}
+                            {
+                              invitation.event_time
+                            }
                           </div>
                         )}
                       </div>
@@ -1190,7 +1354,8 @@ export default function PublicInvitationPage() {
               /*
                * GALLERY
                */
-              {galleryUrls.length > 0 && (
+              {galleryUrls.length >
+                0 && (
                 <section className="px-5 pb-12 sm:px-8">
                   <div className="mb-6 text-center">
                     <p
@@ -1226,9 +1391,6 @@ export default function PublicInvitationPage() {
 
               /*
                * LOCATION
-               *
-               * Builder дээр сонгосон lat/lng
-               * байвал яг тэр цэгийн map гарна.
                */
               {(invitation.address ||
                 hasCoordinates) && (
@@ -1257,7 +1419,9 @@ export default function PublicInvitationPage() {
 
                     {invitation.address && (
                       <p className="mx-auto mt-3 max-w-lg text-sm leading-6 opacity-75">
-                        {invitation.address}
+                        {
+                          invitation.address
+                        }
                       </p>
                     )}
 
@@ -1338,9 +1502,6 @@ export default function PublicInvitationPage() {
               </footer>
             </article>
 
-            /*
-             * SHARE INFO
-             */
             <div className="mt-5 flex justify-center">
               <p className="text-center text-xs text-black/40">
                 Урилгын линкийг хуваалцаарай
@@ -1351,7 +1512,7 @@ export default function PublicInvitationPage() {
       )}
 
       /*
-       * VIDEO LOADING MESSAGE
+       * VIDEO LOADING
        */
       {!showInvitation &&
         !videoDone && (
@@ -1368,6 +1529,7 @@ export default function PublicInvitationPage() {
       {musicUrl &&
         !audioReady &&
         !musicError &&
+        !musicIsVideo &&
         showInvitation && (
           <div className="pointer-events-none fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full bg-black/40 px-4 py-2 text-xs text-white/70 backdrop-blur-md">
             🎵 Хөгжим ачаалж байна...

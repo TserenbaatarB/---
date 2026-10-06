@@ -36,6 +36,12 @@ const eventNames: Record<string, string> = {
   other: "Бусад",
 };
 
+const ADMIN_EMAIL = "tsb.0318@gmail.com";
+
+function hasActiveMembership(expiresAt: string | null | undefined) {
+  return Boolean(expiresAt && new Date(expiresAt).getTime() > Date.now());
+}
+
 export default function DashboardPage() {
   const router = useRouter();
 
@@ -43,6 +49,10 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState<InvitationDraft | null>(null);
   const [draftLoading, setDraftLoading] = useState(true);
+  const [membershipExpiresAt, setMembershipExpiresAt] =
+    useState<string | null>(null);
+  const [membershipActive, setMembershipActive] = useState(false);
+  const [membershipError, setMembershipError] = useState("");
 
   useEffect(() => {
     async function loadUser() {
@@ -56,6 +66,26 @@ export default function DashboardPage() {
       }
 
       setEmail(user.email ?? "");
+
+      try {
+        const { data: membership, error } = await supabase
+          .from("user_memberships")
+          .select("expires_at")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (error) throw error;
+        const expiresAt = membership?.expires_at ?? null;
+        setMembershipExpiresAt(expiresAt);
+        setMembershipActive(hasActiveMembership(expiresAt));
+      } catch (error) {
+        console.error("DASHBOARD MEMBERSHIP LOAD ERROR:", error);
+        setMembershipError(
+          error instanceof Error
+            ? error.message
+            : "Сарын эрхийн төлөвийг ачаалж чадсангүй."
+        );
+      }
 
       // Хадгалсан урилгаа browser-оос унших
       try {
@@ -88,6 +118,11 @@ export default function DashboardPage() {
   }
 
   function handleCreateInvitation() {
+    if (!membershipActive) {
+      router.push("/dashboard/billing");
+      return;
+    }
+
     router.push("/dashboard/invitations/new");
   }
 
@@ -164,11 +199,31 @@ export default function DashboardPage() {
             удирдах боломжтой.
           </p>
 
+          <div className="mt-6 rounded-2xl bg-[#F8F5F0] p-4">
+            <p className="text-sm font-semibold">
+              {membershipActive
+                ? `Сарын эрх ${new Date(membershipExpiresAt ?? "").toLocaleDateString("mn-MN")} хүртэл идэвхтэй`
+                : "Урилга нийтлэхэд ₮19,900 сарын эрх шаардлагатай"}
+            </p>
+            {membershipError && (
+              <p role="alert" className="mt-2 text-xs text-red-700">
+                Эрхийн төлөв уншигдсангүй: {membershipError}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => router.push("/dashboard/billing")}
+              className="mt-3 rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold hover:bg-black/5"
+            >
+              {membershipActive ? "Эрх сунгах" : "Сарын эрх авах"}
+            </button>
+          </div>
+
           <button
             onClick={handleCreateInvitation}
             className="mt-8 rounded-full bg-black px-7 py-4 text-sm font-semibold text-white transition hover:bg-black/85"
           >
-            + Шинэ урилга үүсгэх
+            {membershipActive ? "+ Шинэ урилга үүсгэх" : "Сарын эрхээ идэвхжүүлэх"}
           </button>
 
           <button
@@ -177,6 +232,16 @@ export default function DashboardPage() {
           >
             Зочдын хариу
           </button>
+
+          {email.toLowerCase() === ADMIN_EMAIL && (
+            <button
+              type="button"
+              onClick={() => router.push("/dashboard/admin/payments")}
+              className="mt-8 ml-3 rounded-full border border-black/10 bg-white px-7 py-4 text-sm font-semibold transition hover:bg-black hover:text-white"
+            >
+              Төлбөр баталгаажуулах
+            </button>
+          )}
         </div>
 
         {/* Миний урилгууд */}
@@ -195,7 +260,7 @@ export default function DashboardPage() {
                 onClick={handleCreateInvitation}
                 className="hidden rounded-full border border-black/10 bg-white px-5 py-2.5 text-sm font-medium transition hover:bg-black hover:text-white sm:block"
               >
-                + Шинэ урилга
+                {membershipActive ? "+ Шинэ урилга" : "Сарын эрх авах"}
               </button>
             )}
           </div>
@@ -325,7 +390,7 @@ export default function DashboardPage() {
                 onClick={handleCreateInvitation}
                 className="mt-7 rounded-full bg-black px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-black/85"
               >
-                + Анхны урилгаа үүсгэх
+                {membershipActive ? "+ Анхны урилгаа үүсгэх" : "Сарын эрх авах"}
               </button>
             </div>
           )}
