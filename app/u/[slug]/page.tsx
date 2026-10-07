@@ -65,6 +65,13 @@ function getSupabase() {
   return createClient(url, key);
 }
 
+function hasText(value: unknown): boolean {
+  return (
+    typeof value === "string" &&
+    value.trim().length > 0
+  );
+}
+
 function getGalleryUrls(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
@@ -73,7 +80,7 @@ function getGalleryUrls(value: unknown): string[] {
   return value.filter(
     (item): item is string =>
       typeof item === "string" &&
-      item.length > 0 &&
+      item.trim().length > 0 &&
       (item.startsWith("http://") ||
         item.startsWith("https://"))
   );
@@ -1012,9 +1019,14 @@ export default function PublicInvitationPage() {
         return;
       }
 
+      /*
+       * AUTO-SCROLL SPEED
+       *
+       * 38px / second
+       */
       window.scrollBy(
         0,
-        elapsedSeconds * 28
+        elapsedSeconds * 38
       );
 
       frameId =
@@ -1431,11 +1443,6 @@ export default function PublicInvitationPage() {
       );
 
       media.removeEventListener(
-        "play",
-        handlePlay
-      );
-
-      media.removeEventListener(
         "error",
         handleError
       );
@@ -1528,6 +1535,49 @@ export default function PublicInvitationPage() {
       "romantic"
   );
 
+  /*
+   * ============================================================
+   * DATA CHECKS
+   * ============================================================
+   */
+
+  const hasTitle =
+    hasText(invitation.title);
+
+  const hasNames =
+    hasText(invitation.names);
+
+  const hasMessage =
+    hasText(invitation.message);
+
+  const hasEventDate =
+    hasText(invitation.event_date);
+
+  const hasEventTime =
+    hasText(invitation.event_time);
+
+  const hasVenue =
+    hasText(invitation.venue);
+
+  const hasAddress =
+    hasText(invitation.address);
+
+  const hasPhone =
+    hasText(invitation.phone);
+
+  const hasEventInfo =
+    hasVenue ||
+    hasAddress ||
+    hasEventDate ||
+    hasEventTime;
+
+  const hasCoverInfo =
+    hasTitle ||
+    hasNames ||
+    hasMessage ||
+    hasEventDate ||
+    hasEventTime;
+
   const mapLat =
     invitation.extras?.lat ?? null;
 
@@ -1538,11 +1588,21 @@ export default function PublicInvitationPage() {
     typeof mapLat === "number" &&
     typeof mapLng === "number";
 
+  const hasMapUrl =
+    hasText(invitation.extras?.mapUrl);
+
+  const hasMapInfo =
+    hasAddress ||
+    hasCoordinates ||
+    hasMapUrl;
+
   const googleMapsUrl =
     hasCoordinates
       ? `https://www.google.com/maps/dir/?api=1&destination=${mapLat},${mapLng}`
       : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-          `${invitation.venue} ${invitation.address}`
+          `${invitation.venue ?? ""} ${
+            invitation.address ?? ""
+          }`.trim()
         )}`;
 
   const mapEmbedUrl =
@@ -1634,10 +1694,18 @@ export default function PublicInvitationPage() {
                     Invitation
                   </p>
 
-                  <p className="mt-2 text-lg font-medium">
-                    {invitation.names ||
-                      "Урилга"}
-                  </p>
+                  {hasNames && (
+                    <p className="mt-2 text-lg font-medium">
+                      {invitation.names}
+                    </p>
+                  )}
+
+                  {!hasNames &&
+                    hasTitle && (
+                      <p className="mt-2 text-lg font-medium">
+                        {invitation.title}
+                      </p>
+                    )}
                 </div>
               </div>
 
@@ -1710,10 +1778,18 @@ export default function PublicInvitationPage() {
               ✨
             </div>
 
-            <h1 className="text-3xl font-semibold">
-              {invitation.names ||
-                "Урилга"}
-            </h1>
+            {hasNames && (
+              <h1 className="text-3xl font-semibold">
+                {invitation.names}
+              </h1>
+            )}
+
+            {!hasNames &&
+              hasTitle && (
+                <h1 className="text-3xl font-semibold">
+                  {invitation.title}
+                </h1>
+              )}
 
             {!isStarted && (
               <button
@@ -1770,10 +1846,18 @@ export default function PublicInvitationPage() {
               Invitation
             </p>
 
-            <h1 className="mt-4 text-4xl font-semibold">
-              {invitation.names ||
-                "Урилга"}
-            </h1>
+            {hasNames && (
+              <h1 className="mt-4 text-4xl font-semibold">
+                {invitation.names}
+              </h1>
+            )}
+
+            {!hasNames &&
+              hasTitle && (
+                <h1 className="mt-4 text-4xl font-semibold">
+                  {invitation.title}
+                </h1>
+              )}
 
             {!isStarted && (
               <button
@@ -1828,10 +1912,18 @@ export default function PublicInvitationPage() {
               🕊️
             </div>
 
-            <h1 className="mt-5 text-3xl font-semibold">
-              {invitation.names ||
-                "Урилга"}
-            </h1>
+            {hasNames && (
+              <h1 className="mt-5 text-3xl font-semibold">
+                {invitation.names}
+              </h1>
+            )}
+
+            {!hasNames &&
+              hasTitle && (
+                <h1 className="mt-5 text-3xl font-semibold">
+                  {invitation.title}
+                </h1>
+              )}
 
             {!isStarted && (
               <button
@@ -1886,10 +1978,18 @@ export default function PublicInvitationPage() {
               💗
             </div>
 
-            <h1 className="mt-5 text-3xl font-semibold">
-              {invitation.names ||
-                "Урилга"}
-            </h1>
+            {hasNames && (
+              <h1 className="mt-5 text-3xl font-semibold">
+                {invitation.names}
+              </h1>
+            )}
+
+            {!hasNames &&
+              hasTitle && (
+                <h1 className="mt-5 text-3xl font-semibold">
+                  {invitation.title}
+                </h1>
+              )}
 
             {!isStarted && (
               <button
@@ -1932,10 +2032,18 @@ export default function PublicInvitationPage() {
             💍
           </div>
 
-          <h1 className="mt-5 text-3xl font-semibold">
-            {invitation.names ||
-              "Урилга"}
-          </h1>
+          {hasNames && (
+            <h1 className="mt-5 text-3xl font-semibold">
+              {invitation.names}
+            </h1>
+          )}
+
+          {!hasNames &&
+            hasTitle && (
+              <h1 className="mt-5 text-3xl font-semibold">
+                {invitation.title}
+              </h1>
+            )}
 
           {!isStarted && (
             <button
@@ -2141,171 +2249,183 @@ export default function PublicInvitationPage() {
       {showInvitation && (
         <div className="relative z-10 px-4 py-6 sm:px-6 sm:py-10">
           <div className="mx-auto max-w-2xl">
-
             <article
               className={`overflow-hidden rounded-[32px] border ${style.border} bg-white/55 shadow-2xl backdrop-blur-[3px]`}
             >
-
               {/* =================================================
                   COVER
-
-                  Title
-                  Names
-                  Message
-                  Date / Time
                   ================================================= */}
 
-              <section className="relative min-h-[620px] overflow-hidden bg-white/20 px-6 pb-16 pt-16 text-center sm:px-12 sm:pt-24">
-
-                <div
-                  className="mx-auto mb-8 h-px w-16"
-                  style={{
-                    backgroundColor:
-                      style.accent,
-                  }}
-                />
-
-                {/* TITLE */}
-
-                {invitation.title && (
-                  <p
-                    className="mb-5 text-xs font-semibold uppercase tracking-[0.28em]"
+              {hasCoverInfo && (
+                <section className="relative min-h-[620px] overflow-hidden bg-white/20 px-6 pb-16 pt-16 text-center sm:px-12 sm:pt-24">
+                  <div
+                    className="mx-auto mb-8 h-px w-16"
                     style={{
-                      color: style.accent,
+                      backgroundColor:
+                        style.accent,
                     }}
-                  >
-                    {invitation.title}
-                  </p>
-                )}
+                  />
 
-                {/* NAMES */}
+                  {/* TITLE */}
 
-                {invitation.names && (
-                  <h1 className="whitespace-pre-line text-4xl font-semibold leading-tight tracking-tight drop-shadow-sm sm:text-6xl">
-                    {invitation.names}
-                  </h1>
-                )}
-
-                {/* MESSAGE */}
-
-                {invitation.message && (
-                  <div className="mx-auto mt-10 max-w-xl rounded-[28px] bg-white/55 px-6 py-7 shadow-sm backdrop-blur-md sm:px-10">
+                  {hasTitle && (
                     <p
-                      className="mb-4 text-sm font-semibold uppercase tracking-[0.22em]"
+                      className="mb-5 text-xs font-semibold uppercase tracking-[0.28em]"
                       style={{
                         color: style.accent,
                       }}
                     >
-                      Мэндчилгээ
+                      {invitation.title}
                     </p>
+                  )}
 
+                  {/* NAMES */}
+
+                  {hasNames && (
+                    <h1 className="whitespace-pre-line text-4xl font-semibold leading-tight tracking-tight drop-shadow-sm sm:text-6xl">
+                      {invitation.names}
+                    </h1>
+                  )}
+
+                  {/* MESSAGE */}
+
+                  {hasMessage && (
+                    <div className="mx-auto mt-10 max-w-xl rounded-[28px] bg-white/55 px-6 py-7 shadow-sm backdrop-blur-md sm:px-10">
+                      <p
+                        className="mb-4 text-sm font-semibold uppercase tracking-[0.22em]"
+                        style={{
+                          color:
+                            style.accent,
+                        }}
+                      >
+                        Мэндчилгээ
+                      </p>
+
+                      <div
+                        className="mx-auto mb-5 h-px w-10"
+                        style={{
+                          backgroundColor:
+                            style.accent,
+                        }}
+                      />
+
+                      <p className="whitespace-pre-line text-base leading-8 opacity-80">
+                        {
+                          invitation.message
+                        }
+                      </p>
+                    </div>
+                  )}
+
+                  {(hasMessage ||
+                    hasEventDate ||
+                    hasEventTime ||
+                    hasNames ||
+                    hasTitle) && (
                     <div
-                      className="mx-auto mb-5 h-px w-10"
+                      className="mx-auto mt-8 h-px w-24"
                       style={{
                         backgroundColor:
                           style.accent,
                       }}
                     />
+                  )}
 
-                    <p className="whitespace-pre-line text-base leading-8 opacity-80">
-                      {invitation.message}
-                    </p>
-                  </div>
-                )}
+                  {/* DATE / TIME */}
 
-                <div
-                  className="mx-auto mt-8 h-px w-24"
-                  style={{
-                    backgroundColor:
-                      style.accent,
-                  }}
-                />
+                  {(hasEventDate ||
+                    hasEventTime) && (
+                    <div className="mt-8 space-y-2">
+                      {hasEventDate && (
+                        <p className="text-lg font-medium">
+                          {
+                            invitation.event_date
+                          }
+                        </p>
+                      )}
 
-                {/* DATE / TIME */}
+                      {hasEventTime && (
+                        <p className="text-sm opacity-75">
+                          {
+                            invitation.event_time
+                          }
+                        </p>
+                      )}
+                    </div>
+                  )}
 
-                {(invitation.event_date ||
-                  invitation.event_time) && (
-                  <div className="mt-8 space-y-2">
-                    {invitation.event_date && (
-                      <p className="text-lg font-medium">
-                        {invitation.event_date}
-                      </p>
-                    )}
+                  {/* GALLERY INDICATORS */}
 
-                    {invitation.event_time && (
-                      <p className="text-sm opacity-75">
-                        {invitation.event_time}
-                      </p>
-                    )}
-                  </div>
-                )}
+                  {galleryUrls.length >
+                    1 && (
+                    <div className="absolute bottom-7 left-1/2 flex -translate-x-1/2 gap-2">
+                      {galleryUrls.map(
+                        (_, index) => (
+                          <span
+                            key={index}
+                            className={`h-1.5 rounded-full transition-all duration-500 ${
+                              index ===
+                              currentSlide
+                                ? "w-7 bg-white shadow"
+                                : "w-1.5 bg-white/60"
+                            }`}
+                          />
+                        )
+                      )}
+                    </div>
+                  )}
 
-                {/* GALLERY INDICATORS */}
-
-                {galleryUrls.length >
-                  1 && (
-                  <div className="absolute bottom-7 left-1/2 flex -translate-x-1/2 gap-2">
-                    {galleryUrls.map(
-                      (_, index) => (
-                        <span
-                          key={index}
-                          className={`h-1.5 rounded-full transition-all duration-500 ${
-                            index ===
-                            currentSlide
-                              ? "w-7 bg-white shadow"
-                              : "w-1.5 bg-white/60"
-                          }`}
-                        />
-                      )
-                    )}
-                  </div>
-                )}
-
-                {galleryUrls.length >
-                  0 && (
-                  <div className="absolute bottom-7 right-6 rounded-full bg-black/25 px-2.5 py-1 text-xs text-white/80 backdrop-blur-sm">
-                    {currentSlide + 1} /{" "}
-                    {galleryUrls.length}
-                  </div>
-                )}
-              </section>
+                  {galleryUrls.length >
+                    0 && (
+                    <div className="absolute bottom-7 right-6 rounded-full bg-black/25 px-2.5 py-1 text-xs text-white/80 backdrop-blur-sm">
+                      {currentSlide + 1} /{" "}
+                      {galleryUrls.length}
+                    </div>
+                  )}
+                </section>
+              )}
 
               {/* =================================================
                   EVENT
                   ================================================= */}
 
-              {(invitation.venue ||
-                invitation.address ||
-                invitation.event_date ||
-                invitation.event_time) && (
+              {hasEventInfo && (
                 <section className="bg-white/65 px-6 py-10 backdrop-blur-[2px] sm:px-12">
                   <div className="text-center">
-                    {invitation.venue && (
+                    {hasVenue && (
                       <h2 className="text-2xl font-semibold">
-                        {invitation.venue}
+                        {
+                          invitation.venue
+                        }
                       </h2>
                     )}
 
-                    {invitation.address && (
+                    {hasAddress && (
                       <p className="mx-auto mt-3 max-w-lg text-sm leading-6 opacity-75">
-                        {invitation.address}
+                        {
+                          invitation.address
+                        }
                       </p>
                     )}
 
-                    {(invitation.event_date ||
-                      invitation.event_time) && (
+                    {(hasEventDate ||
+                      hasEventTime) && (
                       <div className="mt-7 flex flex-wrap justify-center gap-3">
-                        {invitation.event_date && (
+                        {hasEventDate && (
                           <div className="rounded-full bg-white/90 px-5 py-2 text-sm shadow-sm">
                             📅{" "}
-                            {invitation.event_date}
+                            {
+                              invitation.event_date
+                            }
                           </div>
                         )}
 
-                        {invitation.event_time && (
+                        {hasEventTime && (
                           <div className="rounded-full bg-white/90 px-5 py-2 text-sm shadow-sm">
                             🕐{" "}
-                            {invitation.event_time}
+                            {
+                              invitation.event_time
+                            }
                           </div>
                         )}
                       </div>
@@ -2318,7 +2438,7 @@ export default function PublicInvitationPage() {
                   CALENDAR
                   ================================================= */}
 
-              {invitation.event_date && (
+              {hasEventDate && (
                 <section className="bg-white/45 px-6 py-12 backdrop-blur-[2px] sm:px-12">
                   <div className="rounded-[28px] bg-white/80 p-4 shadow-sm backdrop-blur-md sm:p-6">
                     <EventCalendar
@@ -2326,17 +2446,23 @@ export default function PublicInvitationPage() {
                         invitation.event_date
                       }
                       time={
-                        invitation.event_time
+                        hasEventTime
+                          ? invitation.event_time
+                          : ""
                       }
                       title={
-                        invitation.names ||
-                        invitation.title
+                        hasNames
+                          ? invitation.names
+                          : invitation.title
                       }
                       location={[
                         invitation.venue,
                         invitation.address,
                       ]
-                        .filter(Boolean)
+                        .filter(
+                          (value) =>
+                            hasText(value)
+                        )
                         .join(", ")}
                       accent={style.accent}
                       buttonClass={
@@ -2357,7 +2483,8 @@ export default function PublicInvitationPage() {
                     <p
                       className="text-sm font-semibold uppercase tracking-[0.22em]"
                       style={{
-                        color: style.accent,
+                        color:
+                          style.accent,
                       }}
                     >
                       Дурсамж
@@ -2415,20 +2542,23 @@ export default function PublicInvitationPage() {
                   MAP
                   ================================================= */}
 
-              {(invitation.address ||
-                hasCoordinates) && (
+              {hasMapInfo && (
                 <section className="bg-white/60 px-6 py-10 backdrop-blur-[2px] sm:px-12">
                   <div className="rounded-[28px] bg-white/80 p-5 shadow-sm backdrop-blur-md sm:p-7">
                     <div className="text-center">
-                      {invitation.venue && (
+                      {hasVenue && (
                         <h2 className="text-xl font-semibold">
-                          {invitation.venue}
+                          {
+                            invitation.venue
+                          }
                         </h2>
                       )}
 
-                      {invitation.address && (
+                      {hasAddress && (
                         <p className="mx-auto mt-3 max-w-lg text-sm leading-6 opacity-75">
-                          {invitation.address}
+                          {
+                            invitation.address
+                          }
                         </p>
                       )}
 
@@ -2456,13 +2586,12 @@ export default function PublicInvitationPage() {
                           📍 Чиглэл харах
                         </a>
 
-                        {invitation.extras
-                          ?.mapUrl && (
+                        {hasMapUrl && (
                           <a
                             href={
                               invitation
                                 .extras
-                                .mapUrl
+                                ?.mapUrl
                             }
                             target="_blank"
                             rel="noreferrer"
