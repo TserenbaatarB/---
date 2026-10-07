@@ -152,11 +152,8 @@ export default function PublicInvitationPage() {
   const [videoUrl, setVideoUrl] =
     useState<string | null>(null);
 
-  const [videoDone, setVideoDone] =
-    useState(false);
-
-  const [videoChecked, setVideoChecked] =
-    useState(false);
+  const [videoDone, setVideoDone] = useState(false);
+  const [videoChecked, setVideoChecked] = useState(false);
 
   const videoRef =
     useRef<HTMLVideoElement | null>(null);
@@ -171,9 +168,7 @@ export default function PublicInvitationPage() {
       return [];
     }
 
-    return getGalleryUrls(
-      invitation.gallery_urls
-    );
+    return getGalleryUrls(invitation.gallery_urls);
   }, [invitation]);
 
   const galleryCaptions = useMemo(() => {
@@ -191,9 +186,6 @@ export default function PublicInvitationPage() {
     (videoDone ||
       (!videoUrl && !musicIsVideo));
 
-  /*
-   * LOAD PUBLIC INVITATION
-   */
   useEffect(() => {
     if (!slug) {
       return;
@@ -248,12 +240,9 @@ export default function PublicInvitationPage() {
           | PublicInvitation["extras"]
           | null = null;
 
-        let backgroundUrl:
-          | string
-          | null = null;
+        let backgroundUrl: string | null = null;
 
         let publishedGalleryUrls: string[] = [];
-
         let publishedGalleryCaptions: string[] = [];
 
         try {
@@ -370,9 +359,6 @@ export default function PublicInvitationPage() {
     };
   }, [slug]);
 
-  /*
-   * LOAD MUSIC / COVER VIDEO
-   */
   useEffect(() => {
     let cancelled = false;
 
@@ -400,9 +386,6 @@ export default function PublicInvitationPage() {
 
         const supabase = getSupabase();
 
-        /*
-         * music_path өөрөө video бол
-         */
         if (musicIsVideo) {
           setVideoChecked(false);
           setVideoDone(false);
@@ -446,10 +429,6 @@ export default function PublicInvitationPage() {
 
         setMusicUrl(signedUrl);
 
-        /*
-         * music_path өөрөө video бол
-         * шууд тэр signed URL-ийг video болгон ашиглана.
-         */
         if (musicIsVideo) {
           setVideoUrl(signedUrl);
           setVideoChecked(true);
@@ -457,10 +436,6 @@ export default function PublicInvitationPage() {
           return;
         }
 
-        /*
-         * Энгийн MP3 байгаа үед тухайн
-         * invitation folder дотроос video.mp4 хайна.
-         */
         const folder =
           invitation.music_path
             .split("/")
@@ -492,9 +467,6 @@ export default function PublicInvitationPage() {
           return;
         }
 
-        /*
-         * video.mp4 / video.webm / video.mov
-         */
         const video =
           files?.find((file) =>
             /^video\.(mp4|webm|mov)$/i.test(
@@ -576,9 +548,6 @@ export default function PublicInvitationPage() {
     musicIsVideo,
   ]);
 
-  /*
-   * VIDEO AUTOPLAY
-   */
   useEffect(() => {
     if (!videoUrl || videoDone) {
       return;
@@ -608,9 +577,6 @@ export default function PublicInvitationPage() {
     void playVideo();
   }, [videoUrl, videoDone]);
 
-  /*
-   * SLIDESHOW
-   */
   useEffect(() => {
     if (galleryUrls.length <= 1) {
       setCurrentSlide(0);
@@ -631,9 +597,6 @@ export default function PublicInvitationPage() {
     };
   }, [galleryUrls.length]);
 
-  /*
-   * AUTO SCROLL
-   */
   useEffect(() => {
     if (!showInvitation || !autoScroll) {
       return;
@@ -760,9 +723,6 @@ export default function PublicInvitationPage() {
     showInvitation,
   ]);
 
-  /*
-   * AUDIO EVENTS
-   */
   useEffect(() => {
     if (
       !musicUrl ||
@@ -872,9 +832,6 @@ export default function PublicInvitationPage() {
     musicIsVideo,
   ]);
 
-  /*
-   * MUSIC PLAY / PAUSE
-   */
   async function toggleMusic() {
     const media =
       document.getElementById(
@@ -886,18 +843,6 @@ export default function PublicInvitationPage() {
     }
 
     try {
-      if (musicIsVideo) {
-        if (media.paused) {
-          await media.play();
-          setMusicPlaying(true);
-        } else {
-          media.pause();
-          setMusicPlaying(false);
-        }
-
-        return;
-      }
-
       if (media.paused) {
         await media.play();
         setMusicPlaying(true);
@@ -951,9 +896,6 @@ export default function PublicInvitationPage() {
       "romantic"
   );
 
-  /*
-   * MAP
-   */
   const mapLat =
     invitation.extras?.lat ?? null;
 
@@ -995,9 +937,6 @@ export default function PublicInvitationPage() {
       data-invitation
       className={`relative min-h-screen overflow-x-hidden ${style.page}`}
     >
-      /*
-       * BACKGROUND MUSIC
-       */
       {musicUrl && !musicIsVideo && (
         <audio
           id="invitation-background-music"
@@ -1007,9 +946,6 @@ export default function PublicInvitationPage() {
         />
       )}
 
-      /*
-       * AUTO SCROLL BUTTON
-       */
       {showInvitation && (
         <button
           type="button"
@@ -1027,9 +963,6 @@ export default function PublicInvitationPage() {
         </button>
       )}
 
-      /*
-       * COVER VIDEO
-       */
       {videoUrl && !videoDone && (
         <section className="relative z-20 px-4 pt-4 sm:px-6 sm:pt-8">
           <div className="mx-auto max-w-2xl overflow-hidden rounded-[28px] shadow-2xl">
@@ -1070,9 +1003,6 @@ export default function PublicInvitationPage() {
         </section>
       )}
 
-      /*
-       * BACKGROUND SLIDESHOW
-       */
       {galleryUrls.length > 0 &&
         showInvitation && (
           <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
@@ -1106,9 +1036,6 @@ export default function PublicInvitationPage() {
           </div>
         )}
 
-      /*
-       * SINGLE BACKGROUND IMAGE
-       */
       {invitation.background_url &&
         galleryUrls.length === 0 &&
         showInvitation && (
@@ -1123,9 +1050,6 @@ export default function PublicInvitationPage() {
           </div>
         )}
 
-      /*
-       * FALLBACK BACKGROUND
-       */
       {!hasAnyBackground &&
         showInvitation && (
           <div className="pointer-events-none fixed inset-0 z-0">
@@ -1139,9 +1063,6 @@ export default function PublicInvitationPage() {
           </div>
         )}
 
-      /*
-       * MUSIC BUTTON
-       */
       {musicUrl &&
         !musicError &&
         (musicIsVideo
@@ -1174,18 +1095,12 @@ export default function PublicInvitationPage() {
           </div>
         )}
 
-      /*
-       * MAIN INVITATION CONTENT
-       */
       {showInvitation && (
         <div className="relative z-10 px-4 py-6 sm:px-6 sm:py-10">
           <div className="mx-auto max-w-2xl">
             <article
               className={`overflow-hidden rounded-[32px] border ${style.border} ${style.card} shadow-2xl backdrop-blur-sm`}
             >
-              /*
-               * COVER
-               */
               <section className="relative min-h-[620px] overflow-hidden px-6 pb-16 pt-16 text-center sm:px-12 sm:pt-24">
                 {invitation.background_url && (
                   <div className="absolute inset-0 -z-10">
@@ -1239,24 +1154,19 @@ export default function PublicInvitationPage() {
                   <div className="mt-8 space-y-2">
                     {invitation.event_date && (
                       <p className="text-lg font-medium">
-                        {
-                          invitation.event_date
-                        }
+                        {invitation.event_date}
                       </p>
                     )}
 
                     {invitation.event_time && (
                       <p className="text-sm opacity-70">
-                        {
-                          invitation.event_time
-                        }
+                        {invitation.event_time}
                       </p>
                     )}
                   </div>
                 )}
 
-                {galleryUrls.length >
-                  1 && (
+                {galleryUrls.length > 1 && (
                   <div className="absolute bottom-7 left-1/2 flex -translate-x-1/2 gap-2">
                     {galleryUrls.map(
                       (_, index) => (
@@ -1274,8 +1184,7 @@ export default function PublicInvitationPage() {
                   </div>
                 )}
 
-                {galleryUrls.length >
-                  0 && (
+                {galleryUrls.length > 0 && (
                   <div className="absolute bottom-7 right-6 text-xs text-white/70">
                     {currentSlide + 1} /{" "}
                     {galleryUrls.length}
@@ -1283,9 +1192,6 @@ export default function PublicInvitationPage() {
                 )}
               </section>
 
-              /*
-               * EVENT DETAILS
-               */
               {(invitation.venue ||
                 invitation.address ||
                 invitation.event_date ||
@@ -1298,26 +1204,15 @@ export default function PublicInvitationPage() {
                   }}
                 >
                   <div className="text-center">
-                    <p
-                      className="text-xs font-semibold uppercase tracking-[0.25em]"
-                      style={{
-                        color: style.accent,
-                      }}
-                    >
-                      Тусгай өдөр
-                    </p>
-
                     {invitation.venue && (
-                      <h2 className="mt-4 text-2xl font-semibold">
+                      <h2 className="text-2xl font-semibold">
                         {invitation.venue}
                       </h2>
                     )}
 
                     {invitation.address && (
                       <p className="mx-auto mt-3 max-w-lg text-sm leading-6 opacity-75">
-                        {
-                          invitation.address
-                        }
+                        {invitation.address}
                       </p>
                     )}
 
@@ -1347,9 +1242,6 @@ export default function PublicInvitationPage() {
                 </section>
               )}
 
-              /*
-               * CALENDAR
-               */
               {invitation.event_date && (
                 <section className="px-6 py-12 sm:px-12">
                   <EventCalendar
@@ -1377,45 +1269,18 @@ export default function PublicInvitationPage() {
                 </section>
               )}
 
-              /*
-               * MESSAGE
-               */
               {invitation.message && (
                 <section className="px-6 py-12 sm:px-12">
                   <div className="mx-auto max-w-xl text-center">
-                    <p
-                      className="text-xs font-semibold uppercase tracking-[0.25em]"
-                      style={{
-                        color: style.accent,
-                      }}
-                    >
-                      Урилга
-                    </p>
-
-                    <p className="mt-6 whitespace-pre-line text-base leading-8 opacity-80">
+                    <p className="whitespace-pre-line text-base leading-8 opacity-80">
                       {invitation.message}
                     </p>
                   </div>
                 </section>
               )}
 
-              /*
-               * GALLERY
-               */
-              {galleryUrls.length >
-                0 && (
+              {galleryUrls.length > 0 && (
                 <section className="px-5 pb-12 sm:px-8">
-                  <div className="mb-6 text-center">
-                    <p
-                      className="text-xs font-semibold uppercase tracking-[0.25em]"
-                      style={{
-                        color: style.accent,
-                      }}
-                    >
-                      Дурсамж
-                    </p>
-                  </div>
-
                   <div className="grid grid-cols-2 gap-3">
                     {galleryUrls.map(
                       (url, index) => {
@@ -1454,9 +1319,6 @@ export default function PublicInvitationPage() {
                 </section>
               )}
 
-              /*
-               * LOCATION
-               */
               {(invitation.address ||
                 hasCoordinates) && (
                 <section
@@ -1467,26 +1329,15 @@ export default function PublicInvitationPage() {
                   }}
                 >
                   <div className="text-center">
-                    <p
-                      className="text-xs font-semibold uppercase tracking-[0.25em]"
-                      style={{
-                        color: style.accent,
-                      }}
-                    >
-                      Байршил
-                    </p>
-
                     {invitation.venue && (
-                      <h2 className="mt-4 text-xl font-semibold">
+                      <h2 className="text-xl font-semibold">
                         {invitation.venue}
                       </h2>
                     )}
 
                     {invitation.address && (
                       <p className="mx-auto mt-3 max-w-lg text-sm leading-6 opacity-75">
-                        {
-                          invitation.address
-                        }
+                        {invitation.address}
                       </p>
                     )}
 
@@ -1534,18 +1385,12 @@ export default function PublicInvitationPage() {
                 </section>
               )}
 
-              /*
-               * RSVP
-               */
               <RsvpSection
                 slug={slug}
                 accent={style.accent}
                 buttonClass={style.button}
               />
 
-              /*
-               * FOOTER
-               */
               <footer
                 className="px-6 py-8 text-center"
                 style={{
@@ -1554,31 +1399,18 @@ export default function PublicInvitationPage() {
                 }}
               >
                 <div
-                  className="mx-auto mb-4 h-px w-12"
+                  className="mx-auto h-px w-12"
                   style={{
                     backgroundColor:
                       style.accent,
                   }}
                 />
-
-                <p className="text-xs opacity-50">
-                  Танд зориулсан онцгой урилга
-                </p>
               </footer>
             </article>
-
-            <div className="mt-5 flex justify-center">
-              <p className="text-center text-xs text-black/40">
-                Урилгын линкийг хуваалцаарай
-              </p>
-            </div>
           </div>
         </div>
       )}
 
-      /*
-       * VIDEO LOADING
-       */
       {!showInvitation &&
         !videoDone && (
           <div className="pointer-events-none fixed inset-x-0 bottom-8 z-40 flex justify-center">
@@ -1588,9 +1420,6 @@ export default function PublicInvitationPage() {
           </div>
         )}
 
-      /*
-       * MUSIC STATUS
-       */
       {musicUrl &&
         !audioReady &&
         !musicError &&

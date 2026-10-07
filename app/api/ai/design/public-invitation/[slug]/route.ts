@@ -9,13 +9,10 @@ type RouteContext = {
 
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url || !serviceRoleKey) {
-    throw new Error(
-      "Missing Supabase server environment variables"
-    );
+    throw new Error("Missing Supabase server environment variables");
   }
 
   return createClient(url, serviceRoleKey, {
@@ -27,11 +24,20 @@ function getSupabaseAdmin() {
 }
 
 function isHttpUrl(value: unknown): value is string {
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  const trimmed = value.trim();
+
   return (
-    typeof value === "string" &&
-    (value.startsWith("https://") ||
-      value.startsWith("http://"))
+    trimmed.startsWith("https://") ||
+    trimmed.startsWith("http://")
   );
+}
+
+function cleanPath(value: string) {
+  return value.trim().replace(/^\/+/, "");
 }
 
 function normalizeStoragePath(
@@ -42,28 +48,41 @@ function normalizeStoragePath(
     return null;
   }
 
-  const valueTrimmed = value.trim();
+  const trimmed = value.trim();
 
-  if (!valueTrimmed) {
+  if (!trimmed) {
     return null;
   }
 
-  if (valueTrimmed.startsWith(storagePrefix)) {
-    return valueTrimmed;
+  // Already a full URL.
+  if (isHttpUrl(trimmed)) {
+    return trimmed;
   }
 
-  const withoutLeadingSlash =
-    valueTrimmed.replace(/^\/+/, "");
+  const cleaned = cleanPath(trimmed);
+  const cleanPrefix = cleanPath(storagePrefix);
 
-  if (withoutLeadingSlash.startsWith(storagePrefix)) {
-    return withoutLeadingSlash;
+  // Already contains the full invitation storage path.
+  if (cleaned.startsWith(cleanPrefix)) {
+    return cleaned;
   }
 
-  if (
-    !withoutLeadingSlash.includes("/") &&
-    withoutLeadingSlash.length > 0
-  ) {
-    return `${storagePrefix}${withoutLeadingSlash}`;
+  // Some old records may contain a leading "invitation-images/" prefix.
+  if (cleaned.startsWith("invitation-images/")) {
+    const withoutBucket = cleaned.replace(
+      /^invitation-images\//,
+      ""
+    );
+
+    if (withoutBucket.startsWith(cleanPrefix)) {
+      return withoutBucket;
+    }
+  }
+
+  // If only the filename was stored, prepend:
+  // user_id/invitation_id/
+  if (!cleaned.includes("/")) {
+    return `${cleanPrefix}${cleaned}`;
   }
 
   return null;
@@ -100,7 +119,8 @@ export async function GET(
           extras,
           background_id,
           gallery_ids,
-          gallery_urls
+          gallery_urls,
+          gallery_captions
         `
       )
       .eq("public_slug", slug)
@@ -115,8 +135,7 @@ export async function GET(
 
       return NextResponse.json(
         {
-          error:
-            "Failed to load invitation extras",
+          error: "Failed to load invitation extras",
         },
         {
           status: 500,
@@ -135,11 +154,9 @@ export async function GET(
       );
     }
 
-    /*
-     * -----------------------------------------
-     * EXTRA / MAP DATA
-     * -----------------------------------------
-     */
+    // --------------------------------------------------
+    // EXTRA / MAP DATA
+    // --------------------------------------------------
 
     const rawExtras =
       data.extras &&
@@ -162,18 +179,18 @@ export async function GET(
         ? rawExtras.mapUrl
         : "";
 
-    /*
-     * -----------------------------------------
-     * IMAGE STORAGE PATHS
-     * -----------------------------------------
-     */
+    // --------------------------------------------------
+    // IMAGE STORAGE PATHS
+    // --------------------------------------------------
 
-    const storagePrefix =
-      `${data.user_id}/${data.id}/`;
+    const storagePrefix = `${data.user_id}/${data.id}/`;
+
+    const backgroundValue =
+      data.background_id;
 
     const backgroundPath =
       normalizeStoragePath(
-        data.background_id,
+        backgroundValue,
         storagePrefix
       );
 
@@ -194,33 +211,58 @@ export async function GET(
           .slice(0, 30)
       : [];
 
-    const allImagePaths = Array.from(
-      new Set([
-        ...(backgroundPath
-          ? [backgroundPath]
-          : []),
-        ...galleryPaths,
-      ])
-    );
-
-    /*
-     * -----------------------------------------
-     * LEGACY GALLERY URLS
-     * -----------------------------------------
-     */
+    // --------------------------------------------------
+    // LEGACY / DIRECT URLS
+    // --------------------------------------------------
 
     const legacyGalleryUrls =
       Array.isArray(data.gallery_urls)
-        ? data.gallery_urls.filter(
-            isHttpUrl
-          )
+        ? data.gallery_urls
+            .filter(isHttpUrl)
+            .map((url) => url.trim())
         : [];
 
-    /*
-     * -----------------------------------------
-     * SIGNED STORAGE URLS
-     * -----------------------------------------
-     */
+    // If background_id itself is already a URL,
+    // don't try to sign it as a storage path.
+    const directBackgroundUrl =
+      isHttpUrl(backgroundValue)
+        ? backgroundValue.trim()
+        : null;
+
+    const directGalleryUrls =
+      Array.isArray(data.gallery_ids)
+        ? data.gallery_ids
+            .filter(isHttpUrl)
+            .map((url) => url.trim())
+        : [];
+
+    // --------------------------------------------------
+    // STORAGE PATHS THAT NEED SIGNED URLS
+    // --------------------------------------------------
+
+    const storageBackgroundPath =
+      backgroundPath &&
+      !isHttpUrl(backgroundPath)
+        ? backgroundPath
+        : null;
+
+    const storageGalleryPaths =
+      galleryPaths.filter(
+        (path) => !isHttpUrl(path)
+      );
+
+    const allImagePaths = Array.from(
+      new Set([
+        ...(storageBackgroundPath
+          ? [storageBackgroundPath]
+          : []),
+        ...storageGalleryPaths,
+      ])
+    );
+
+    // --------------------------------------------------
+    // SIGNED STORAGE URLS
+    // --------------------------------------------------
 
     const signedUrlByPath =
       new Map<string, string>();
@@ -242,29 +284,15 @@ export async function GET(
           signedImagesError
         );
 
-        /*
-         * If legacy gallery URLs exist,
-         * continue instead of failing.
-         */
-        if (
-          legacyGalleryUrls.length === 0
-        ) {
-          return NextResponse.json(
-            {
-              error:
-                "Failed to load invitation images",
-            },
-            {
-              status: 500,
-            }
-          );
-        }
+        // We do not immediately fail.
+        // Direct / legacy URLs can still be used.
       }
 
       for (const item of signedImages ?? []) {
         if (
           typeof item.path === "string" &&
-          typeof item.signedUrl === "string"
+          typeof item.signedUrl === "string" &&
+          item.signedUrl.length > 0
         ) {
           signedUrlByPath.set(
             item.path,
@@ -274,27 +302,27 @@ export async function GET(
       }
     }
 
-    /*
-     * -----------------------------------------
-     * BACKGROUND URL
-     * -----------------------------------------
-     */
+    // --------------------------------------------------
+    // BACKGROUND URL
+    // --------------------------------------------------
 
-    const backgroundUrl =
-      backgroundPath
-        ? signedUrlByPath.get(
-            backgroundPath
-          ) ?? null
-        : null;
+    let backgroundUrl: string | null = null;
 
-    /*
-     * -----------------------------------------
-     * GALLERY URLS
-     * -----------------------------------------
-     */
+    if (directBackgroundUrl) {
+      backgroundUrl = directBackgroundUrl;
+    } else if (storageBackgroundPath) {
+      backgroundUrl =
+        signedUrlByPath.get(
+          storageBackgroundPath
+        ) ?? null;
+    }
+
+    // --------------------------------------------------
+    // GALLERY URLS
+    // --------------------------------------------------
 
     const signedGalleryUrls =
-      galleryPaths
+      storageGalleryPaths
         .map((path) =>
           signedUrlByPath.get(path)
         )
@@ -304,16 +332,52 @@ export async function GET(
             url.length > 0
         );
 
-    const galleryUrls =
-      signedGalleryUrls.length > 0
-        ? signedGalleryUrls
-        : legacyGalleryUrls;
+    const galleryUrls = Array.from(
+      new Set([
+        ...directGalleryUrls,
+        ...signedGalleryUrls,
+        ...legacyGalleryUrls,
+      ])
+    ).slice(0, 30);
 
-    /*
-     * -----------------------------------------
-     * RESPONSE
-     * -----------------------------------------
-     */
+    // --------------------------------------------------
+    // GALLERY CAPTIONS
+    // --------------------------------------------------
+
+    const galleryCaptions =
+      Array.isArray(data.gallery_captions)
+        ? data.gallery_captions.map((caption) =>
+            typeof caption === "string"
+              ? caption
+              : ""
+          )
+        : [];
+
+    // --------------------------------------------------
+    // DEBUG LOG
+    // --------------------------------------------------
+
+    console.log(
+      "PUBLIC INVITATION IMAGE RESULT:",
+      {
+        slug,
+        invitationId: data.id,
+        backgroundValue,
+        backgroundPath,
+        backgroundUrl,
+        galleryCount: galleryUrls.length,
+        galleryPathsCount:
+          galleryPaths.length,
+        signedUrlsCount:
+          signedGalleryUrls.length,
+        legacyUrlsCount:
+          legacyGalleryUrls.length,
+      }
+    );
+
+    // --------------------------------------------------
+    // RESPONSE
+    // --------------------------------------------------
 
     return NextResponse.json(
       {
@@ -328,6 +392,8 @@ export async function GET(
         backgroundUrl,
 
         galleryUrls,
+
+        galleryCaptions,
       },
       {
         status: 200,
