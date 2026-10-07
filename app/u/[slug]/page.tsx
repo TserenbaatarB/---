@@ -134,8 +134,8 @@ export default function PublicInvitationPage() {
     useState<PublicInvitation | null>(null);
 
   const [loading, setLoading] = useState(true);
+
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [autoScroll, setAutoScroll] = useState(true);
 
   const [musicUrl, setMusicUrl] =
     useState<string | null>(null);
@@ -152,8 +152,11 @@ export default function PublicInvitationPage() {
   const [videoUrl, setVideoUrl] =
     useState<string | null>(null);
 
-  const [videoDone, setVideoDone] = useState(false);
-  const [videoChecked, setVideoChecked] = useState(false);
+  const [videoDone, setVideoDone] =
+    useState(false);
+
+  const [videoChecked, setVideoChecked] =
+    useState(false);
 
   const videoRef =
     useRef<HTMLVideoElement | null>(null);
@@ -168,7 +171,9 @@ export default function PublicInvitationPage() {
       return [];
     }
 
-    return getGalleryUrls(invitation.gallery_urls);
+    return getGalleryUrls(
+      invitation.gallery_urls
+    );
   }, [invitation]);
 
   const galleryCaptions = useMemo(() => {
@@ -243,6 +248,7 @@ export default function PublicInvitationPage() {
         let backgroundUrl: string | null = null;
 
         let publishedGalleryUrls: string[] = [];
+
         let publishedGalleryCaptions: string[] = [];
 
         try {
@@ -597,19 +603,61 @@ export default function PublicInvitationPage() {
     };
   }, [galleryUrls.length]);
 
+  /*
+   * AUTO SCROLL
+   *
+   * Урилга нээгдсэний дараа 1.5 секунд хүлээгээд
+   * бүх мэдээллийг дээрээс доош автоматаар гүйлгэнэ.
+   *
+   * 28px / секунд.
+   *
+   * Хэрэглэгч өөрөө:
+   * - mouse wheel
+   * - touch
+   * - pointer
+   * - keyboard
+   * ашиглавал auto scroll зогсоно.
+   */
   useEffect(() => {
-    if (!showInvitation || !autoScroll) {
+    if (!showInvitation) {
       return;
     }
 
     let frameId = 0;
+    let startTimer: number | null = null;
     let previousTime = 0;
+    let stoppedByUser = false;
 
-    const stopForUserInput = () => {
-      setAutoScroll(false);
+    const stopAutoScroll = () => {
+      stoppedByUser = true;
+
+      if (frameId) {
+        window.cancelAnimationFrame(
+          frameId
+        );
+
+        frameId = 0;
+      }
+
+      if (startTimer !== null) {
+        window.clearTimeout(startTimer);
+        startTimer = null;
+      }
     };
 
-    const stopForScrollKey = (
+    const handleWheel = () => {
+      stopAutoScroll();
+    };
+
+    const handleTouch = () => {
+      stopAutoScroll();
+    };
+
+    const handlePointer = () => {
+      stopAutoScroll();
+    };
+
+    const handleKeyDown = (
       event: KeyboardEvent
     ) => {
       if (
@@ -623,41 +671,63 @@ export default function PublicInvitationPage() {
           " ",
         ].includes(event.key)
       ) {
-        setAutoScroll(false);
+        stopAutoScroll();
       }
     };
 
     const advanceScroll = (
       time: number
     ) => {
-      if (previousTime > 0) {
-        const elapsedSeconds =
-          Math.min(
-            (time - previousTime) / 1000,
-            0.05
-          );
-
-        const maxScroll =
-          document.documentElement
-            .scrollHeight -
-          window.innerHeight;
-
-        if (
-          maxScroll <= 0 ||
-          window.scrollY >=
-            maxScroll - 2
-        ) {
-          setAutoScroll(false);
-          return;
-        }
-
-        window.scrollBy(
-          0,
-          elapsedSeconds * 18
-        );
+      if (stoppedByUser) {
+        return;
       }
 
+      if (previousTime === 0) {
+        previousTime = time;
+      }
+
+      const elapsedSeconds =
+        Math.min(
+          (time - previousTime) / 1000,
+          0.05
+        );
+
       previousTime = time;
+
+      const maxScroll =
+        document.documentElement
+          .scrollHeight -
+        window.innerHeight;
+
+      if (maxScroll <= 0) {
+        frameId =
+          window.requestAnimationFrame(
+            advanceScroll
+          );
+
+        return;
+      }
+
+      const currentScroll =
+        window.scrollY;
+
+      if (
+        currentScroll >=
+        maxScroll - 2
+      ) {
+        window.scrollTo({
+          top: maxScroll,
+          behavior: "smooth",
+        });
+
+        stopAutoScroll();
+        return;
+      }
+
+      window.scrollBy(
+        0,
+        elapsedSeconds * 28
+      );
 
       frameId =
         window.requestAnimationFrame(
@@ -665,63 +735,82 @@ export default function PublicInvitationPage() {
         );
     };
 
+    window.scrollTo({
+      top: 0,
+      behavior: "auto",
+    });
+
+    startTimer =
+      window.setTimeout(() => {
+        if (!stoppedByUser) {
+          previousTime = 0;
+
+          frameId =
+            window.requestAnimationFrame(
+              advanceScroll
+            );
+        }
+      }, 1500);
+
     window.addEventListener(
       "wheel",
-      stopForUserInput,
+      handleWheel,
       { passive: true }
     );
 
     window.addEventListener(
       "touchstart",
-      stopForUserInput,
+      handleTouch,
       { passive: true }
     );
 
     window.addEventListener(
       "pointerdown",
-      stopForUserInput,
+      handlePointer,
       { passive: true }
     );
 
     window.addEventListener(
       "keydown",
-      stopForScrollKey
+      handleKeyDown
     );
 
-    frameId =
-      window.requestAnimationFrame(
-        advanceScroll
-      );
-
     return () => {
-      window.cancelAnimationFrame(
-        frameId
-      );
+      stoppedByUser = true;
+
+      if (frameId) {
+        window.cancelAnimationFrame(
+          frameId
+        );
+      }
+
+      if (startTimer !== null) {
+        window.clearTimeout(
+          startTimer
+        );
+      }
 
       window.removeEventListener(
         "wheel",
-        stopForUserInput
+        handleWheel
       );
 
       window.removeEventListener(
         "touchstart",
-        stopForUserInput
+        handleTouch
       );
 
       window.removeEventListener(
         "pointerdown",
-        stopForUserInput
+        handlePointer
       );
 
       window.removeEventListener(
         "keydown",
-        stopForScrollKey
+        handleKeyDown
       );
     };
-  }, [
-    autoScroll,
-    showInvitation,
-  ]);
+  }, [showInvitation]);
 
   useEffect(() => {
     if (
@@ -944,23 +1033,6 @@ export default function PublicInvitationPage() {
           loop
           preload="auto"
         />
-      )}
-
-      {showInvitation && (
-        <button
-          type="button"
-          onClick={() =>
-            setAutoScroll(
-              (current) => !current
-            )
-          }
-          className="fixed bottom-4 left-4 z-50 rounded-full bg-black/55 px-4 py-2.5 text-xs font-medium text-white shadow-lg backdrop-blur-md"
-          aria-pressed={autoScroll}
-        >
-          {autoScroll
-            ? "Авто гүйлгэлт зогсоох"
-            : "Авто гүйлгэж эхлүүлэх"}
-        </button>
       )}
 
       {videoUrl && !videoDone && (
