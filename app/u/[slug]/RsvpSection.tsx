@@ -140,11 +140,19 @@ export default function RsvpSection({
     setSending(false);
 
     if (rpcError) {
-      setError(
-        rpcError.message.includes("rsvp_closed")
-          ? "Хариу авах хугацаа дууссан байна."
-          : "Илгээж чадсангүй. Дахин оролдоно уу."
-      );
+      if (rpcError.message.includes("rsvp_demo")) {
+        setError(
+          "✨ Энэ бол жишээ урилга тул таны хариу хадгалагдахгүй."
+        );
+        return;
+      }
+
+      if (rpcError.message.includes("rsvp_closed")) {
+        setError("Хариу авах хугацаа дууссан байна.");
+        return;
+      }
+
+      setError("Илгээж чадсангүй. Дахин оролдоно уу.");
       return;
     }
 
@@ -255,7 +263,7 @@ export default function RsvpSection({
           />
 
           {error && (
-            <p className="text-xs text-red-600">
+            <p className="text-xs text-amber-700">
               {error}
             </p>
           )}
