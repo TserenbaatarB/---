@@ -7,6 +7,15 @@ import { createClient } from "@supabase/supabase-js";
 import EventCalendar from "./EventCalendar";
 import RsvpSection from "./RsvpSection";
 
+type OpeningStyle =
+  | "envelope"
+  | "light"
+  | "focus"
+  | "curtain"
+  | "pulse"
+  | "circle"
+  | string;
+
 type PublicInvitation = {
   id: string;
   event_type: string;
@@ -33,6 +42,15 @@ type PublicInvitation = {
     lat: number | null;
     lng: number | null;
     mapUrl: string;
+
+    appearance?: {
+      open?: OpeningStyle;
+      animation?: string;
+      accent?: string;
+      tone?: string;
+      pattern?: string;
+      frame?: string;
+    };
   } | null;
 };
 
@@ -115,6 +133,50 @@ function getStyle(style: string) {
   }
 }
 
+function getOpeningStyle(
+  invitation: PublicInvitation
+): OpeningStyle {
+  const value = invitation.extras?.appearance?.open;
+
+  if (!value) {
+    return "envelope";
+  }
+
+  return value;
+}
+
+function getOpeningLabel(open: OpeningStyle) {
+  switch (open) {
+    case "envelope":
+    case "dugtui":
+      return "Дугтуй";
+
+    case "light":
+    case "gerel":
+    case "гэрэл":
+      return "Гэрэл цацрах";
+
+    case "focus":
+    case "fokus":
+      return "Фокуслах";
+
+    case "curtain":
+    case "hoshig":
+      return "Хөшиг нээгдэх";
+
+    case "pulse":
+    case "lugshih":
+      return "Лугших";
+
+    case "circle":
+    case "hureel":
+      return "Хүрээлэх";
+
+    default:
+      return "Дугтуй";
+  }
+}
+
 export default function PublicInvitationPage() {
   const params = useParams();
 
@@ -134,6 +196,7 @@ export default function PublicInvitationPage() {
     useState<PublicInvitation | null>(null);
 
   const [loading, setLoading] = useState(true);
+
   const [currentSlide, setCurrentSlide] = useState(0);
 
   const [musicUrl, setMusicUrl] =
@@ -151,8 +214,17 @@ export default function PublicInvitationPage() {
   const [videoUrl, setVideoUrl] =
     useState<string | null>(null);
 
-  const [videoDone, setVideoDone] = useState(false);
-  const [videoChecked, setVideoChecked] = useState(false);
+  const [videoDone, setVideoDone] =
+    useState(false);
+
+  const [videoChecked, setVideoChecked] =
+    useState(false);
+
+  const [openingStarted, setOpeningStarted] =
+    useState(false);
+
+  const [openingFinished, setOpeningFinished] =
+    useState(false);
 
   const videoRef =
     useRef<HTMLVideoElement | null>(null);
@@ -182,16 +254,26 @@ export default function PublicInvitationPage() {
     );
   }, [invitation]);
 
+  const openingStyle = useMemo(() => {
+    if (!invitation) {
+      return "envelope";
+    }
+
+    return getOpeningStyle(invitation);
+  }, [invitation]);
+
   const showInvitation =
     videoChecked &&
     (videoDone ||
-      (!videoUrl && !musicIsVideo));
+      (!videoUrl && !musicIsVideo)) &&
+    openingFinished;
 
   /*
    * ============================================================
    * LOAD PUBLIC INVITATION
    * ============================================================
    */
+
   useEffect(() => {
     if (!slug) {
       return;
@@ -252,6 +334,12 @@ export default function PublicInvitationPage() {
 
         let publishedGalleryCaptions: string[] = [];
 
+        /*
+         * --------------------------------------------------------
+         * LOAD PUBLIC DESIGN DATA
+         * --------------------------------------------------------
+         */
+
         try {
           const mapResponse =
             await fetch(
@@ -284,25 +372,82 @@ export default function PublicInvitationPage() {
                 mapData?.galleryCaptions
               );
 
-            if (mapData?.extras) {
+            /*
+             * ----------------------------------------------------
+             * MAP + EXTRAS
+             * ----------------------------------------------------
+             */
+
+            const rawExtras =
+              mapData?.extras ??
+              result.extras ??
+              null;
+
+            if (rawExtras) {
+              const rawAppearance =
+                rawExtras?.appearance;
+
               mapExtras = {
                 lat:
-                  typeof mapData.extras.lat ===
+                  typeof rawExtras.lat ===
                   "number"
-                    ? mapData.extras.lat
+                    ? rawExtras.lat
                     : null,
 
                 lng:
-                  typeof mapData.extras.lng ===
+                  typeof rawExtras.lng ===
                   "number"
-                    ? mapData.extras.lng
+                    ? rawExtras.lng
                     : null,
 
                 mapUrl:
-                  typeof mapData.extras.mapUrl ===
+                  typeof rawExtras.mapUrl ===
                   "string"
-                    ? mapData.extras.mapUrl
+                    ? rawExtras.mapUrl
                     : "",
+
+                appearance:
+                  rawAppearance &&
+                  typeof rawAppearance ===
+                    "object"
+                    ? {
+                        open:
+                          typeof rawAppearance.open ===
+                          "string"
+                            ? rawAppearance.open
+                            : undefined,
+
+                        animation:
+                          typeof rawAppearance.animation ===
+                          "string"
+                            ? rawAppearance.animation
+                            : undefined,
+
+                        accent:
+                          typeof rawAppearance.accent ===
+                          "string"
+                            ? rawAppearance.accent
+                            : undefined,
+
+                        tone:
+                          typeof rawAppearance.tone ===
+                          "string"
+                            ? rawAppearance.tone
+                            : undefined,
+
+                        pattern:
+                          typeof rawAppearance.pattern ===
+                          "string"
+                            ? rawAppearance.pattern
+                            : undefined,
+
+                        frame:
+                          typeof rawAppearance.frame ===
+                          "string"
+                            ? rawAppearance.frame
+                            : undefined,
+                      }
+                    : undefined,
               };
             }
           } else {
@@ -319,11 +464,30 @@ export default function PublicInvitationPage() {
           );
         }
 
+        /*
+         * --------------------------------------------------------
+         * FALLBACK: READ EXTRAS DIRECTLY FROM RPC RESULT
+         * --------------------------------------------------------
+         */
+
+        if (!mapExtras && result.extras) {
+          mapExtras = result.extras;
+        }
+
+        /*
+         * --------------------------------------------------------
+         * SET INVITATION
+         * --------------------------------------------------------
+         */
+
         if (!cancelled) {
           const resultCaptions =
             getGalleryCaptions(
               result.gallery_captions
             );
+
+          const finalExtras =
+            mapExtras ?? result.extras ?? null;
 
           setInvitation({
             ...result,
@@ -341,8 +505,23 @@ export default function PublicInvitationPage() {
                 ? publishedGalleryCaptions
                 : resultCaptions,
 
-            extras: mapExtras,
+            extras: finalExtras,
           });
+
+          /*
+           * ------------------------------------------------------
+           * OPENING SCREEN
+           * ------------------------------------------------------
+           *
+           * Every published invitation starts with the opening
+           * screen. The selected opening style comes from:
+           *
+           * extras.appearance.open
+           *
+           */
+
+          setOpeningStarted(false);
+          setOpeningFinished(false);
 
           setLoading(false);
         }
@@ -371,6 +550,7 @@ export default function PublicInvitationPage() {
    * LOAD MUSIC / VIDEO
    * ============================================================
    */
+
   useEffect(() => {
     let cancelled = false;
 
@@ -434,7 +614,8 @@ export default function PublicInvitationPage() {
           return;
         }
 
-        const signedUrl = data.signedUrl;
+        const signedUrl =
+          data.signedUrl;
 
         setMusicUrl(signedUrl);
 
@@ -444,6 +625,12 @@ export default function PublicInvitationPage() {
           setVideoDone(false);
           return;
         }
+
+        /*
+         * --------------------------------------------------------
+         * FIND COVER VIDEO
+         * --------------------------------------------------------
+         */
 
         const folder =
           invitation.music_path
@@ -562,6 +749,7 @@ export default function PublicInvitationPage() {
    * VIDEO AUTOPLAY
    * ============================================================
    */
+
   useEffect(() => {
     if (!videoUrl || videoDone) {
       return;
@@ -596,6 +784,7 @@ export default function PublicInvitationPage() {
    * GALLERY SLIDESHOW
    * ============================================================
    */
+
   useEffect(() => {
     if (galleryUrls.length <= 1) {
       setCurrentSlide(0);
@@ -618,15 +807,10 @@ export default function PublicInvitationPage() {
 
   /*
    * ============================================================
-   * MUSIC
-   *
-   * Browser autoplay policy may block audio without a user
-   * gesture. We still try to autoplay immediately.
-   *
-   * If blocked, the first normal user interaction can start it.
-   * Music button itself NEVER pauses auto-scroll.
+   * MUSIC AUTOPLAY
    * ============================================================
    */
+
   useEffect(() => {
     if (
       !musicUrl ||
@@ -645,17 +829,18 @@ export default function PublicInvitationPage() {
       return;
     }
 
-    const tryAutoplay = async () => {
-      try {
-        await media.play();
-        setMusicPlaying(true);
-      } catch {
-        /*
-         * Browser blocked autoplay.
-         * We will retry after the next user interaction.
-         */
-      }
-    };
+    const tryAutoplay =
+      async () => {
+        try {
+          await media.play();
+          setMusicPlaying(true);
+        } catch {
+          /*
+           * Browser blocked autoplay.
+           * User can press the music button.
+           */
+        }
+      };
 
     if (audioReady) {
       void tryAutoplay();
@@ -669,70 +854,112 @@ export default function PublicInvitationPage() {
 
   /*
    * ============================================================
-   * AUTO SCROLL
-   *
-   * FINAL BEHAVIOR:
-   *
-   * 1. Invitation opens
-   * 2. Wait 1.5 sec
-   * 3. Auto-scroll at 28px/sec
-   *
-   * USER INTERACTION:
-   *
-   * - Mouse wheel              -> pause
-   * - Touch swipe              -> pause
-   * - Keyboard scroll          -> pause
-   * - Maps button              -> pause
-   * - Calendar                -> pause
-   * - RSVP                    -> pause
-   * - Other buttons/links     -> pause
-   *
-   * MUSIC BUTTON:
-   *
-   * - DOES NOT pause auto-scroll
-   *
-   * AFTER USER STOPS:
-   *
-   * - Wait 1.5 sec
-   * - Resume from exact current position
-   *
-   * WHEN PAGE IS HIDDEN:
-   *
-   * - Auto-scroll pauses
-   * - When user comes back, it resumes from current position
+   * OPENING ANIMATION
    * ============================================================
    */
+
+  async function handleOpenInvitation() {
+    if (openingStarted) {
+      return;
+    }
+
+    setOpeningStarted(true);
+
+    /*
+     * Small delay makes the click feel natural before
+     * the selected animation begins.
+     */
+    await new Promise((resolve) =>
+      window.setTimeout(resolve, 120)
+    );
+
+    /*
+     * ----------------------------------------------------------
+     * ANIMATION DURATIONS
+     * ----------------------------------------------------------
+     */
+
+    const duration =
+      openingStyle === "envelope" ||
+      openingStyle === "dugtui"
+        ? 1500
+        : openingStyle === "curtain" ||
+            openingStyle === "hoshig"
+          ? 1300
+          : openingStyle === "light" ||
+              openingStyle === "gerel"
+            ? 1400
+            : openingStyle === "focus" ||
+                openingStyle === "fokus"
+              ? 1300
+              : openingStyle === "pulse" ||
+                  openingStyle === "lugshih"
+                ? 1200
+                : 1300;
+
+    await new Promise((resolve) =>
+      window.setTimeout(resolve, duration)
+    );
+
+    setOpeningFinished(true);
+
+    /*
+     * Reset scroll position before auto-scroll starts.
+     */
+    window.scrollTo({
+      top: 0,
+      behavior: "auto",
+    });
+  }
+
+  /*
+   * ============================================================
+   * AUTO SCROLL
+   * ============================================================
+   */
+
   useEffect(() => {
     if (!showInvitation) {
       return;
     }
 
     let frameId = 0;
-    let initialTimer: number | null = null;
-    let resumeTimer: number | null = null;
+    let initialTimer: number | null =
+      null;
+    let resumeTimer: number | null =
+      null;
 
     let previousTime = 0;
     let reachedEnd = false;
     let userPaused = false;
     let hiddenPaused = false;
 
-    const clearResumeTimer = () => {
-      if (resumeTimer !== null) {
-        window.clearTimeout(resumeTimer);
-        resumeTimer = null;
-      }
-    };
+    const clearResumeTimer =
+      () => {
+        if (resumeTimer !== null) {
+          window.clearTimeout(
+            resumeTimer
+          );
+
+          resumeTimer = null;
+        }
+      };
 
     const stopAnimation = () => {
       if (frameId) {
-        window.cancelAnimationFrame(frameId);
+        window.cancelAnimationFrame(
+          frameId
+        );
+
         frameId = 0;
       }
 
       previousTime = 0;
     };
 
-    const advanceScroll = (time: number) => {
+    const advanceScroll = (
+      time: number
+    ) => {
       frameId = 0;
 
       if (
@@ -750,7 +977,8 @@ export default function PublicInvitationPage() {
 
       const elapsedSeconds =
         Math.min(
-          (time - previousTime) / 1000,
+          (time - previousTime) /
+            1000,
           0.05
         );
 
@@ -821,34 +1049,35 @@ export default function PublicInvitationPage() {
         );
     };
 
-    const scheduleResume = () => {
-      clearResumeTimer();
+    const scheduleResume =
+      () => {
+        clearResumeTimer();
 
-      if (
-        reachedEnd ||
-        hiddenPaused ||
-        document.hidden
-      ) {
-        return;
-      }
+        if (
+          reachedEnd ||
+          hiddenPaused ||
+          document.hidden
+        ) {
+          return;
+        }
 
-      resumeTimer =
-        window.setTimeout(() => {
-          resumeTimer = null;
+        resumeTimer =
+          window.setTimeout(() => {
+            resumeTimer = null;
 
-          if (
-            reachedEnd ||
-            hiddenPaused ||
-            document.hidden
-          ) {
-            return;
-          }
+            if (
+              reachedEnd ||
+              hiddenPaused ||
+              document.hidden
+            ) {
+              return;
+            }
 
-          userPaused = false;
+            userPaused = false;
 
-          startAnimation();
-        }, 1500);
-    };
+            startAnimation();
+          }, 1500);
+      };
 
     const pauseForUser = () => {
       if (reachedEnd) {
@@ -865,7 +1094,9 @@ export default function PublicInvitationPage() {
     const isMusicControl = (
       target: EventTarget | null
     ) => {
-      if (!(target instanceof Element)) {
+      if (
+        !(target instanceof Element)
+      ) {
         return false;
       }
 
@@ -876,15 +1107,14 @@ export default function PublicInvitationPage() {
       );
     };
 
-    /*
-     * Mouse wheel.
-     */
     const handleWheel = (
       event: WheelEvent
     ) => {
       if (
-        Math.abs(event.deltaY) < 0.5 &&
-        Math.abs(event.deltaX) < 0.5
+        Math.abs(event.deltaY) <
+          0.5 &&
+        Math.abs(event.deltaX) <
+          0.5
       ) {
         return;
       }
@@ -892,27 +1122,12 @@ export default function PublicInvitationPage() {
       pauseForUser();
     };
 
-    /*
-     * Pointer interaction.
-     *
-     * This covers:
-     * - mouse click
-     * - touch tap
-     * - touch swipe
-     * - pen
-     *
-     * Music button is the ONLY exception.
-     */
     const handlePointerDown = (
       event: PointerEvent
     ) => {
-      if (isMusicControl(event.target)) {
-        /*
-         * Do NOT pause auto-scroll for music.
-         *
-         * Also use this user gesture to retry audio autoplay
-         * if the browser previously blocked it.
-         */
+      if (
+        isMusicControl(event.target)
+      ) {
         const media =
           document.getElementById(
             "invitation-background-music"
@@ -928,11 +1143,7 @@ export default function PublicInvitationPage() {
             .then(() => {
               setMusicPlaying(true);
             })
-            .catch(() => {
-              /*
-               * User can still use the music button normally.
-               */
-            });
+            .catch(() => {});
         }
 
         return;
@@ -941,12 +1152,6 @@ export default function PublicInvitationPage() {
       pauseForUser();
     };
 
-    /*
-     * Keyboard:
-     *
-     * Scroll keys pause auto-scroll.
-     * Typing inside RSVP/form controls also keeps auto-scroll paused.
-     */
     const handleKeyDown = (
       event: KeyboardEvent
     ) => {
@@ -957,7 +1162,8 @@ export default function PublicInvitationPage() {
       }
 
       const target =
-        event.target instanceof HTMLElement
+        event.target instanceof
+        HTMLElement
           ? event.target
           : null;
 
@@ -986,11 +1192,6 @@ export default function PublicInvitationPage() {
       }
     };
 
-    /*
-     * If a form field receives focus, pause.
-     *
-     * This helps RSVP interaction.
-     */
     const handleFocusIn = (
       event: FocusEvent
     ) => {
@@ -1001,7 +1202,8 @@ export default function PublicInvitationPage() {
       }
 
       const target =
-        event.target instanceof HTMLElement
+        event.target instanceof
+        HTMLElement
           ? event.target
           : null;
 
@@ -1014,47 +1216,35 @@ export default function PublicInvitationPage() {
       }
     };
 
-    /*
-     * Page Visibility:
-     *
-     * If user opens Maps in another tab, the invitation page
-     * becomes hidden. Auto-scroll stops while hidden.
-     *
-     * When user returns, it resumes from the current position.
-     */
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        hiddenPaused = true;
+    const handleVisibilityChange =
+      () => {
+        if (document.hidden) {
+          hiddenPaused = true;
 
-        stopAnimation();
-        clearResumeTimer();
+          stopAnimation();
 
-        return;
-      }
+          clearResumeTimer();
 
-      hiddenPaused = false;
+          return;
+        }
 
-      if (
-        reachedEnd ||
-        userPaused
-      ) {
-        return;
-      }
+        hiddenPaused = false;
 
-      startAnimation();
-    };
+        if (
+          reachedEnd ||
+          userPaused
+        ) {
+          return;
+        }
 
-    /*
-     * Start from the very top when invitation becomes visible.
-     */
+        startAnimation();
+      };
+
     window.scrollTo({
       top: 0,
       behavior: "auto",
     });
 
-    /*
-     * Initial 1.5 second delay.
-     */
     initialTimer =
       window.setTimeout(() => {
         initialTimer = null;
@@ -1143,6 +1333,7 @@ export default function PublicInvitationPage() {
    * MUSIC EVENT LISTENERS
    * ============================================================
    */
+
   useEffect(() => {
     if (
       !musicUrl ||
@@ -1166,31 +1357,35 @@ export default function PublicInvitationPage() {
     setMusicPlaying(false);
     setMusicError(false);
 
-    const handleCanPlay = () => {
-      setAudioReady(true);
-    };
+    const handleCanPlay =
+      () => {
+        setAudioReady(true);
+      };
 
-    const handleLoadedData = () => {
-      setAudioReady(true);
-    };
+    const handleLoadedData =
+      () => {
+        setAudioReady(true);
+      };
 
     const handlePlay = () => {
       setMusicPlaying(true);
     };
 
-    const handlePause = () => {
-      setMusicPlaying(false);
-    };
+    const handlePause =
+      () => {
+        setMusicPlaying(false);
+      };
 
-    const handleError = () => {
-      console.error(
-        "BACKGROUND MUSIC LOAD ERROR"
-      );
+    const handleError =
+      () => {
+        console.error(
+          "BACKGROUND MUSIC LOAD ERROR"
+        );
 
-      setAudioReady(false);
-      setMusicPlaying(false);
-      setMusicError(true);
-    };
+        setAudioReady(false);
+        setMusicPlaying(false);
+        setMusicError(true);
+      };
 
     media.addEventListener(
       "canplay",
@@ -1257,6 +1452,7 @@ export default function PublicInvitationPage() {
    * MUSIC BUTTON
    * ============================================================
    */
+
   async function toggleMusic() {
     const media =
       document.getElementById(
@@ -1291,6 +1487,7 @@ export default function PublicInvitationPage() {
    * LOADING
    * ============================================================
    */
+
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-black text-white">
@@ -1310,6 +1507,7 @@ export default function PublicInvitationPage() {
    * NOT FOUND
    * ============================================================
    */
+
   if (!invitation) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-black px-6 text-white">
@@ -1319,7 +1517,8 @@ export default function PublicInvitationPage() {
           </h1>
 
           <p className="mt-2 text-sm text-white/60">
-            Урилгын линк буруу эсвэл нийтлэгдээгүй байна.
+            Урилгын линк буруу эсвэл
+            нийтлэгдээгүй байна.
           </p>
         </div>
       </main>
@@ -1367,61 +1566,510 @@ export default function PublicInvitationPage() {
     galleryUrls.length > 0 ||
     Boolean(invitation.background_url);
 
+  /*
+   * ============================================================
+   * OPENING SCREEN
+   * ============================================================
+   */
+
+  const renderOpeningScreen = () => {
+    if (openingFinished) {
+      return null;
+    }
+
+    const isStarted = openingStarted;
+
+    /*
+     * ----------------------------------------------------------
+     * ENVELOPE / ДУГТУЙ
+     * ----------------------------------------------------------
+     */
+
+    if (
+      openingStyle === "envelope" ||
+      openingStyle === "dugtui"
+    ) {
+      return (
+        <div
+          className={`fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-black transition-all duration-1000 ${
+            isStarted
+              ? "pointer-events-none opacity-0"
+              : "opacity-100"
+          }`}
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-black via-[#181818] to-black" />
+
+          <div
+            className={`relative z-10 flex w-[min(88vw,420px)] flex-col items-center transition-all duration-[1500ms] ${
+              isStarted
+                ? "scale-[1.35] opacity-0"
+                : "scale-100 opacity-100"
+            }`}
+          >
+            <div
+              className={`relative h-[230px] w-[340px] max-w-full overflow-hidden rounded-[18px] border border-white/15 bg-[#f8f1e8] shadow-[0_30px_100px_rgba(0,0,0,0.55)] transition-all duration-[1300ms] ${
+                isStarted
+                  ? "translate-y-[-40px] scale-105"
+                  : ""
+              }`}
+            >
+              <div
+                className="absolute inset-x-0 top-0 h-0 border-l-[170px] border-r-[170px] border-t-[125px] border-l-transparent border-r-transparent border-t-[#e8d8c5]"
+                style={{
+                  transformOrigin:
+                    "top center",
+                  transition:
+                    "transform 900ms ease",
+                  transform: isStarted
+                    ? "rotateX(180deg)"
+                    : "rotateX(0deg)",
+                }}
+              />
+
+              <div className="absolute inset-x-5 bottom-5 top-5 rounded-[12px] border border-black/10 bg-[#fffaf2]" />
+
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="relative z-10 text-center text-[#49382a]">
+                  <div className="mb-3 text-4xl">
+                    💌
+                  </div>
+
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.28em] opacity-50">
+                    Invitation
+                  </p>
+
+                  <p className="mt-2 text-lg font-medium">
+                    {invitation.names ||
+                      "Урилга"}
+                  </p>
+                </div>
+              </div>
+
+              <div
+                className={`absolute bottom-0 left-0 right-0 h-[120px] origin-bottom bg-[#f2e5d5] transition-transform duration-[1000ms] ${
+                  isStarted
+                    ? "scale-y-0"
+                    : "scale-y-100"
+                }`}
+                style={{
+                  clipPath:
+                    "polygon(0 100%, 50% 0, 100% 100%)",
+                }}
+              />
+            </div>
+
+            {!isStarted && (
+              <button
+                type="button"
+                onClick={
+                  handleOpenInvitation
+                }
+                className="mt-10 rounded-full border border-white/20 bg-white/10 px-8 py-3 text-sm font-medium text-white shadow-lg backdrop-blur-md transition hover:bg-white/20 active:scale-95"
+              >
+                Урилгаа нээх
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    /*
+     * ----------------------------------------------------------
+     * LIGHT / ГЭРЭЛ ЦАЦРАХ
+     * ----------------------------------------------------------
+     */
+
+    if (
+      openingStyle === "light" ||
+      openingStyle === "gerel" ||
+      openingStyle === "гэрэл"
+    ) {
+      return (
+        <div
+          className={`fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-black transition-all duration-[1400ms] ${
+            isStarted
+              ? "pointer-events-none opacity-0"
+              : "opacity-100"
+          }`}
+        >
+          <div
+            className={`absolute inset-0 transition-all duration-[1400ms] ${
+              isStarted
+                ? "scale-[3] opacity-0"
+                : "scale-100 opacity-100"
+            }`}
+            style={{
+              background:
+                "radial-gradient(circle at center, rgba(255,255,255,0.98) 0%, rgba(255,245,220,0.75) 12%, rgba(255,255,255,0.08) 40%, rgba(0,0,0,0) 70%)",
+            }}
+          />
+
+          <div className="relative z-10 text-center text-white">
+            <div
+              className={`mb-6 text-5xl transition-all duration-[900ms] ${
+                isStarted
+                  ? "scale-[3] opacity-0"
+                  : "scale-100 opacity-100"
+              }`}
+            >
+              ✨
+            </div>
+
+            <h1 className="text-3xl font-semibold">
+              {invitation.names ||
+                "Урилга"}
+            </h1>
+
+            {!isStarted && (
+              <button
+                type="button"
+                onClick={
+                  handleOpenInvitation
+                }
+                className="mt-8 rounded-full bg-white px-8 py-3 text-sm font-semibold text-black shadow-xl transition hover:scale-105 active:scale-95"
+              >
+                Урилгаа нээх
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    /*
+     * ----------------------------------------------------------
+     * FOCUS / ФОКУСЛАХ
+     * ----------------------------------------------------------
+     */
+
+    if (
+      openingStyle === "focus" ||
+      openingStyle === "fokus"
+    ) {
+      return (
+        <div
+          className={`fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-black transition-all duration-[1300ms] ${
+            isStarted
+              ? "pointer-events-none opacity-0"
+              : "opacity-100"
+          }`}
+        >
+          <div
+            className={`absolute inset-0 transition-all duration-[1300ms] ${
+              isStarted
+                ? "scale-[1.5] blur-0 opacity-0"
+                : "scale-100 blur-[18px] opacity-100"
+            }`}
+            style={{
+              background:
+                "radial-gradient(circle at center, rgba(255,255,255,0.18), rgba(0,0,0,0.96) 55%)",
+            }}
+          />
+
+          <div
+            className={`relative z-10 text-center text-white transition-all duration-[1200ms] ${
+              isStarted
+                ? "scale-[1.25] blur-0 opacity-0"
+                : "scale-100 blur-[7px] opacity-100"
+            }`}
+          >
+            <p className="text-sm uppercase tracking-[0.35em] text-white/60">
+              Invitation
+            </p>
+
+            <h1 className="mt-4 text-4xl font-semibold">
+              {invitation.names ||
+                "Урилга"}
+            </h1>
+
+            {!isStarted && (
+              <button
+                type="button"
+                onClick={
+                  handleOpenInvitation
+                }
+                className="mt-9 rounded-full border border-white/20 bg-white/10 px-8 py-3 text-sm font-medium backdrop-blur-md transition hover:bg-white/20 active:scale-95"
+              >
+                Урилгаа нээх
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    /*
+     * ----------------------------------------------------------
+     * CURTAIN / ХӨШИГ
+     * ----------------------------------------------------------
+     */
+
+    if (
+      openingStyle === "curtain" ||
+      openingStyle === "hoshig"
+    ) {
+      return (
+        <div
+          className={`fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-[#160f12] transition-opacity duration-[1300ms] ${
+            isStarted
+              ? "pointer-events-none opacity-0"
+              : "opacity-100"
+          }`}
+        >
+          <div
+            className={`absolute bottom-0 left-0 top-0 w-1/2 origin-left bg-gradient-to-r from-[#6e273b] via-[#8e3c53] to-[#4c1828] shadow-[20px_0_50px_rgba(0,0,0,0.45)] transition-transform duration-[1200ms] ease-in-out ${
+              isStarted
+                ? "-translate-x-full"
+                : "translate-x-0"
+            }`}
+          />
+
+          <div
+            className={`absolute bottom-0 right-0 top-0 w-1/2 origin-right bg-gradient-to-l from-[#6e273b] via-[#8e3c53] to-[#4c1828] shadow-[-20px_0_50px_rgba(0,0,0,0.45)] transition-transform duration-[1200ms] ease-in-out ${
+              isStarted
+                ? "translate-x-full"
+                : "translate-x-0"
+            }`}
+          />
+
+          <div className="relative z-10 text-center text-white">
+            <div className="text-5xl">
+              🕊️
+            </div>
+
+            <h1 className="mt-5 text-3xl font-semibold">
+              {invitation.names ||
+                "Урилга"}
+            </h1>
+
+            {!isStarted && (
+              <button
+                type="button"
+                onClick={
+                  handleOpenInvitation
+                }
+                className="mt-9 rounded-full bg-white px-8 py-3 text-sm font-semibold text-[#4c1828] shadow-xl transition hover:scale-105 active:scale-95"
+              >
+                Урилгаа нээх
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    /*
+     * ----------------------------------------------------------
+     * PULSE / ЛУГШИХ
+     * ----------------------------------------------------------
+     */
+
+    if (
+      openingStyle === "pulse" ||
+      openingStyle === "lugshih"
+    ) {
+      return (
+        <div
+          className={`fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-black transition-opacity duration-[1200ms] ${
+            isStarted
+              ? "pointer-events-none opacity-0"
+              : "opacity-100"
+          }`}
+        >
+          <div
+            className={`absolute h-[180px] w-[180px] rounded-full border border-white/30 transition-all duration-[1200ms] ${
+              isStarted
+                ? "scale-[8] opacity-0"
+                : "animate-pulse scale-100 opacity-100"
+            }`}
+          />
+
+          <div
+            className={`absolute h-[110px] w-[110px] rounded-full border border-white/40 transition-all duration-[1000ms] ${
+              isStarted
+                ? "scale-[7] opacity-0"
+                : "animate-pulse scale-100 opacity-100"
+            }`}
+          />
+
+          <div className="relative z-10 text-center text-white">
+            <div className="text-5xl">
+              💗
+            </div>
+
+            <h1 className="mt-5 text-3xl font-semibold">
+              {invitation.names ||
+                "Урилга"}
+            </h1>
+
+            {!isStarted && (
+              <button
+                type="button"
+                onClick={
+                  handleOpenInvitation
+                }
+                className="mt-9 rounded-full border border-white/20 bg-white/10 px-8 py-3 text-sm font-medium backdrop-blur-md transition hover:bg-white/20 active:scale-95"
+              >
+                Урилгаа нээх
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    /*
+     * ----------------------------------------------------------
+     * CIRCLE / ХҮРЭЭЛЭХ
+     * ----------------------------------------------------------
+     */
+
+    return (
+      <div
+        className={`fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-black transition-opacity duration-[1300ms] ${
+          isStarted
+            ? "pointer-events-none opacity-0"
+            : "opacity-100"
+        }`}
+      >
+        <div
+          className={`absolute left-1/2 top-1/2 h-[70px] w-[70px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white transition-all duration-[1300ms] ease-in-out ${
+            isStarted
+              ? "scale-[40] opacity-100"
+              : "scale-100 opacity-0"
+          }`}
+        />
+
+        <div className="relative z-10 text-center text-white">
+          <div className="text-5xl">
+            💍
+          </div>
+
+          <h1 className="mt-5 text-3xl font-semibold">
+            {invitation.names ||
+              "Урилга"}
+          </h1>
+
+          {!isStarted && (
+            <button
+              type="button"
+              onClick={
+                handleOpenInvitation
+              }
+              className="mt-9 rounded-full bg-white px-8 py-3 text-sm font-semibold text-black shadow-xl transition hover:scale-105 active:scale-95"
+            >
+              Урилгаа нээх
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <main
       data-invitation
       className={`relative min-h-screen overflow-x-hidden ${style.page}`}
     >
-      {musicUrl && !musicIsVideo && (
-        <audio
-          id="invitation-background-music"
-          src={musicUrl}
-          loop
-          preload="auto"
-        />
-      )}
+      {/*
+       * ========================================================
+       * OPENING SCREEN
+       * ========================================================
+       */}
 
-      {videoUrl && !videoDone && (
-        <section className="relative z-20 px-4 pt-4 sm:px-6 sm:pt-8">
-          <div className="mx-auto max-w-2xl overflow-hidden rounded-[28px] shadow-2xl">
-            <video
-              ref={videoRef}
-              id={
-                musicIsVideo
-                  ? "invitation-background-music"
-                  : "invitation-cover-video"
-              }
-              src={videoUrl}
-              className="block aspect-video w-full bg-black object-contain"
-              autoPlay
-              muted
-              playsInline
-              preload="auto"
-              controls={false}
-              onPlay={() =>
-                setMusicPlaying(true)
-              }
-              onPause={() =>
-                setMusicPlaying(false)
-              }
-              onEnded={() => {
-                setMusicPlaying(false);
-                setVideoDone(true);
-              }}
-              onError={() => {
-                console.error(
-                  "INVITATION VIDEO ERROR"
-                );
+      {renderOpeningScreen()}
 
-                setMusicPlaying(false);
-                setVideoDone(true);
-              }}
+      {/*
+       * ========================================================
+       * MUSIC
+       * ========================================================
+       */}
+
+      {musicUrl &&
+        !musicIsVideo && (
+          <audio
+            id="invitation-background-music"
+            src={musicUrl}
+            loop
+            preload="auto"
+          />
+        )}
+
+      {/*
+       * ========================================================
+       * COVER VIDEO
+       * ========================================================
+       */}
+
+      {videoUrl &&
+        !videoDone && (
+          <section className="relative z-20 px-4 pt-4 sm:px-6 sm:pt-8">
+            <div className="mx-auto max-w-2xl overflow-hidden rounded-[28px] shadow-2xl">
+              <video
+                ref={videoRef}
+                id={
+                  musicIsVideo
+                    ? "invitation-background-music"
+                    : "invitation-cover-video"
+                }
+                src={videoUrl}
+                className="block aspect-video w-full bg-black object-contain"
+                autoPlay
+                muted
+                playsInline
+                preload="auto"
+                controls={false}
+                onPlay={() =>
+                  setMusicPlaying(true)
+                }
+                onPause={() =>
+                  setMusicPlaying(false)
+                }
+                onEnded={() => {
+                  setMusicPlaying(false);
+                  setVideoDone(true);
+                }}
+                onError={() => {
+                  console.error(
+                    "INVITATION VIDEO ERROR"
+                  );
+
+                  setMusicPlaying(false);
+                  setVideoDone(true);
+                }}
+              />
+            </div>
+          </section>
+        )}
+
+      {/*
+       * ========================================================
+       * PAGE-WIDE BACKGROUND
+       * ========================================================
+       */}
+
+      {invitation.background_url &&
+        showInvitation && (
+          <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+            <img
+              src={invitation.background_url}
+              alt=""
+              className="h-full w-full object-cover"
             />
-          </div>
-        </section>
-      )}
 
-      {galleryUrls.length > 0 &&
+            <div className="absolute inset-0 bg-black/25" />
+          </div>
+        )}
+
+      {/*
+       * ========================================================
+       * GALLERY SLIDESHOW FALLBACK BACKGROUND
+       * ========================================================
+       */}
+
+      {!invitation.background_url &&
+        galleryUrls.length > 0 &&
         showInvitation && (
           <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
             {galleryUrls.map(
@@ -1454,21 +2102,11 @@ export default function PublicInvitationPage() {
           </div>
         )}
 
-      {invitation.background_url &&
-        galleryUrls.length === 0 &&
-        showInvitation && (
-          <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-            <img
-              src={
-                invitation.background_url
-              }
-              alt=""
-              className="h-full w-full object-cover"
-            />
-
-            <div className="absolute inset-0 bg-black/25" />
-          </div>
-        )}
+      {/*
+       * ========================================================
+       * DEFAULT BACKGROUND
+       * ========================================================
+       */}
 
       {!hasAnyBackground &&
         showInvitation && (
@@ -1482,6 +2120,12 @@ export default function PublicInvitationPage() {
             />
           </div>
         )}
+
+      {/*
+       * ========================================================
+       * MUSIC BUTTON
+       * ========================================================
+       */}
 
       {musicUrl &&
         !musicError &&
@@ -1516,28 +2160,25 @@ export default function PublicInvitationPage() {
           </div>
         )}
 
+      {/*
+       * ========================================================
+       * MAIN INVITATION
+       * ========================================================
+      */}
+
       {showInvitation && (
         <div className="relative z-10 px-4 py-6 sm:px-6 sm:py-10">
           <div className="mx-auto max-w-2xl">
             <article
               className={`overflow-hidden rounded-[32px] border ${style.border} ${style.card} shadow-2xl backdrop-blur-sm`}
             >
-              {/* COVER */}
+              {/*
+               * =================================================
+               * COVER
+               * =================================================
+               */}
+
               <section className="relative min-h-[620px] overflow-hidden px-6 pb-16 pt-16 text-center sm:px-12 sm:pt-24">
-                {invitation.background_url && (
-                  <div className="absolute inset-0 -z-10">
-                    <img
-                      src={
-                        invitation.background_url
-                      }
-                      alt=""
-                      className="h-full w-full object-cover"
-                    />
-
-                    <div className="absolute inset-0 bg-white/65" />
-                  </div>
-                )}
-
                 <div
                   className="mx-auto mb-8 h-px w-16"
                   style={{
@@ -1576,23 +2217,20 @@ export default function PublicInvitationPage() {
                   <div className="mt-8 space-y-2">
                     {invitation.event_date && (
                       <p className="text-lg font-medium">
-                        {
-                          invitation.event_date
-                        }
+                        {invitation.event_date}
                       </p>
                     )}
 
                     {invitation.event_time && (
                       <p className="text-sm opacity-70">
-                        {
-                          invitation.event_time
-                        }
+                        {invitation.event_time}
                       </p>
                     )}
                   </div>
                 )}
 
-                {galleryUrls.length > 1 && (
+                {galleryUrls.length >
+                  1 && (
                   <div className="absolute bottom-7 left-1/2 flex -translate-x-1/2 gap-2">
                     {galleryUrls.map(
                       (_, index) => (
@@ -1610,7 +2248,8 @@ export default function PublicInvitationPage() {
                   </div>
                 )}
 
-                {galleryUrls.length > 0 && (
+                {galleryUrls.length >
+                  0 && (
                   <div className="absolute bottom-7 right-6 text-xs text-white/70">
                     {currentSlide + 1} /{" "}
                     {galleryUrls.length}
@@ -1618,7 +2257,12 @@ export default function PublicInvitationPage() {
                 )}
               </section>
 
-              {/* EVENT */}
+              {/*
+               * =================================================
+               * EVENT
+               * =================================================
+               */}
+
               {(invitation.venue ||
                 invitation.address ||
                 invitation.event_date ||
@@ -1639,9 +2283,7 @@ export default function PublicInvitationPage() {
 
                     {invitation.address && (
                       <p className="mx-auto mt-3 max-w-lg text-sm leading-6 opacity-75">
-                        {
-                          invitation.address
-                        }
+                        {invitation.address}
                       </p>
                     )}
 
@@ -1651,18 +2293,14 @@ export default function PublicInvitationPage() {
                         {invitation.event_date && (
                           <div className="rounded-full bg-white/80 px-5 py-2 text-sm">
                             📅{" "}
-                            {
-                              invitation.event_date
-                            }
+                            {invitation.event_date}
                           </div>
                         )}
 
                         {invitation.event_time && (
                           <div className="rounded-full bg-white/80 px-5 py-2 text-sm">
                             🕐{" "}
-                            {
-                              invitation.event_time
-                            }
+                            {invitation.event_time}
                           </div>
                         )}
                       </div>
@@ -1671,7 +2309,45 @@ export default function PublicInvitationPage() {
                 </section>
               )}
 
-              {/* CALENDAR */}
+              {/*
+               * =================================================
+               * MESSAGE
+               * =================================================
+               */}
+
+              {invitation.message && (
+                <section className="px-6 py-12 sm:px-12">
+                  <div className="mx-auto max-w-xl text-center">
+                    <p
+                      className="mb-5 text-sm font-semibold uppercase tracking-[0.22em]"
+                      style={{
+                        color: style.accent,
+                      }}
+                    >
+                      Урилгын мэндчилгээ
+                    </p>
+
+                    <div
+                      className="mx-auto mb-6 h-px w-12"
+                      style={{
+                        backgroundColor:
+                          style.accent,
+                      }}
+                    />
+
+                    <p className="whitespace-pre-line text-base leading-8 opacity-80">
+                      {invitation.message}
+                    </p>
+                  </div>
+                </section>
+              )}
+
+              {/*
+               * =================================================
+               * CALENDAR
+               * =================================================
+               */}
+
               {invitation.event_date && (
                 <section className="px-6 py-12 sm:px-12">
                   <EventCalendar
@@ -1699,18 +2375,12 @@ export default function PublicInvitationPage() {
                 </section>
               )}
 
-              {/* MESSAGE */}
-              {invitation.message && (
-                <section className="px-6 py-12 sm:px-12">
-                  <div className="mx-auto max-w-xl text-center">
-                    <p className="whitespace-pre-line text-base leading-8 opacity-80">
-                      {invitation.message}
-                    </p>
-                  </div>
-                </section>
-              )}
+              {/*
+               * =================================================
+               * GALLERY
+               * =================================================
+               */}
 
-              {/* GALLERY */}
               {galleryUrls.length > 0 && (
                 <section className="px-5 pb-12 sm:px-8">
                   <div className="grid grid-cols-2 gap-3">
@@ -1751,7 +2421,12 @@ export default function PublicInvitationPage() {
                 </section>
               )}
 
-              {/* MAP */}
+              {/*
+               * =================================================
+               * MAP
+               * =================================================
+               */}
+
               {(invitation.address ||
                 hasCoordinates) && (
                 <section
@@ -1770,9 +2445,7 @@ export default function PublicInvitationPage() {
 
                     {invitation.address && (
                       <p className="mx-auto mt-3 max-w-lg text-sm leading-6 opacity-75">
-                        {
-                          invitation.address
-                        }
+                        {invitation.address}
                       </p>
                     )}
 
@@ -1820,14 +2493,26 @@ export default function PublicInvitationPage() {
                 </section>
               )}
 
-              {/* RSVP */}
+              {/*
+               * =================================================
+               * RSVP
+               * =================================================
+               */}
+
               <RsvpSection
                 slug={slug}
                 accent={style.accent}
-                buttonClass={style.button}
+                buttonClass={
+                  style.button
+                }
               />
 
-              {/* FOOTER */}
+              {/*
+               * =================================================
+               * FOOTER
+               * =================================================
+               */}
+
               <footer
                 className="px-6 py-8 text-center"
                 style={{
@@ -1848,6 +2533,12 @@ export default function PublicInvitationPage() {
         </div>
       )}
 
+      {/*
+       * ========================================================
+       * VIDEO MESSAGE
+       * ========================================================
+       */}
+
       {!showInvitation &&
         !videoDone && (
           <div className="pointer-events-none fixed inset-x-0 bottom-8 z-40 flex justify-center">
@@ -1856,6 +2547,12 @@ export default function PublicInvitationPage() {
             </div>
           </div>
         )}
+
+      {/*
+       * ========================================================
+       * MUSIC LOADING
+       * ========================================================
+       */}
 
       {musicUrl &&
         !audioReady &&
@@ -1867,12 +2564,37 @@ export default function PublicInvitationPage() {
           </div>
         )}
 
+      {/*
+       * ========================================================
+       * MUSIC ERROR
+       * ========================================================
+       */}
+
       {musicError &&
         showInvitation && (
           <div className="pointer-events-none fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full bg-black/40 px-4 py-2 text-xs text-white/70 backdrop-blur-md">
             🎵 Хөгжим ачаалж чадсангүй
           </div>
         )}
+
+      {/*
+       * ========================================================
+       * OPENING STYLE DEBUG / OPTIONAL
+       * ========================================================
+       *
+       * This is intentionally hidden from users.
+       * It confirms which opening style was loaded from extras.
+       *
+       * Selected:
+       * {getOpeningLabel(openingStyle)}
+       *
+       * ========================================================
+       */}
+      <div className="hidden">
+        {getOpeningLabel(
+          openingStyle
+        )}
+      </div>
     </main>
   );
 }
