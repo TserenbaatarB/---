@@ -12,6 +12,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import BrandLogo from "@/components/BrandLogo";
 import WizardStepper from "@/components/WizardStepper";
 import dynamic from "next/dynamic";
+import { supabase } from "@/lib/supabase";
 import {
   getExtrasSnapshot,
   getServerExtrasSnapshot,
@@ -60,6 +61,7 @@ type InvitationDetails = {
 type StoredInvitationImages = {
   backgroundId: string | null;
   galleryIds: string[];
+  galleryUrls?: string[];
   galleryCaptions?: string[];
 };
 
@@ -116,21 +118,12 @@ function openImageDatabase(): Promise<IDBDatabase> {
   });
 }
 
-async function getStoredImage(
-  id: string
-): Promise<Blob | null> {
+async function getStoredImage(id: string): Promise<Blob | null> {
   const db = await openImageDatabase();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(
-      STORE_NAME,
-      "readonly"
-    );
-
-    const store = transaction.objectStore(
-      STORE_NAME
-    );
-
+    const transaction = db.transaction(STORE_NAME, "readonly");
+    const store = transaction.objectStore(STORE_NAME);
     const request = store.get(id);
 
     request.onsuccess = () => {
@@ -155,36 +148,41 @@ async function getStoredImage(
 function formatDate(date: string) {
   if (!date) return "";
 
-  const selectedDate = new Date(
-    `${date}T00:00:00`
-  );
+  const selectedDate = new Date(`${date}T00:00:00`);
 
-  if (
-    Number.isNaN(selectedDate.getTime())
-  ) {
+  if (Number.isNaN(selectedDate.getTime())) {
     return date;
   }
 
-  return selectedDate.toLocaleDateString(
-    "mn-MN",
-    {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    }
-  );
+  return selectedDate.toLocaleDateString("mn-MN", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
 }
 
 function InvitationBuilderPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const eventType =
-    searchParams.get("event") ?? "wedding";
+  const eventType = searchParams.get("event") ?? "wedding";
 
   const template =
-    searchParams.get("template") ??
-    "classic-gold";
+    searchParams.get("template") ?? "classic-gold";
+
+  const invitationId =
+    searchParams.get("invitationId") ??
+    searchParams.get("id") ??
+    null;
+
+  const [currentInvitationId, setCurrentInvitationId] =
+    useState<string | null>(invitationId);
+
+  const [loadingInvitation, setLoadingInvitation] =
+    useState(Boolean(invitationId));
+
+  const [invitationLoaded, setInvitationLoaded] =
+    useState(!Boolean(invitationId));
 
   const [title, setTitle] = useState("");
   const [names, setNames] = useState("");
@@ -195,15 +193,15 @@ function InvitationBuilderPageContent() {
   const [message, setMessage] = useState("");
   const [phone, setPhone] = useState("");
 
+  const [selectedStyle, setSelectedStyle] =
+    useState("romantic");
+
   const [backgroundImage, setBackgroundImage] =
     useState<string | null>(null);
 
-  const [photos, setPhotos] = useState<
-    GalleryPhoto[]
-  >([]);
+  const [photos, setPhotos] = useState<GalleryPhoto[]>([]);
 
-  const [loadingImages, setLoadingImages] =
-    useState(true);
+  const [loadingImages, setLoadingImages] = useState(true);
 
   const [musicUrl, setMusicUrl] =
     useState<string | null>(null);
@@ -217,28 +215,28 @@ function InvitationBuilderPageContent() {
   const [musicType, setMusicType] =
     useState<"none" | "custom">("none");
 
-  const [selectedStyle, setSelectedStyle] =
-    useState("romantic");
-
   const extrasSnapshot = useSyncExternalStore(
     subscribeExtras,
     getExtrasSnapshot,
     getServerExtrasSnapshot
   );
 
-  const appearance = useMemo(
-    () => parseExtras(extrasSnapshot).appearance,
+  const parsedExtras = useMemo(
+    () => parseExtras(extrasSnapshot),
     [extrasSnapshot]
   );
 
-  const [aiPrompt, setAiPrompt] =
-    useState("");
+  const appearance = useMemo(
+    () => parsedExtras.appearance,
+    [parsedExtras]
+  );
+
+  const [aiPrompt, setAiPrompt] = useState("");
 
   const [activeSection, setActiveSection] =
     useState("cover");
 
-  const [saving, setSaving] =
-    useState(false);
+  const [saving, setSaving] = useState(false);
 
   const [savedMessage, setSavedMessage] =
     useState("");
@@ -246,14 +244,11 @@ function InvitationBuilderPageContent() {
   const [buildingDesign, setBuildingDesign] =
     useState(false);
 
-  const [aiMessage, setAiMessage] =
-    useState("");
+  const [aiMessage, setAiMessage] = useState("");
 
-  const [aiError, setAiError] =
-    useState("");
+  const [aiError, setAiError] = useState("");
 
-  const [styleSearch, setStyleSearch] =
-    useState("");
+  const [styleSearch, setStyleSearch] = useState("");
 
   /*
    * =========================================================
@@ -265,8 +260,7 @@ function InvitationBuilderPageContent() {
     {
       id: "romantic",
       name: "Romantic",
-      description:
-        "Зөөлөн, романтик хуримын загвар",
+      description: "Зөөлөн, романтик хуримын загвар",
       background:
         "from-[#F7EFE7] via-[#EFE1D4] to-[#E7D3C1]",
       accent: "#A48663",
@@ -284,8 +278,7 @@ function InvitationBuilderPageContent() {
     {
       id: "luxury",
       name: "Luxury",
-      description:
-        "Тансаг, premium мэдрэмж",
+      description: "Тансаг, premium мэдрэмж",
       background:
         "from-[#24201C] via-[#3A3027] to-[#181512]",
       accent: "#D5B98C",
@@ -302,8 +295,7 @@ function InvitationBuilderPageContent() {
     {
       id: "minimal",
       name: "Minimal",
-      description:
-        "Цэвэрхэн, modern дизайн",
+      description: "Цэвэрхэн, modern дизайн",
       background:
         "from-[#F4F4F2] via-[#ECEBE7] to-[#DFDED8]",
       accent: "#44413D",
@@ -323,8 +315,7 @@ function InvitationBuilderPageContent() {
     {
       id: "garden",
       name: "Garden",
-      description:
-        "Байгалийн, зөөлөн өнгө",
+      description: "Байгалийн, зөөлөн өнгө",
       background:
         "from-[#E7EEE4] via-[#DCE8D7] to-[#CBDCC5]",
       accent: "#66745E",
@@ -345,8 +336,7 @@ function InvitationBuilderPageContent() {
     {
       id: "black-gold",
       name: "Black & Gold",
-      description:
-        "Хар ба алтлаг тансаг өнгө",
+      description: "Хар ба алтлаг тансаг өнгө",
       background:
         "from-[#0D0C0B] via-[#26211A] to-[#080706]",
       accent: "#C9A65B",
@@ -365,8 +355,7 @@ function InvitationBuilderPageContent() {
     {
       id: "white-gold",
       name: "White & Gold",
-      description:
-        "Цэвэр цагаан, алтлаг luxury",
+      description: "Цэвэр цагаан, алтлаг luxury",
       background:
         "from-[#FFFEFA] via-[#F6F0DF] to-[#E8D7A7]",
       accent: "#A98A45",
@@ -384,8 +373,7 @@ function InvitationBuilderPageContent() {
     {
       id: "pastel",
       name: "Pastel",
-      description:
-        "Зөөлөн pastel өнгө",
+      description: "Зөөлөн pastel өнгө",
       background:
         "from-[#FBE9EE] via-[#EDE7F6] to-[#E3F0F3]",
       accent: "#A77B8A",
@@ -402,8 +390,7 @@ function InvitationBuilderPageContent() {
     {
       id: "editorial",
       name: "Editorial",
-      description:
-        "Сэтгүүл шиг modern стиль",
+      description: "Сэтгүүл шиг modern стиль",
       background:
         "from-[#F1EEE8] via-[#DAD5CB] to-[#BFB8AA]",
       accent: "#514B43",
@@ -420,8 +407,7 @@ function InvitationBuilderPageContent() {
     {
       id: "vintage",
       name: "Vintage",
-      description:
-        "Retro, хуучны дулаан мэдрэмж",
+      description: "Retro, хуучны дулаан мэдрэмж",
       background:
         "from-[#E8D8C0] via-[#C8AD8C] to-[#8D6E4D]",
       accent: "#79563A",
@@ -439,8 +425,7 @@ function InvitationBuilderPageContent() {
     {
       id: "boho",
       name: "Boho",
-      description:
-        "Чөлөөт, natural boho стиль",
+      description: "Чөлөөт, natural boho стиль",
       background:
         "from-[#EADBC8] via-[#CBB89D] to-[#9A8065]",
       accent: "#735C45",
@@ -457,8 +442,7 @@ function InvitationBuilderPageContent() {
     {
       id: "royal",
       name: "Royal",
-      description:
-        "Хааны мэт сүрлэг дизайн",
+      description: "Хааны мэт сүрлэг дизайн",
       background:
         "from-[#21132F] via-[#3A1E52] to-[#120A1A]",
       accent: "#D7B56D",
@@ -478,8 +462,7 @@ function InvitationBuilderPageContent() {
     {
       id: "dark-romance",
       name: "Dark Romance",
-      description:
-        "Харанхуй, романтик cinematic стиль",
+      description: "Харанхуй, романтик cinematic стиль",
       background:
         "from-[#211517] via-[#3A2024] to-[#10090B]",
       accent: "#C68B8F",
@@ -497,8 +480,7 @@ function InvitationBuilderPageContent() {
     {
       id: "blue-elegant",
       name: "Blue Elegant",
-      description:
-        "Тайван, elegant цэнхэр дизайн",
+      description: "Тайван, elegant цэнхэр дизайн",
       background:
         "from-[#E8EFF6] via-[#CAD9E8] to-[#9DB4CB]",
       accent: "#506B84",
@@ -515,8 +497,7 @@ function InvitationBuilderPageContent() {
     {
       id: "sage",
       name: "Sage",
-      description:
-        "Sage green, natural modern",
+      description: "Sage green, natural modern",
       background:
         "from-[#EDF1E9] via-[#D8E1D2] to-[#B8C9AE]",
       accent: "#66785F",
@@ -534,8 +515,7 @@ function InvitationBuilderPageContent() {
     {
       id: "terracotta",
       name: "Terracotta",
-      description:
-        "Дулаан earth tone өнгө",
+      description: "Дулаан earth tone өнгө",
       background:
         "from-[#F0DED2] via-[#D8AA91] to-[#A86D54]",
       accent: "#87543F",
@@ -554,8 +534,7 @@ function InvitationBuilderPageContent() {
     {
       id: "blush",
       name: "Blush",
-      description:
-        "Зөөлөн blush pink",
+      description: "Зөөлөн blush pink",
       background:
         "from-[#FFF0F2] via-[#F4D6DC] to-[#DDAEB9]",
       accent: "#B77C89",
@@ -572,8 +551,7 @@ function InvitationBuilderPageContent() {
     {
       id: "celestial",
       name: "Celestial",
-      description:
-        "Од, шөнө, dreamy мэдрэмж",
+      description: "Од, шөнө, dreamy мэдрэмж",
       background:
         "from-[#11172B] via-[#202D50] to-[#080B18]",
       accent: "#C8B6E8",
@@ -593,8 +571,7 @@ function InvitationBuilderPageContent() {
     {
       id: "modern-black",
       name: "Modern Black",
-      description:
-        "Bold, modern хар дизайн",
+      description: "Bold, modern хар дизайн",
       background:
         "from-[#171717] via-[#292929] to-[#080808]",
       accent: "#F1F1F1",
@@ -613,8 +590,7 @@ function InvitationBuilderPageContent() {
     {
       id: "coastal",
       name: "Coastal",
-      description:
-        "Далайн тайван, fresh өнгө",
+      description: "Далайн тайван, fresh өнгө",
       background:
         "from-[#E8F5F5] via-[#CDE7E8] to-[#9FC8CC]",
       accent: "#507F84",
@@ -633,8 +609,7 @@ function InvitationBuilderPageContent() {
     {
       id: "classic",
       name: "Classic",
-      description:
-        "Мөнхийн сонгодог урилгын стиль",
+      description: "Мөнхийн сонгодог урилгын стиль",
       background:
         "from-[#F5F0E8] via-[#E7DED0] to-[#D3C3AE]",
       accent: "#78654D",
@@ -652,11 +627,379 @@ function InvitationBuilderPageContent() {
 
   /*
    * =========================================================
-   * LOAD DETAILS
+   * LOAD EXISTING INVITATION FROM SUPABASE
    * =========================================================
    */
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function loadExistingInvitation() {
+      if (!invitationId) {
+        if (!cancelled) {
+          setLoadingInvitation(false);
+          setInvitationLoaded(true);
+        }
+
+        return;
+      }
+
+      setLoadingInvitation(true);
+      setInvitationLoaded(false);
+
+      try {
+        const {
+          data: {
+            user,
+          },
+          error: userError,
+        } = await supabase.auth.getUser();
+
+        if (userError || !user) {
+          throw new Error(
+            "Нэвтрэх мэдээлэл олдсонгүй."
+          );
+        }
+
+        const { data, error } = await supabase
+          .from("invitations")
+          .select(
+            `
+              id,
+              user_id,
+              event_type,
+              template,
+              title,
+              names,
+              event_date,
+              event_time,
+              venue,
+              address,
+              message,
+              phone,
+              selected_style,
+              ai_prompt,
+              active_section,
+              background_id,
+              gallery_ids,
+              gallery_urls,
+              gallery_captions,
+              music_path,
+              music_type,
+              music_name,
+              extras
+            `
+          )
+          .eq("id", invitationId)
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (error) {
+          throw error;
+        }
+
+        if (!data) {
+          throw new Error(
+            "Энэ урилга олдсонгүй."
+          );
+        }
+
+        if (cancelled) return;
+
+        /*
+         * -------------------------------------------------------
+         * RESTORE MAIN DETAILS
+         * -------------------------------------------------------
+         */
+
+        setCurrentInvitationId(data.id);
+
+        setTitle(data.title ?? "");
+        setNames(data.names ?? "");
+        setDate(data.event_date ?? "");
+        setTime(data.event_time ?? "");
+        setVenue(data.venue ?? "");
+        setAddress(data.address ?? "");
+        setMessage(data.message ?? "");
+        setPhone(data.phone ?? "");
+
+        setSelectedStyle(
+          data.selected_style || "romantic"
+        );
+
+        setAiPrompt(
+          data.ai_prompt ?? ""
+        );
+
+        setActiveSection(
+          data.active_section || "cover"
+        );
+
+        /*
+         * -------------------------------------------------------
+         * PREPARE IMAGE ARRAYS
+         * -------------------------------------------------------
+         */
+
+        const dbGalleryIds =
+          Array.isArray(data.gallery_ids)
+            ? data.gallery_ids
+            : [];
+
+        const dbGalleryUrls =
+          Array.isArray(data.gallery_urls)
+            ? data.gallery_urls
+            : [];
+
+        const dbGalleryCaptions =
+          Array.isArray(data.gallery_captions)
+            ? data.gallery_captions
+            : [];
+
+        /*
+         * -------------------------------------------------------
+         * SYNC DB DATA INTO SESSION STORAGE
+         * -------------------------------------------------------
+         */
+
+        const restoredDraft: InvitationDraft = {
+          eventType:
+            data.event_type ?? eventType,
+          template:
+            data.template ?? template,
+          title:
+            data.title ?? "",
+          names:
+            data.names ?? "",
+          date:
+            data.event_date ?? "",
+          time:
+            data.event_time ?? "",
+          venue:
+            data.venue ?? "",
+          address:
+            data.address ?? "",
+          message:
+            data.message ?? "",
+          phone:
+            data.phone ?? "",
+          selectedStyle:
+            data.selected_style ||
+            "romantic",
+          aiPrompt:
+            data.ai_prompt ?? "",
+          activeSection:
+            data.active_section ||
+            "cover",
+          backgroundId:
+            data.background_id ?? null,
+          galleryIds:
+            dbGalleryIds,
+          galleryUrls:
+            dbGalleryUrls,
+          galleryCaptions:
+            dbGalleryCaptions,
+          savedAt:
+            new Date().toISOString(),
+        };
+
+        sessionStorage.setItem(
+          "invitation-draft",
+          JSON.stringify(
+            restoredDraft
+          )
+        );
+
+        sessionStorage.setItem(
+          "invitation-details",
+          JSON.stringify({
+            title:
+              data.title ?? "",
+            names:
+              data.names ?? "",
+            date:
+              data.event_date ?? "",
+            time:
+              data.event_time ?? "",
+            venue:
+              data.venue ?? "",
+            address:
+              data.address ?? "",
+            message:
+              data.message ?? "",
+            phone:
+              data.phone ?? "",
+          })
+        );
+
+        /*
+         * IMPORTANT:
+         * galleryUrls-ийг мөн sessionStorage-д хадгална.
+         * Ингэснээр DB-ээс сэргэсэн remote gallery
+         * дараагийн effect-ээр алга болохгүй.
+         */
+        sessionStorage.setItem(
+          "invitation-images",
+          JSON.stringify({
+            backgroundId:
+              data.background_id ??
+              null,
+            galleryIds:
+              dbGalleryIds,
+            galleryUrls:
+              dbGalleryUrls,
+            galleryCaptions:
+              dbGalleryCaptions,
+          })
+        );
+
+        sessionStorage.setItem(
+          "invitation-music",
+          JSON.stringify({
+            musicId:
+              data.music_path ??
+              null,
+            musicName:
+              data.music_name ??
+              null,
+            musicType:
+              data.music_type ===
+              "custom"
+                ? "custom"
+                : "none",
+          })
+        );
+
+        sessionStorage.setItem(
+          "invitation-id",
+          data.id
+        );
+
+        /*
+         * -------------------------------------------------------
+         * RESTORE REMOTE GALLERY
+         * -------------------------------------------------------
+         */
+
+        const restoredPhotos: GalleryPhoto[] = [];
+
+        dbGalleryUrls.forEach(
+          (
+            url: unknown,
+            index: number
+          ) => {
+            if (
+              typeof url !==
+                "string" ||
+              !url ||
+              url.startsWith(
+                "blob:"
+              )
+            ) {
+              return;
+            }
+
+            restoredPhotos.push({
+              id:
+                dbGalleryIds[
+                  index
+                ] ??
+                `gallery-${index}`,
+              url,
+              caption:
+                dbGalleryCaptions[
+                  index
+                ] ?? "",
+            });
+          }
+        );
+
+        if (
+          restoredPhotos.length >
+          0
+        ) {
+          setPhotos(
+            restoredPhotos
+          );
+        }
+
+        /*
+         * -------------------------------------------------------
+         * RESTORE REMOTE BACKGROUND
+         * -------------------------------------------------------
+         */
+
+        if (
+          typeof data.background_id ===
+            "string" &&
+          data.background_id.startsWith(
+            "http"
+          )
+        ) {
+          setBackgroundImage(
+            data.background_id
+          );
+        }
+
+        /*
+         * -------------------------------------------------------
+         * RESTORE EXTRAS
+         * -------------------------------------------------------
+         */
+
+        if (
+          data.extras &&
+          typeof data.extras ===
+            "object"
+        ) {
+          sessionStorage.setItem(
+            "invitation-extras",
+            JSON.stringify(
+              data.extras
+            )
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Existing invitation load error:",
+          error
+        );
+
+        if (!cancelled) {
+          setSavedMessage(
+            error instanceof Error
+              ? error.message
+              : "Урилгыг ачаалж чадсангүй."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingInvitation(false);
+          setInvitationLoaded(true);
+        }
+      }
+    }
+
+    loadExistingInvitation();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    invitationId,
+    eventType,
+    template,
+  ]);
+
+  /*
+   * =========================================================
+   * LOAD DETAILS FROM SESSION
+   * =========================================================
+   */
+
+  useEffect(() => {
+    if (!invitationLoaded) return;
+
     try {
       const storedDetails =
         sessionStorage.getItem(
@@ -666,23 +1009,41 @@ function InvitationBuilderPageContent() {
       if (!storedDetails) return;
 
       const parsed: InvitationDetails =
-        JSON.parse(storedDetails);
+        JSON.parse(
+          storedDetails
+        );
 
-      setTitle(parsed.title ?? "");
-      setNames(parsed.names ?? "");
-      setDate(parsed.date ?? "");
-      setTime(parsed.time ?? "");
-      setVenue(parsed.venue ?? "");
-      setAddress(parsed.address ?? "");
-      setMessage(parsed.message ?? "");
-      setPhone(parsed.phone ?? "");
+      setTitle(
+        parsed.title ?? ""
+      );
+      setNames(
+        parsed.names ?? ""
+      );
+      setDate(
+        parsed.date ?? ""
+      );
+      setTime(
+        parsed.time ?? ""
+      );
+      setVenue(
+        parsed.venue ?? ""
+      );
+      setAddress(
+        parsed.address ?? ""
+      );
+      setMessage(
+        parsed.message ?? ""
+      );
+      setPhone(
+        parsed.phone ?? ""
+      );
     } catch (error) {
       console.error(
         "Invitation details load error:",
         error
       );
     }
-  }, []);
+  }, [invitationLoaded]);
 
   /*
    * =========================================================
@@ -691,6 +1052,8 @@ function InvitationBuilderPageContent() {
    */
 
   useEffect(() => {
+    if (!invitationLoaded) return;
+
     try {
       const storedDraft =
         sessionStorage.getItem(
@@ -700,11 +1063,16 @@ function InvitationBuilderPageContent() {
       if (!storedDraft) return;
 
       const draft: InvitationDraft =
-        JSON.parse(storedDraft);
+        JSON.parse(
+          storedDraft
+        );
 
       if (
-        draft.eventType === eventType &&
-        draft.template === template
+        invitationId ||
+        (draft.eventType ===
+          eventType &&
+          draft.template ===
+            template)
       ) {
         setSelectedStyle(
           draft.selectedStyle ||
@@ -726,15 +1094,22 @@ function InvitationBuilderPageContent() {
         error
       );
     }
-  }, [eventType, template]);
+  }, [
+    eventType,
+    template,
+    invitationId,
+    invitationLoaded,
+  ]);
 
   /*
    * =========================================================
-   * LOAD IMAGES FROM INDEXED DB
+   * LOAD IMAGES FROM INDEXED DB / SESSION
    * =========================================================
    */
 
   useEffect(() => {
+    if (!invitationLoaded) return;
+
     let cancelled = false;
 
     async function loadInvitationImages() {
@@ -746,10 +1121,13 @@ function InvitationBuilderPageContent() {
             "invitation-images"
           );
 
+        /*
+         * IMPORTANT:
+         * SessionStorage байхгүй үед DB-ээс өмнө нь
+         * сэргээсэн зурагнуудыг хоослохгүй.
+         */
         if (!storedImages) {
           if (!cancelled) {
-            setBackgroundImage(null);
-            setPhotos([]);
             setLoadingImages(false);
           }
 
@@ -757,9 +1135,22 @@ function InvitationBuilderPageContent() {
         }
 
         const imageData: StoredInvitationImages =
-          JSON.parse(storedImages);
+          JSON.parse(
+            storedImages
+          );
 
-        if (imageData.backgroundId) {
+        /*
+         * -------------------------------------------------------
+         * BACKGROUND
+         * -------------------------------------------------------
+         */
+
+        if (
+          imageData.backgroundId &&
+          !imageData.backgroundId.startsWith(
+            "http"
+          )
+        ) {
           const backgroundBlob =
             await getStoredImage(
               imageData.backgroundId
@@ -778,21 +1169,121 @@ function InvitationBuilderPageContent() {
               backgroundUrl
             );
           }
-        } else if (!cancelled) {
-          setBackgroundImage(null);
+        } else if (
+          !cancelled &&
+          imageData.backgroundId
+        ) {
+          setBackgroundImage(
+            imageData.backgroundId
+          );
         }
+
+        /*
+         * -------------------------------------------------------
+         * GALLERY
+         * -------------------------------------------------------
+         */
 
         const loadedPhotos: GalleryPhoto[] =
           [];
 
+        const galleryIds =
+          Array.isArray(
+            imageData.galleryIds
+          )
+            ? imageData.galleryIds
+            : [];
+
+        const galleryUrls =
+          Array.isArray(
+            imageData.galleryUrls
+          )
+            ? imageData.galleryUrls
+            : [];
+
+        const galleryCaptions =
+          Array.isArray(
+            imageData.galleryCaptions
+          )
+            ? imageData.galleryCaptions
+            : [];
+
+        /*
+         * First restore remote URLs.
+         */
         for (
           let index = 0;
           index <
-          imageData.galleryIds.length;
+          galleryUrls.length;
+          index++
+        ) {
+          const galleryUrl =
+            galleryUrls[index];
+
+          if (
+            typeof galleryUrl !==
+              "string" ||
+            !galleryUrl ||
+            galleryUrl.startsWith(
+              "blob:"
+            )
+          ) {
+            continue;
+          }
+
+          loadedPhotos.push({
+            id:
+              galleryIds[index] ??
+              `gallery-url-${index}`,
+            url: galleryUrl,
+            caption:
+              galleryCaptions[index] ??
+              "",
+          });
+        }
+
+        /*
+         * Then restore local IndexedDB images.
+         */
+        for (
+          let index = 0;
+          index <
+          galleryIds.length;
           index++
         ) {
           const galleryId =
-            imageData.galleryIds[index];
+            galleryIds[index];
+
+          if (
+            typeof galleryId !==
+              "string" ||
+            !galleryId
+          ) {
+            continue;
+          }
+
+          if (
+            galleryId.startsWith(
+              "http"
+            )
+          ) {
+            continue;
+          }
+
+          /*
+           * If this ID already has a remote URL,
+           * don't duplicate it.
+           */
+          const alreadyLoaded =
+            loadedPhotos.some(
+              (photo) =>
+                photo.id ===
+                galleryId
+            );
+
+          if (alreadyLoaded) {
+            continue;
+          }
 
           const galleryBlob =
             await getStoredImage(
@@ -812,26 +1303,31 @@ function InvitationBuilderPageContent() {
               id: galleryId,
               url: galleryUrl,
               caption:
-                imageData.galleryCaptions?.[
+                galleryCaptions[
                   index
                 ] ?? "",
             });
           }
         }
 
-        if (!cancelled) {
-          setPhotos(loadedPhotos);
+        /*
+         * Only replace current photos if we actually
+         * found something. This prevents DB-restored
+         * photos from disappearing.
+         */
+        if (
+          !cancelled &&
+          loadedPhotos.length > 0
+        ) {
+          setPhotos(
+            loadedPhotos
+          );
         }
       } catch (error) {
         console.error(
           "Invitation images load error:",
           error
         );
-
-        if (!cancelled) {
-          setBackgroundImage(null);
-          setPhotos([]);
-        }
       } finally {
         if (!cancelled) {
           setLoadingImages(false);
@@ -844,7 +1340,7 @@ function InvitationBuilderPageContent() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [invitationLoaded]);
 
   /*
    * =========================================================
@@ -853,6 +1349,8 @@ function InvitationBuilderPageContent() {
    */
 
   useEffect(() => {
+    if (!invitationLoaded) return;
+
     let cancelled = false;
     let objectUrl: string | null = null;
 
@@ -877,17 +1375,41 @@ function InvitationBuilderPageContent() {
         }
 
         const musicData: StoredInvitationMusic =
-          JSON.parse(storedMusic);
+          JSON.parse(
+            storedMusic
+          );
 
         if (
           !musicData.musicId ||
-          musicData.musicType !== "custom"
+          musicData.musicType !==
+            "custom"
         ) {
           if (!cancelled) {
             setMusicUrl(null);
             setMusicName(null);
             setMusicType("none");
             setLoadingMusic(false);
+          }
+
+          return;
+        }
+
+        if (
+          musicData.musicId.startsWith(
+            "http"
+          )
+        ) {
+          if (!cancelled) {
+            setMusicUrl(
+              musicData.musicId
+            );
+            setMusicName(
+              musicData.musicName ??
+                "Таны сонгосон дуу"
+            );
+            setMusicType(
+              "custom"
+            );
           }
 
           return;
@@ -907,13 +1429,19 @@ function InvitationBuilderPageContent() {
               musicBlob
             );
 
-          setMusicUrl(objectUrl);
+          setMusicUrl(
+            objectUrl
+          );
           setMusicName(
             musicData.musicName ??
               "Таны сонгосон дуу"
           );
-          setMusicType("custom");
-        } else if (!cancelled) {
+          setMusicType(
+            "custom"
+          );
+        } else if (
+          !cancelled
+        ) {
           setMusicUrl(null);
           setMusicName(null);
           setMusicType("none");
@@ -942,10 +1470,12 @@ function InvitationBuilderPageContent() {
       cancelled = true;
 
       if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
+        URL.revokeObjectURL(
+          objectUrl
+        );
       }
     };
-  }, []);
+  }, [invitationLoaded]);
 
   /*
    * =========================================================
@@ -955,23 +1485,30 @@ function InvitationBuilderPageContent() {
 
   useEffect(() => {
     return () => {
-      if (backgroundImage) {
+      if (
+        backgroundImage &&
+        backgroundImage.startsWith(
+          "blob:"
+        )
+      ) {
         URL.revokeObjectURL(
           backgroundImage
         );
       }
 
-      photos.forEach((photo) => {
-        if (
-          photo.url.startsWith(
-            "blob:"
-          )
-        ) {
-          URL.revokeObjectURL(
-            photo.url
-          );
+      photos.forEach(
+        (photo) => {
+          if (
+            photo.url.startsWith(
+              "blob:"
+            )
+          ) {
+            URL.revokeObjectURL(
+              photo.url
+            );
+          }
         }
-      });
+      );
     };
   }, []);
 
@@ -982,7 +1519,8 @@ function InvitationBuilderPageContent() {
    */
 
   async function buildDesignFromPrompt() {
-    const prompt = aiPrompt.trim();
+    const prompt =
+      aiPrompt.trim();
 
     if (!prompt) {
       setAiError(
@@ -997,37 +1535,39 @@ function InvitationBuilderPageContent() {
     setAiError("");
 
     try {
-      const response = await fetch(
-        "/api/ai/design",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify({
-            prompt,
-            eventType,
-            styles: styles.map(
-              ({
-                id,
-                name,
-                description,
-              }) => ({
-                id,
-                name,
-                description,
-              })
-            ),
-          }),
-        }
-      );
+      const response =
+        await fetch(
+          "/api/ai/design",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            body: JSON.stringify({
+              prompt,
+              eventType,
+              styles: styles.map(
+                ({
+                  id,
+                  name,
+                  description,
+                }) => ({
+                  id,
+                  name,
+                  description,
+                })
+              ),
+            }),
+          }
+        );
 
       const result: unknown =
         await response.json();
 
       if (
-        typeof result !== "object" ||
+        typeof result !==
+          "object" ||
         result === null ||
         Array.isArray(result)
       ) {
@@ -1088,39 +1628,44 @@ function InvitationBuilderPageContent() {
    * =========================================================
    */
 
-  const filteredStyles = useMemo(() => {
-    const query =
-      styleSearch
-        .trim()
-        .toLowerCase();
+  const filteredStyles =
+    useMemo(() => {
+      const query =
+        styleSearch
+          .trim()
+          .toLowerCase();
 
-    if (!query) {
-      return [];
-    }
+      if (!query) {
+        return [];
+      }
 
-    return styles.filter((style) => {
-      const searchableText = [
-        style.name,
-        style.description,
-        ...style.keywords,
-      ]
-        .join(" ")
-        .toLowerCase();
+      return styles.filter(
+        (style) => {
+          const searchableText = [
+            style.name,
+            style.description,
+            ...style.keywords,
+          ]
+            .join(" ")
+            .toLowerCase();
 
-      return searchableText.includes(
-        query
+          return searchableText.includes(
+            query
+          );
+        }
       );
-    });
-  }, [styleSearch]);
+    }, [styleSearch]);
 
-  const currentStyle = useMemo(() => {
-    return (
-      styles.find(
-        (style) =>
-          style.id === selectedStyle
-      ) ?? styles[0]
-    );
-  }, [selectedStyle]);
+  const currentStyle =
+    useMemo(() => {
+      return (
+        styles.find(
+          (style) =>
+            style.id ===
+            selectedStyle
+        ) ?? styles[0]
+      );
+    }, [selectedStyle]);
 
   /*
    * =========================================================
@@ -1229,15 +1774,34 @@ function InvitationBuilderPageContent() {
 
   /*
    * =========================================================
-   * SAVE
+   * SAVE TO SUPABASE
    * =========================================================
    */
 
-  async function handleSave() {
+  async function handleSave(): Promise<
+    string | null
+  > {
+    if (saving) {
+      return currentInvitationId;
+    }
+
     setSaving(true);
     setSavedMessage("");
 
     try {
+      const {
+        data: {
+          user,
+        },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        throw new Error(
+          "Хадгалахын өмнө нэвтэрсэн байх шаардлагатай."
+        );
+      }
+
       const storedImages =
         sessionStorage.getItem(
           "invitation-images"
@@ -1248,8 +1812,14 @@ function InvitationBuilderPageContent() {
         | null = null;
 
       if (storedImages) {
-        imageData =
-          JSON.parse(storedImages);
+        try {
+          imageData =
+            JSON.parse(
+              storedImages
+            );
+        } catch {
+          imageData = null;
+        }
       }
 
       const storedMusic =
@@ -1262,10 +1832,56 @@ function InvitationBuilderPageContent() {
         | null = null;
 
       if (storedMusic) {
-        musicData =
-          JSON.parse(storedMusic);
+        try {
+          musicData =
+            JSON.parse(
+              storedMusic
+            );
+        } catch {
+          musicData = null;
+        }
       }
 
+      /*
+       * Only real HTTP URLs are persisted into gallery_urls.
+       * Local blob URLs are browser-only.
+       */
+      const galleryUrls =
+        photos
+          .map(
+            (photo) =>
+              photo.url
+          )
+          .filter(
+            (url) =>
+              typeof url ===
+                "string" &&
+              url.startsWith(
+                "http"
+              )
+          );
+
+      const galleryIds =
+        imageData?.galleryIds?.length
+          ? imageData.galleryIds
+          : photos.map(
+              (photo) =>
+                photo.id
+            );
+
+      const galleryCaptions =
+        photos.map(
+          (photo) =>
+            photo.caption ?? ""
+        );
+
+      const backgroundId =
+        imageData?.backgroundId ??
+        null;
+
+      /*
+       * Keep session state in sync.
+       */
       const draft: InvitationDraft =
         {
           eventType,
@@ -1281,28 +1897,19 @@ function InvitationBuilderPageContent() {
           selectedStyle,
           aiPrompt,
           activeSection,
-          backgroundId:
-            imageData?.backgroundId ??
-            null,
-          galleryIds:
-            imageData?.galleryIds ??
-            [],
-          galleryUrls:
-            photos.map(
-              (photo) => photo.url
-            ),
-          galleryCaptions:
-            photos.map(
-              (photo) =>
-                photo.caption ?? ""
-            ),
+          backgroundId,
+          galleryIds,
+          galleryUrls,
+          galleryCaptions,
           savedAt:
             new Date().toISOString(),
         };
 
       sessionStorage.setItem(
         "invitation-draft",
-        JSON.stringify(draft)
+        JSON.stringify(
+          draft
+        )
       );
 
       sessionStorage.setItem(
@@ -1316,6 +1923,22 @@ function InvitationBuilderPageContent() {
           address,
           message,
           phone,
+        })
+      );
+
+      sessionStorage.setItem(
+        "invitation-images",
+        JSON.stringify({
+          backgroundId,
+          galleryIds,
+          galleryUrls,
+          galleryCaptions,
+        })
+      );
+
+      sessionStorage.setItem(
+        "invitation-music",
+        JSON.stringify({
           musicId:
             musicData?.musicId ??
             null,
@@ -1329,32 +1952,183 @@ function InvitationBuilderPageContent() {
       );
 
       /*
-       * Keep gallery captions synced
-       * into invitation-images.
+       * EXTRAS
        */
-      if (imageData) {
-        const syncedImageData: StoredInvitationImages =
-          {
-            backgroundId:
-              imageData.backgroundId ??
-              null,
-            galleryIds:
-              imageData.galleryIds ??
-              [],
-            galleryCaptions:
-              photos.map(
-                (photo) =>
-                  photo.caption ?? ""
-              ),
-          };
+      let extrasToSave: unknown =
+        {};
 
-        sessionStorage.setItem(
-          "invitation-images",
-          JSON.stringify(
-            syncedImageData
+      try {
+        extrasToSave =
+          JSON.parse(
+            extrasSnapshot ??
+              "{}"
+          );
+      } catch {
+        extrasToSave =
+          parsedExtras ?? {};
+      }
+
+      /*
+       * SUPABASE PAYLOAD
+       */
+      const payload = {
+        user_id: user.id,
+        event_type: eventType,
+        template,
+        title,
+        names,
+        event_date: date,
+        event_time: time,
+        venue,
+        address,
+        message,
+        phone,
+        selected_style:
+          selectedStyle,
+        ai_prompt: aiPrompt,
+        active_section:
+          activeSection,
+        background_id:
+          backgroundId,
+        gallery_ids:
+          galleryIds,
+        gallery_urls:
+          galleryUrls,
+        gallery_captions:
+          galleryCaptions,
+        music_path:
+          musicData?.musicId ??
+          null,
+        music_type:
+          musicData?.musicType ??
+          "none",
+        music_name:
+          musicData?.musicName ??
+          null,
+        extras:
+          extrasToSave,
+        updated_at:
+          new Date().toISOString(),
+      };
+
+      /*
+       * IMPORTANT:
+       * Always prefer currentInvitationId.
+       *
+       * This means:
+       * - Existing invitation -> UPDATE
+       * - New invitation -> INSERT once
+       */
+      let savedId =
+        currentInvitationId;
+
+      if (savedId) {
+        const {
+          data,
+          error,
+        } = await supabase
+          .from("invitations")
+          .update(payload)
+          .eq(
+            "id",
+            savedId
           )
+          .eq(
+            "user_id",
+            user.id
+          )
+          .select("id")
+          .single();
+
+        if (error) {
+          throw error;
+        }
+
+        savedId = data.id;
+      } else {
+        /*
+         * -------------------------------------------------------
+         * NEW INVITATION
+         * -------------------------------------------------------
+         */
+
+        const {
+          data,
+          error,
+        } = await supabase
+          .from("invitations")
+          .insert({
+            ...payload,
+            status: "draft",
+          })
+          .select("id")
+          .single();
+
+        if (error) {
+          throw error;
+        }
+
+        savedId = data.id;
+      }
+
+      const finalSavedId =
+        savedId;
+
+      if (!finalSavedId) {
+        throw new Error(
+          "Invitation ID is missing after save"
         );
       }
+
+      /*
+       * -------------------------------------------------------
+       * KEEP ID EVERYWHERE
+       * -------------------------------------------------------
+       */
+
+      setCurrentInvitationId(
+        finalSavedId
+      );
+
+      sessionStorage.setItem(
+        "invitation-id",
+        finalSavedId
+      );
+
+      /*
+       * -------------------------------------------------------
+       * IMPORTANT:
+       * First save -> put ID into URL.
+       *
+       * This prevents refresh / second save from
+       * creating another invitation.
+       * -------------------------------------------------------
+       */
+
+      if (!invitationId) {
+        const params =
+          new URLSearchParams(
+            window.location.search
+          );
+
+        params.set(
+          "invitationId",
+          finalSavedId
+        );
+
+        router.replace(
+          `${window.location.pathname}?${params.toString()}`,
+          {
+            scroll: false,
+          }
+        );
+      }
+
+      /*
+       * -------------------------------------------------------
+       * SUCCESS
+       * -------------------------------------------------------
+       */
 
       setSavedMessage(
         "Амжилттай хадгалагдлаа ✓"
@@ -1363,6 +2137,8 @@ function InvitationBuilderPageContent() {
       setTimeout(() => {
         setSavedMessage("");
       }, 2500);
+
+      return finalSavedId;
     } catch (error) {
       console.error(
         "Invitation save error:",
@@ -1370,8 +2146,12 @@ function InvitationBuilderPageContent() {
       );
 
       setSavedMessage(
-        "Хадгалах үед алдаа гарлаа"
+        error instanceof Error
+          ? error.message
+          : "Хадгалах үед алдаа гарлаа"
       );
+
+      return null;
     } finally {
       setSaving(false);
     }
@@ -1393,19 +2173,58 @@ function InvitationBuilderPageContent() {
         eventType
       )}&template=${encodeURIComponent(
         template
-      )}&step=${target}`
+      )}${
+        currentInvitationId
+          ? `&invitationId=${encodeURIComponent(
+              currentInvitationId
+            )}`
+          : ""
+      }&step=${target}`
     );
   }
 
   async function handlePreview() {
-    await handleSave();
+    const savedId =
+      await handleSave();
+
+    if (!savedId) {
+      return;
+    }
 
     router.push(
       `/dashboard/invitations/new/preview?event=${encodeURIComponent(
         eventType
       )}&template=${encodeURIComponent(
         template
+      )}&invitationId=${encodeURIComponent(
+        savedId
       )}`
+    );
+  }
+
+  /*
+   * =========================================================
+   * LOADING EXISTING INVITATION
+   * =========================================================
+   */
+
+  if (
+    loadingInvitation
+  ) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#F4F1EC]">
+        <div className="rounded-3xl border border-black/10 bg-white px-8 py-7 text-center shadow-sm">
+          <div className="text-sm font-semibold">
+            Урилгыг ачаалж байна...
+          </div>
+
+          <div className="mt-2 text-xs text-black/40">
+            Өмнө хадгалсан
+            мэдээллийг сэргээж
+            байна.
+          </div>
+        </div>
+      </main>
     );
   }
 
@@ -1422,7 +2241,9 @@ function InvitationBuilderPageContent() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => goToStep(2)}
+              onClick={() =>
+                goToStep(2)
+              }
               className="rounded-full border border-black/10 bg-white px-4 py-2.5 text-xs font-semibold transition hover:bg-black/5"
             >
               ← Буцах
@@ -1431,7 +2252,9 @@ function InvitationBuilderPageContent() {
             {savedMessage && (
               <div
                 className={`hidden rounded-full px-3 py-2 text-[10px] font-semibold sm:block ${
-                  savedMessage.includes("✓")
+                  savedMessage.includes(
+                    "✓"
+                  )
                     ? "bg-green-50 text-green-700"
                     : "bg-red-50 text-red-700"
                 }`}
@@ -1442,7 +2265,9 @@ function InvitationBuilderPageContent() {
 
             <button
               type="button"
-              onClick={handleSave}
+              onClick={() =>
+                handleSave()
+              }
               disabled={saving}
               className="rounded-full border border-black/10 bg-white px-4 py-2.5 text-xs font-semibold transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -1453,7 +2278,9 @@ function InvitationBuilderPageContent() {
 
             <button
               type="button"
-              onClick={handlePreview}
+              onClick={
+                handlePreview
+              }
               disabled={saving}
               className="rounded-full bg-black px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -1467,17 +2294,15 @@ function InvitationBuilderPageContent() {
         <WizardStepper
           step={3}
           showHeading={false}
-          onStepClick={(target) =>
+          onStepClick={(
+            target
+          ) =>
             goToStep(target)
           }
         />
       </div>
 
       <div className="mx-auto grid max-w-[1600px] lg:grid-cols-[250px_minmax(0,1fr)_330px]">
-        {/* =====================================================
-            LEFT SIDEBAR
-        ===================================================== */}
-
         <aside className="hidden min-h-[calc(100vh-73px)] border-r border-black/10 bg-white lg:block">
           <div className="sticky top-[73px] p-5">
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-black/35">
@@ -1602,10 +2427,6 @@ function InvitationBuilderPageContent() {
           </div>
         </aside>
 
-        {/* =====================================================
-            MAIN BUILDER
-        ===================================================== */}
-
         <section className="min-w-0 p-5 sm:p-7 lg:p-10">
           <div className="mx-auto max-w-3xl">
             <div className="mb-8">
@@ -1634,10 +2455,6 @@ function InvitationBuilderPageContent() {
                 undefined
               }
             />
-
-            {/* =================================================
-                MUSIC
-            ================================================= */}
 
             <div className="mb-6 rounded-[28px] border border-black/10 bg-white p-5 shadow-sm sm:p-6">
               <div className="flex items-start gap-4">
@@ -1723,10 +2540,6 @@ function InvitationBuilderPageContent() {
               </div>
             </div>
 
-            {/* =================================================
-                AI DESIGNER
-            ================================================= */}
-
             <div className="rounded-[28px] border border-black/10 bg-white p-5 shadow-sm sm:p-6">
               <div className="flex items-start gap-4">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-black text-lg text-white">
@@ -1766,14 +2579,14 @@ function InvitationBuilderPageContent() {
                         </span>
                       ) : aiMessage ? (
                         <span className="font-semibold text-green-700">
-                          ✓ {aiMessage}
+                          ✓{" "}
+                          {aiMessage}
                         </span>
                       ) : (
                         <span className="text-black/30">
                           Жишээ: luxury,
                           minimal,
-                          garden, black &
-                          gold...
+                          garden, black & gold...
                         </span>
                       )}
                     </div>
@@ -1824,10 +2637,6 @@ function InvitationBuilderPageContent() {
                 </div>
               </div>
             </div>
-
-            {/* =================================================
-                STYLE SEARCH
-            ================================================= */}
 
             <div className="mt-6 rounded-[28px] border border-black/10 bg-white p-5 shadow-sm sm:p-6">
               <div className="flex items-start justify-between gap-4">
@@ -1894,7 +2703,9 @@ function InvitationBuilderPageContent() {
                   <button
                     type="button"
                     onClick={() =>
-                      setStyleSearch("")
+                      setStyleSearch(
+                        ""
+                      )
                     }
                     className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full px-2 py-1 text-xs text-black/35 hover:bg-black/5 hover:text-black"
                   >
@@ -2006,10 +2817,6 @@ function InvitationBuilderPageContent() {
                 </div>
               )}
             </div>
-
-            {/* =================================================
-                SECTION PREVIEW
-            ================================================= */}
 
             <div className="mt-6 rounded-[28px] border border-black/10 bg-white p-5 shadow-sm sm:p-6">
               <div className="flex items-center justify-between">
@@ -2247,8 +3054,6 @@ function InvitationBuilderPageContent() {
               </div>
             </div>
 
-            {/* MOBILE SECTIONS */}
-
             <div className="mt-6 flex gap-2 overflow-x-auto pb-2 lg:hidden">
               {sections.map(
                 (section) => (
@@ -2276,10 +3081,6 @@ function InvitationBuilderPageContent() {
             </div>
           </div>
         </section>
-
-        {/* =====================================================
-            LIVE PREVIEW
-        ===================================================== */}
 
         <aside className="border-l border-black/10 bg-white p-5 sm:p-7 lg:min-h-[calc(100vh-73px)] lg:p-8">
           <div className="sticky top-[95px]">
@@ -2493,7 +3294,10 @@ function InvitationBuilderPageContent() {
                     1 && (
                     <div className="flex gap-1.5">
                       {photos
-                        .slice(0, 5)
+                        .slice(
+                          0,
+                          5
+                        )
                         .map(
                           (photo) => (
                             <img
@@ -2526,8 +3330,6 @@ function InvitationBuilderPageContent() {
                 />
               </div>
             </div>
-
-            {/* MUSIC PLAYER */}
 
             <div className="mx-auto mt-5 max-w-[330px] rounded-2xl border border-black/10 bg-[#F8F5F0] p-4">
               <div className="flex items-center justify-between">

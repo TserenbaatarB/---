@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
+
 import EventCalendar from "./EventCalendar";
 import RsvpSection from "./RsvpSection";
 
@@ -55,8 +56,7 @@ function getGalleryUrls(value: unknown): string[] {
     (item): item is string =>
       typeof item === "string" &&
       item.length > 0 &&
-      (item.startsWith("http://") ||
-        item.startsWith("https://"))
+      (item.startsWith("http://") || item.startsWith("https://"))
   );
 }
 
@@ -134,7 +134,6 @@ export default function PublicInvitationPage() {
     useState<PublicInvitation | null>(null);
 
   const [loading, setLoading] = useState(true);
-
   const [currentSlide, setCurrentSlide] = useState(0);
 
   const [musicUrl, setMusicUrl] =
@@ -152,11 +151,8 @@ export default function PublicInvitationPage() {
   const [videoUrl, setVideoUrl] =
     useState<string | null>(null);
 
-  const [videoDone, setVideoDone] =
-    useState(false);
-
-  const [videoChecked, setVideoChecked] =
-    useState(false);
+  const [videoDone, setVideoDone] = useState(false);
+  const [videoChecked, setVideoChecked] = useState(false);
 
   const videoRef =
     useRef<HTMLVideoElement | null>(null);
@@ -191,6 +187,11 @@ export default function PublicInvitationPage() {
     (videoDone ||
       (!videoUrl && !musicIsVideo));
 
+  /*
+   * ============================================================
+   * LOAD PUBLIC INVITATION
+   * ============================================================
+   */
   useEffect(() => {
     if (!slug) {
       return;
@@ -365,6 +366,11 @@ export default function PublicInvitationPage() {
     };
   }, [slug]);
 
+  /*
+   * ============================================================
+   * LOAD MUSIC / VIDEO
+   * ============================================================
+   */
   useEffect(() => {
     let cancelled = false;
 
@@ -397,15 +403,13 @@ export default function PublicInvitationPage() {
           setVideoDone(false);
         }
 
-        const {
-          data,
-          error,
-        } = await supabase.storage
-          .from("invitation-music")
-          .createSignedUrl(
-            invitation.music_path,
-            60 * 60 * 24
-          );
+        const { data, error } =
+          await supabase.storage
+            .from("invitation-music")
+            .createSignedUrl(
+              invitation.music_path,
+              60 * 60 * 24
+            );
 
         if (
           error ||
@@ -430,8 +434,7 @@ export default function PublicInvitationPage() {
           return;
         }
 
-        const signedUrl =
-          data.signedUrl;
+        const signedUrl = data.signedUrl;
 
         setMusicUrl(signedUrl);
 
@@ -554,6 +557,11 @@ export default function PublicInvitationPage() {
     musicIsVideo,
   ]);
 
+  /*
+   * ============================================================
+   * VIDEO AUTOPLAY
+   * ============================================================
+   */
   useEffect(() => {
     if (!videoUrl || videoDone) {
       return;
@@ -583,6 +591,11 @@ export default function PublicInvitationPage() {
     void playVideo();
   }, [videoUrl, videoDone]);
 
+  /*
+   * ============================================================
+   * GALLERY SLIDESHOW
+   * ============================================================
+   */
   useEffect(() => {
     if (galleryUrls.length <= 1) {
       setCurrentSlide(0);
@@ -604,19 +617,90 @@ export default function PublicInvitationPage() {
   }, [galleryUrls.length]);
 
   /*
+   * ============================================================
+   * MUSIC
+   *
+   * Browser autoplay policy may block audio without a user
+   * gesture. We still try to autoplay immediately.
+   *
+   * If blocked, the first normal user interaction can start it.
+   * Music button itself NEVER pauses auto-scroll.
+   * ============================================================
+   */
+  useEffect(() => {
+    if (
+      !musicUrl ||
+      musicIsVideo ||
+      !showInvitation
+    ) {
+      return;
+    }
+
+    const media =
+      document.getElementById(
+        "invitation-background-music"
+      ) as HTMLAudioElement | null;
+
+    if (!media) {
+      return;
+    }
+
+    const tryAutoplay = async () => {
+      try {
+        await media.play();
+        setMusicPlaying(true);
+      } catch {
+        /*
+         * Browser blocked autoplay.
+         * We will retry after the next user interaction.
+         */
+      }
+    };
+
+    if (audioReady) {
+      void tryAutoplay();
+    }
+  }, [
+    musicUrl,
+    musicIsVideo,
+    showInvitation,
+    audioReady,
+  ]);
+
+  /*
+   * ============================================================
    * AUTO SCROLL
    *
-   * Урилга нээгдсэний дараа 1.5 секунд хүлээгээд
-   * бүх мэдээллийг дээрээс доош автоматаар гүйлгэнэ.
+   * FINAL BEHAVIOR:
    *
-   * 28px / секунд.
+   * 1. Invitation opens
+   * 2. Wait 1.5 sec
+   * 3. Auto-scroll at 28px/sec
    *
-   * Хэрэглэгч өөрөө:
-   * - mouse wheel
-   * - touch
-   * - pointer
-   * - keyboard
-   * ашиглавал auto scroll зогсоно.
+   * USER INTERACTION:
+   *
+   * - Mouse wheel              -> pause
+   * - Touch swipe              -> pause
+   * - Keyboard scroll          -> pause
+   * - Maps button              -> pause
+   * - Calendar                -> pause
+   * - RSVP                    -> pause
+   * - Other buttons/links     -> pause
+   *
+   * MUSIC BUTTON:
+   *
+   * - DOES NOT pause auto-scroll
+   *
+   * AFTER USER STOPS:
+   *
+   * - Wait 1.5 sec
+   * - Resume from exact current position
+   *
+   * WHEN PAGE IS HIDDEN:
+   *
+   * - Auto-scroll pauses
+   * - When user comes back, it resumes from current position
+   * ============================================================
    */
   useEffect(() => {
     if (!showInvitation) {
@@ -624,61 +708,39 @@ export default function PublicInvitationPage() {
     }
 
     let frameId = 0;
-    let startTimer: number | null = null;
+    let initialTimer: number | null = null;
+    let resumeTimer: number | null = null;
+
     let previousTime = 0;
-    let stoppedByUser = false;
+    let reachedEnd = false;
+    let userPaused = false;
+    let hiddenPaused = false;
 
-    const stopAutoScroll = () => {
-      stoppedByUser = true;
+    const clearResumeTimer = () => {
+      if (resumeTimer !== null) {
+        window.clearTimeout(resumeTimer);
+        resumeTimer = null;
+      }
+    };
 
+    const stopAnimation = () => {
       if (frameId) {
-        window.cancelAnimationFrame(
-          frameId
-        );
-
+        window.cancelAnimationFrame(frameId);
         frameId = 0;
       }
 
-      if (startTimer !== null) {
-        window.clearTimeout(startTimer);
-        startTimer = null;
-      }
+      previousTime = 0;
     };
 
-    const handleWheel = () => {
-      stopAutoScroll();
-    };
+    const advanceScroll = (time: number) => {
+      frameId = 0;
 
-    const handleTouch = () => {
-      stopAutoScroll();
-    };
-
-    const handlePointer = () => {
-      stopAutoScroll();
-    };
-
-    const handleKeyDown = (
-      event: KeyboardEvent
-    ) => {
       if (
-        [
-          "ArrowDown",
-          "ArrowUp",
-          "PageDown",
-          "PageUp",
-          "Home",
-          "End",
-          " ",
-        ].includes(event.key)
+        reachedEnd ||
+        userPaused ||
+        hiddenPaused ||
+        document.hidden
       ) {
-        stopAutoScroll();
-      }
-    };
-
-    const advanceScroll = (
-      time: number
-    ) => {
-      if (stoppedByUser) {
         return;
       }
 
@@ -715,12 +777,17 @@ export default function PublicInvitationPage() {
         currentScroll >=
         maxScroll - 2
       ) {
+        reachedEnd = true;
+
+        stopAnimation();
+
         window.scrollTo({
           top: maxScroll,
-          behavior: "smooth",
+          behavior: "auto",
         });
 
-        stopAutoScroll();
+        clearResumeTimer();
+
         return;
       }
 
@@ -735,20 +802,270 @@ export default function PublicInvitationPage() {
         );
     };
 
+    const startAnimation = () => {
+      if (
+        reachedEnd ||
+        userPaused ||
+        hiddenPaused ||
+        document.hidden ||
+        frameId
+      ) {
+        return;
+      }
+
+      previousTime = 0;
+
+      frameId =
+        window.requestAnimationFrame(
+          advanceScroll
+        );
+    };
+
+    const scheduleResume = () => {
+      clearResumeTimer();
+
+      if (
+        reachedEnd ||
+        hiddenPaused ||
+        document.hidden
+      ) {
+        return;
+      }
+
+      resumeTimer =
+        window.setTimeout(() => {
+          resumeTimer = null;
+
+          if (
+            reachedEnd ||
+            hiddenPaused ||
+            document.hidden
+          ) {
+            return;
+          }
+
+          userPaused = false;
+
+          startAnimation();
+        }, 1500);
+    };
+
+    const pauseForUser = () => {
+      if (reachedEnd) {
+        return;
+      }
+
+      userPaused = true;
+
+      stopAnimation();
+
+      scheduleResume();
+    };
+
+    const isMusicControl = (
+      target: EventTarget | null
+    ) => {
+      if (!(target instanceof Element)) {
+        return false;
+      }
+
+      return Boolean(
+        target.closest(
+          '[data-music-control="true"]'
+        )
+      );
+    };
+
+    /*
+     * Mouse wheel.
+     */
+    const handleWheel = (
+      event: WheelEvent
+    ) => {
+      if (
+        Math.abs(event.deltaY) < 0.5 &&
+        Math.abs(event.deltaX) < 0.5
+      ) {
+        return;
+      }
+
+      pauseForUser();
+    };
+
+    /*
+     * Pointer interaction.
+     *
+     * This covers:
+     * - mouse click
+     * - touch tap
+     * - touch swipe
+     * - pen
+     *
+     * Music button is the ONLY exception.
+     */
+    const handlePointerDown = (
+      event: PointerEvent
+    ) => {
+      if (isMusicControl(event.target)) {
+        /*
+         * Do NOT pause auto-scroll for music.
+         *
+         * Also use this user gesture to retry audio autoplay
+         * if the browser previously blocked it.
+         */
+        const media =
+          document.getElementById(
+            "invitation-background-music"
+          ) as HTMLAudioElement | null;
+
+        if (
+          media &&
+          media.paused &&
+          !musicError
+        ) {
+          void media
+            .play()
+            .then(() => {
+              setMusicPlaying(true);
+            })
+            .catch(() => {
+              /*
+               * User can still use the music button normally.
+               */
+            });
+        }
+
+        return;
+      }
+
+      pauseForUser();
+    };
+
+    /*
+     * Keyboard:
+     *
+     * Scroll keys pause auto-scroll.
+     * Typing inside RSVP/form controls also keeps auto-scroll paused.
+     */
+    const handleKeyDown = (
+      event: KeyboardEvent
+    ) => {
+      if (
+        isMusicControl(event.target)
+      ) {
+        return;
+      }
+
+      const target =
+        event.target instanceof HTMLElement
+          ? event.target
+          : null;
+
+      const isFormField =
+        Boolean(
+          target?.closest(
+            "input, textarea, select, [contenteditable='true']"
+          )
+        );
+
+      const scrollKeys = [
+        "ArrowDown",
+        "ArrowUp",
+        "PageDown",
+        "PageUp",
+        "Home",
+        "End",
+        " ",
+      ];
+
+      if (
+        isFormField ||
+        scrollKeys.includes(event.key)
+      ) {
+        pauseForUser();
+      }
+    };
+
+    /*
+     * If a form field receives focus, pause.
+     *
+     * This helps RSVP interaction.
+     */
+    const handleFocusIn = (
+      event: FocusEvent
+    ) => {
+      if (
+        isMusicControl(event.target)
+      ) {
+        return;
+      }
+
+      const target =
+        event.target instanceof HTMLElement
+          ? event.target
+          : null;
+
+      if (
+        target?.closest(
+          "input, textarea, select, [contenteditable='true']"
+        )
+      ) {
+        pauseForUser();
+      }
+    };
+
+    /*
+     * Page Visibility:
+     *
+     * If user opens Maps in another tab, the invitation page
+     * becomes hidden. Auto-scroll stops while hidden.
+     *
+     * When user returns, it resumes from the current position.
+     */
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        hiddenPaused = true;
+
+        stopAnimation();
+        clearResumeTimer();
+
+        return;
+      }
+
+      hiddenPaused = false;
+
+      if (
+        reachedEnd ||
+        userPaused
+      ) {
+        return;
+      }
+
+      startAnimation();
+    };
+
+    /*
+     * Start from the very top when invitation becomes visible.
+     */
     window.scrollTo({
       top: 0,
       behavior: "auto",
     });
 
-    startTimer =
+    /*
+     * Initial 1.5 second delay.
+     */
+    initialTimer =
       window.setTimeout(() => {
-        if (!stoppedByUser) {
-          previousTime = 0;
+        initialTimer = null;
 
-          frameId =
-            window.requestAnimationFrame(
-              advanceScroll
-            );
+        if (
+          !reachedEnd &&
+          !userPaused &&
+          !hiddenPaused &&
+          !document.hidden
+        ) {
+          startAnimation();
         }
       }, 1500);
 
@@ -759,14 +1076,8 @@ export default function PublicInvitationPage() {
     );
 
     window.addEventListener(
-      "touchstart",
-      handleTouch,
-      { passive: true }
-    );
-
-    window.addEventListener(
       "pointerdown",
-      handlePointer,
+      handlePointerDown,
       { passive: true }
     );
 
@@ -775,20 +1086,30 @@ export default function PublicInvitationPage() {
       handleKeyDown
     );
 
+    window.addEventListener(
+      "focusin",
+      handleFocusIn
+    );
+
+    document.addEventListener(
+      "visibilitychange",
+      handleVisibilityChange
+    );
+
     return () => {
-      stoppedByUser = true;
+      reachedEnd = true;
 
-      if (frameId) {
-        window.cancelAnimationFrame(
-          frameId
-        );
-      }
+      stopAnimation();
 
-      if (startTimer !== null) {
+      if (
+        initialTimer !== null
+      ) {
         window.clearTimeout(
-          startTimer
+          initialTimer
         );
       }
+
+      clearResumeTimer();
 
       window.removeEventListener(
         "wheel",
@@ -796,22 +1117,32 @@ export default function PublicInvitationPage() {
       );
 
       window.removeEventListener(
-        "touchstart",
-        handleTouch
-      );
-
-      window.removeEventListener(
         "pointerdown",
-        handlePointer
+        handlePointerDown
       );
 
       window.removeEventListener(
         "keydown",
         handleKeyDown
       );
-    };
-  }, [showInvitation]);
 
+      window.removeEventListener(
+        "focusin",
+        handleFocusIn
+      );
+
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibilityChange
+      );
+    };
+  }, [showInvitation, musicError]);
+
+  /*
+   * ============================================================
+   * MUSIC EVENT LISTENERS
+   * ============================================================
+   */
   useEffect(() => {
     if (
       !musicUrl ||
@@ -921,6 +1252,11 @@ export default function PublicInvitationPage() {
     musicIsVideo,
   ]);
 
+  /*
+   * ============================================================
+   * MUSIC BUTTON
+   * ============================================================
+   */
   async function toggleMusic() {
     const media =
       document.getElementById(
@@ -950,6 +1286,11 @@ export default function PublicInvitationPage() {
     }
   }
 
+  /*
+   * ============================================================
+   * LOADING
+   * ============================================================
+   */
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-black text-white">
@@ -964,6 +1305,11 @@ export default function PublicInvitationPage() {
     );
   }
 
+  /*
+   * ============================================================
+   * NOT FOUND
+   * ============================================================
+   */
   if (!invitation) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-black px-6 text-white">
@@ -1113,7 +1459,9 @@ export default function PublicInvitationPage() {
         showInvitation && (
           <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
             <img
-              src={invitation.background_url}
+              src={
+                invitation.background_url
+              }
               alt=""
               className="h-full w-full object-cover"
             />
@@ -1143,6 +1491,7 @@ export default function PublicInvitationPage() {
           <div className="fixed right-4 top-4 z-50">
             <button
               type="button"
+              data-music-control="true"
               onClick={toggleMusic}
               disabled={
                 !audioReady &&
@@ -1173,6 +1522,7 @@ export default function PublicInvitationPage() {
             <article
               className={`overflow-hidden rounded-[32px] border ${style.border} ${style.card} shadow-2xl backdrop-blur-sm`}
             >
+              {/* COVER */}
               <section className="relative min-h-[620px] overflow-hidden px-6 pb-16 pt-16 text-center sm:px-12 sm:pt-24">
                 {invitation.background_url && (
                   <div className="absolute inset-0 -z-10">
@@ -1226,13 +1576,17 @@ export default function PublicInvitationPage() {
                   <div className="mt-8 space-y-2">
                     {invitation.event_date && (
                       <p className="text-lg font-medium">
-                        {invitation.event_date}
+                        {
+                          invitation.event_date
+                        }
                       </p>
                     )}
 
                     {invitation.event_time && (
                       <p className="text-sm opacity-70">
-                        {invitation.event_time}
+                        {
+                          invitation.event_time
+                        }
                       </p>
                     )}
                   </div>
@@ -1264,6 +1618,7 @@ export default function PublicInvitationPage() {
                 )}
               </section>
 
+              {/* EVENT */}
               {(invitation.venue ||
                 invitation.address ||
                 invitation.event_date ||
@@ -1284,7 +1639,9 @@ export default function PublicInvitationPage() {
 
                     {invitation.address && (
                       <p className="mx-auto mt-3 max-w-lg text-sm leading-6 opacity-75">
-                        {invitation.address}
+                        {
+                          invitation.address
+                        }
                       </p>
                     )}
 
@@ -1314,6 +1671,7 @@ export default function PublicInvitationPage() {
                 </section>
               )}
 
+              {/* CALENDAR */}
               {invitation.event_date && (
                 <section className="px-6 py-12 sm:px-12">
                   <EventCalendar
@@ -1341,6 +1699,7 @@ export default function PublicInvitationPage() {
                 </section>
               )}
 
+              {/* MESSAGE */}
               {invitation.message && (
                 <section className="px-6 py-12 sm:px-12">
                   <div className="mx-auto max-w-xl text-center">
@@ -1351,6 +1710,7 @@ export default function PublicInvitationPage() {
                 </section>
               )}
 
+              {/* GALLERY */}
               {galleryUrls.length > 0 && (
                 <section className="px-5 pb-12 sm:px-8">
                   <div className="grid grid-cols-2 gap-3">
@@ -1391,6 +1751,7 @@ export default function PublicInvitationPage() {
                 </section>
               )}
 
+              {/* MAP */}
               {(invitation.address ||
                 hasCoordinates) && (
                 <section
@@ -1409,7 +1770,9 @@ export default function PublicInvitationPage() {
 
                     {invitation.address && (
                       <p className="mx-auto mt-3 max-w-lg text-sm leading-6 opacity-75">
-                        {invitation.address}
+                        {
+                          invitation.address
+                        }
                       </p>
                     )}
 
@@ -1457,12 +1820,14 @@ export default function PublicInvitationPage() {
                 </section>
               )}
 
+              {/* RSVP */}
               <RsvpSection
                 slug={slug}
                 accent={style.accent}
                 buttonClass={style.button}
               />
 
+              {/* FOOTER */}
               <footer
                 className="px-6 py-8 text-center"
                 style={{

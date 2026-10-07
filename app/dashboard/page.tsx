@@ -164,14 +164,31 @@ export default function DashboardPage() {
       return;
     }
 
-    router.push("/dashboard/invitations/new/preview");
+    router.push(
+      `/dashboard/invitations/new/preview?invitationId=${encodeURIComponent(
+        invitation.id
+      )}`
+    );
   }
 
+  /*
+   * ЧУХАЛ:
+   * Өмнө нь энд зөвхөн event дамжиж байсан.
+   *
+   * Одоо:
+   * invitationId + event дамжуулж байгаа.
+   *
+   * Ингэснээр Builder яг аль invitation-ийг
+   * Supabase-ээс уншиж засахаа мэднэ.
+   */
   function handleEdit(invitation: Invitation) {
+    const params = new URLSearchParams();
+
+    params.set("invitationId", invitation.id);
+    params.set("event", invitation.event_type ?? "wedding");
+
     router.push(
-      `/dashboard/invitations/new/builder?event=${encodeURIComponent(
-        invitation.event_type ?? "wedding"
-      )}`
+      `/dashboard/invitations/new/builder?${params.toString()}`
     );
   }
 
@@ -218,9 +235,7 @@ export default function DashboardPage() {
       if (invitationDeleteError) {
         console.error("INVITATION DELETE ERROR:", invitationDeleteError);
 
-        alert(
-          "Урилгыг устгаж чадсангүй. Дахин оролдоно уу."
-        );
+        alert("Урилгыг устгаж чадсангүй. Дахин оролдоно уу.");
 
         return;
       }
@@ -234,7 +249,8 @@ export default function DashboardPage() {
        * хадгалагдсан байсан бол мөн цэвэрлэнэ.
        */
       try {
-        const savedDraftRaw = sessionStorage.getItem("invitation-draft");
+        const savedDraftRaw =
+          sessionStorage.getItem("invitation-draft");
 
         if (savedDraftRaw) {
           sessionStorage.removeItem("invitation-draft");
@@ -292,7 +308,9 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#F8F5F0]">
-        <p className="text-sm text-black/40">Түр хүлээнэ үү...</p>
+        <p className="text-sm text-black/40">
+          Түр хүлээнэ үү...
+        </p>
       </main>
     );
   }
@@ -315,9 +333,13 @@ export default function DashboardPage() {
       <section className="mx-auto max-w-7xl px-6 py-16 lg:px-10">
         {/* Welcome */}
         <div className="rounded-[32px] bg-white p-8 shadow-sm sm:p-10">
-          <div className="text-sm text-black/40">Тавтай морилно уу</div>
+          <div className="text-sm text-black/40">
+            Тавтай морилно уу
+          </div>
 
-          <h1 className="mt-2 text-4xl font-medium">{email}</h1>
+          <h1 className="mt-2 text-4xl font-medium">
+            {email}
+          </h1>
 
           <p className="mt-4 max-w-xl leading-7 text-black/50">
             Эндээс та өөрийн дижитал урилгуудаа үүсгэж, засварлаж,
@@ -334,7 +356,10 @@ export default function DashboardPage() {
             </p>
 
             {membershipError && (
-              <p role="alert" className="mt-2 text-xs text-red-700">
+              <p
+                role="alert"
+                className="mt-2 text-xs text-red-700"
+              >
                 Эрхийн төлөв уншигдсангүй: {membershipError}
               </p>
             )}
@@ -344,7 +369,9 @@ export default function DashboardPage() {
               onClick={() => router.push("/dashboard/billing")}
               className="mt-3 rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold hover:bg-black/5"
             >
-              {membershipActive ? "Эрх сунгах" : "Сарын эрх авах"}
+              {membershipActive
+                ? "Эрх сунгах"
+                : "Сарын эрх авах"}
             </button>
           </div>
 
@@ -367,7 +394,9 @@ export default function DashboardPage() {
           {email.toLowerCase() === ADMIN_EMAIL && (
             <button
               type="button"
-              onClick={() => router.push("/dashboard/admin/payments")}
+              onClick={() =>
+                router.push("/dashboard/admin/payments")
+              }
               className="mt-8 ml-3 rounded-full border border-black/10 bg-white px-7 py-4 text-sm font-semibold transition hover:bg-black hover:text-white"
             >
               Төлбөр баталгаажуулах
@@ -379,7 +408,9 @@ export default function DashboardPage() {
         <div className="mt-10">
           <div className="mb-6 flex items-end justify-between gap-4">
             <div>
-              <h2 className="text-3xl font-medium">Миний урилгууд</h2>
+              <h2 className="text-3xl font-medium">
+                Миний урилгууд
+              </h2>
 
               <p className="mt-2 text-sm text-black/45">
                 Таны үүсгэсэн урилгууд энд харагдана.
@@ -391,7 +422,9 @@ export default function DashboardPage() {
                 onClick={handleCreateInvitation}
                 className="hidden rounded-full border border-black/10 bg-white px-5 py-2.5 text-sm font-medium transition hover:bg-black hover:text-white sm:block"
               >
-                {membershipActive ? "+ Шинэ урилга" : "Сарын эрх авах"}
+                {membershipActive
+                  ? "+ Шинэ урилга"
+                  : "Сарын эрх авах"}
               </button>
             )}
           </div>
@@ -406,14 +439,16 @@ export default function DashboardPage() {
             <div className="space-y-5">
               {invitations.map((invitation) => {
                 const eventLabel =
-                  eventNames[invitation.event_type ?? ""] ?? "Урилга";
+                  eventNames[invitation.event_type ?? ""] ??
+                  "Урилга";
 
                 const title =
                   invitation.title ||
                   invitation.names ||
                   "Шинэ дижитал урилга";
 
-                const isDeleting = deletingId === invitation.id;
+                const isDeleting =
+                  deletingId === invitation.id;
 
                 return (
                   <div
@@ -446,7 +481,8 @@ export default function DashboardPage() {
                           </h3>
 
                           {invitation.names &&
-                            invitation.title !== invitation.names && (
+                            invitation.title !==
+                              invitation.names && (
                               <p className="mt-2 text-black/55">
                                 {invitation.names}
                               </p>
@@ -460,7 +496,9 @@ export default function DashboardPage() {
                                 </div>
 
                                 <div className="mt-1 font-medium text-black/70">
-                                  {formatDate(invitation.event_date)}
+                                  {formatDate(
+                                    invitation.event_date
+                                  )}
                                 </div>
                               </div>
                             )}
@@ -495,20 +533,26 @@ export default function DashboardPage() {
                               </div>
 
                               <div className="mt-1 font-medium text-black/70">
-                                {formatCreatedDate(invitation.created_at)}
+                                {formatCreatedDate(
+                                  invitation.created_at
+                                )}
                               </div>
                             </div>
                           </div>
                         </div>
 
                         <div className="flex items-center justify-center text-5xl sm:pl-4">
-                          {getEventIcon(invitation.event_type)}
+                          {getEventIcon(
+                            invitation.event_type
+                          )}
                         </div>
                       </div>
 
                       <div className="mt-8 flex flex-col gap-3 border-t border-black/5 pt-6 sm:flex-row">
                         <button
-                          onClick={() => handlePreview(invitation)}
+                          onClick={() =>
+                            handlePreview(invitation)
+                          }
                           disabled={isDeleting}
                           className="rounded-full border border-black/10 bg-white px-6 py-3 text-sm font-semibold transition hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                         >
@@ -516,7 +560,9 @@ export default function DashboardPage() {
                         </button>
 
                         <button
-                          onClick={() => handleEdit(invitation)}
+                          onClick={() =>
+                            handleEdit(invitation)
+                          }
                           disabled={isDeleting}
                           className="rounded-full bg-black px-6 py-3 text-sm font-semibold text-white transition hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-40"
                         >
@@ -525,7 +571,9 @@ export default function DashboardPage() {
 
                         <button
                           onClick={() =>
-                            handleDeleteInvitation(invitation)
+                            handleDeleteInvitation(
+                              invitation
+                            )
                           }
                           disabled={isDeleting}
                           className="rounded-full border border-red-200 bg-red-50 px-6 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
@@ -549,8 +597,8 @@ export default function DashboardPage() {
               </h3>
 
               <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-black/45">
-                Анхны дижитал урилгаа үүсгээд хадгалаарай. Таны урилга энд
-                автоматаар харагдана.
+                Анхны дижитал урилгаа үүсгээд хадгалаарай. Таны
+                урилга энд автоматаар харагдана.
               </p>
 
               <button
