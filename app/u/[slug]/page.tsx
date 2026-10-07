@@ -74,7 +74,8 @@ function getGalleryUrls(value: unknown): string[] {
     (item): item is string =>
       typeof item === "string" &&
       item.length > 0 &&
-      (item.startsWith("http://") || item.startsWith("https://"))
+      (item.startsWith("http://") ||
+        item.startsWith("https://"))
   );
 }
 
@@ -372,12 +373,6 @@ export default function PublicInvitationPage() {
                 mapData?.galleryCaptions
               );
 
-            /*
-             * ----------------------------------------------------
-             * MAP + EXTRAS
-             * ----------------------------------------------------
-             */
-
             const rawExtras =
               mapData?.extras ??
               result.extras ??
@@ -466,7 +461,7 @@ export default function PublicInvitationPage() {
 
         /*
          * --------------------------------------------------------
-         * FALLBACK: READ EXTRAS DIRECTLY FROM RPC RESULT
+         * FALLBACK EXTRAS
          * --------------------------------------------------------
          */
 
@@ -486,13 +481,6 @@ export default function PublicInvitationPage() {
               result.gallery_captions
             );
 
-          /*
-           * IMPORTANT:
-           * Keep the existing extras from the invitation and
-           * merge the public design extras on top.
-           *
-           * This prevents appearance.open from disappearing.
-           */
           const finalExtras: NonNullable<
             PublicInvitation["extras"]
           > = {
@@ -500,14 +488,17 @@ export default function PublicInvitationPage() {
               mapExtras?.lat ??
               result.extras?.lat ??
               null,
+
             lng:
               mapExtras?.lng ??
               result.extras?.lng ??
               null,
+
             mapUrl:
               mapExtras?.mapUrl ??
               result.extras?.mapUrl ??
               "",
+
             appearance: {
               ...(result.extras?.appearance ?? {}),
               ...(mapExtras?.appearance ?? {}),
@@ -534,12 +525,6 @@ export default function PublicInvitationPage() {
 
             extras: finalExtras,
           });
-
-          /*
-           * ------------------------------------------------------
-           * OPENING SCREEN
-           * ------------------------------------------------------
-           */
 
           setOpeningStarted(false);
           setOpeningFinished(false);
@@ -858,7 +843,7 @@ export default function PublicInvitationPage() {
         } catch {
           /*
            * Browser blocked autoplay.
-           * User can press the music button.
+           * User can press music button.
            */
         }
       };
@@ -1446,6 +1431,11 @@ export default function PublicInvitationPage() {
       );
 
       media.removeEventListener(
+        "play",
+        handlePlay
+      );
+
+      media.removeEventListener(
         "error",
         handleError
       );
@@ -1588,9 +1578,7 @@ export default function PublicInvitationPage() {
     const isStarted = openingStarted;
 
     /*
-     * ----------------------------------------------------------
-     * ENVELOPE / ДУГТУЙ
-     * ----------------------------------------------------------
+     * ENVELOPE
      */
 
     if (
@@ -1683,9 +1671,7 @@ export default function PublicInvitationPage() {
     }
 
     /*
-     * ----------------------------------------------------------
-     * LIGHT / ГЭРЭЛ ЦАЦРАХ
-     * ----------------------------------------------------------
+     * LIGHT
      */
 
     if (
@@ -1746,9 +1732,7 @@ export default function PublicInvitationPage() {
     }
 
     /*
-     * ----------------------------------------------------------
-     * FOCUS / ФОКУСЛАХ
-     * ----------------------------------------------------------
+     * FOCUS
      */
 
     if (
@@ -1808,9 +1792,7 @@ export default function PublicInvitationPage() {
     }
 
     /*
-     * ----------------------------------------------------------
-     * CURTAIN / ХӨШИГ
-     * ----------------------------------------------------------
+     * CURTAIN
      */
 
     if (
@@ -1868,9 +1850,7 @@ export default function PublicInvitationPage() {
     }
 
     /*
-     * ----------------------------------------------------------
-     * PULSE / ЛУГШИХ
-     * ----------------------------------------------------------
+     * PULSE
      */
 
     if (
@@ -1928,9 +1908,7 @@ export default function PublicInvitationPage() {
     }
 
     /*
-     * ----------------------------------------------------------
-     * CIRCLE / ХҮРЭЭЛЭХ
-     * ----------------------------------------------------------
+     * CIRCLE
      */
 
     return (
@@ -2047,10 +2025,6 @@ export default function PublicInvitationPage() {
 
       {/* ========================================================
           ONE PAGE-WIDE BACKGROUND IMAGE
-
-          The selected background image is used as ONE image
-          behind the complete invitation:
-          Cover → Message → Calendar → Gallery → Map → RSVP → Footer
           ======================================================== */}
 
       {invitation.background_url &&
@@ -2062,18 +2036,14 @@ export default function PublicInvitationPage() {
               className="h-full w-full object-cover"
             />
 
-            {/* Slight dark layer so text remains readable */}
             <div className="absolute inset-0 bg-black/20" />
 
-            {/* Soft bottom-to-top readability gradient */}
             <div className="absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/20" />
           </div>
         )}
 
       {/* ========================================================
           GALLERY SLIDESHOW FALLBACK BACKGROUND
-
-          Only used when there is NO selected background image.
           ======================================================== */}
 
       {!invitation.background_url &&
@@ -2172,21 +2142,17 @@ export default function PublicInvitationPage() {
         <div className="relative z-10 px-4 py-6 sm:px-6 sm:py-10">
           <div className="mx-auto max-w-2xl">
 
-            {/* ==================================================
-                MAIN CARD
-
-                IMPORTANT:
-                This is now semi-transparent so the selected
-                background image remains visible behind ALL
-                invitation sections.
-                ================================================== */}
-
             <article
               className={`overflow-hidden rounded-[32px] border ${style.border} bg-white/55 shadow-2xl backdrop-blur-[3px]`}
             >
 
               {/* =================================================
                   COVER
+
+                  Title
+                  Names
+                  Message
+                  Date / Time
                   ================================================= */}
 
               <section className="relative min-h-[620px] overflow-hidden bg-white/20 px-6 pb-16 pt-16 text-center sm:px-12 sm:pt-24">
@@ -2199,6 +2165,8 @@ export default function PublicInvitationPage() {
                   }}
                 />
 
+                {/* TITLE */}
+
                 {invitation.title && (
                   <p
                     className="mb-5 text-xs font-semibold uppercase tracking-[0.28em]"
@@ -2210,10 +2178,39 @@ export default function PublicInvitationPage() {
                   </p>
                 )}
 
+                {/* NAMES */}
+
                 {invitation.names && (
                   <h1 className="whitespace-pre-line text-4xl font-semibold leading-tight tracking-tight drop-shadow-sm sm:text-6xl">
                     {invitation.names}
                   </h1>
+                )}
+
+                {/* MESSAGE */}
+
+                {invitation.message && (
+                  <div className="mx-auto mt-10 max-w-xl rounded-[28px] bg-white/55 px-6 py-7 shadow-sm backdrop-blur-md sm:px-10">
+                    <p
+                      className="mb-4 text-sm font-semibold uppercase tracking-[0.22em]"
+                      style={{
+                        color: style.accent,
+                      }}
+                    >
+                      Мэндчилгээ
+                    </p>
+
+                    <div
+                      className="mx-auto mb-5 h-px w-10"
+                      style={{
+                        backgroundColor:
+                          style.accent,
+                      }}
+                    />
+
+                    <p className="whitespace-pre-line text-base leading-8 opacity-80">
+                      {invitation.message}
+                    </p>
+                  </div>
                 )}
 
                 <div
@@ -2223,6 +2220,8 @@ export default function PublicInvitationPage() {
                       style.accent,
                   }}
                 />
+
+                {/* DATE / TIME */}
 
                 {(invitation.event_date ||
                   invitation.event_time) && (
@@ -2240,6 +2239,8 @@ export default function PublicInvitationPage() {
                     )}
                   </div>
                 )}
+
+                {/* GALLERY INDICATORS */}
 
                 {galleryUrls.length >
                   1 && (
@@ -2314,41 +2315,7 @@ export default function PublicInvitationPage() {
               )}
 
               {/* =================================================
-                  MESSAGE
-                  ================================================= */}
-
-              {invitation.message && (
-                <section className="bg-white/45 px-6 py-12 backdrop-blur-[2px] sm:px-12">
-                  <div className="mx-auto max-w-xl rounded-[28px] bg-white/65 px-6 py-8 text-center shadow-sm backdrop-blur-md sm:px-10">
-                    <p
-                      className="mb-5 text-sm font-semibold uppercase tracking-[0.22em]"
-                      style={{
-                        color: style.accent,
-                      }}
-                    >
-                      Урилгын мэндчилгээ
-                    </p>
-
-                    <div
-                      className="mx-auto mb-6 h-px w-12"
-                      style={{
-                        backgroundColor:
-                          style.accent,
-                      }}
-                    />
-
-                    <p className="whitespace-pre-line text-base leading-8 opacity-80">
-                      {invitation.message}
-                    </p>
-                  </div>
-                </section>
-              )}
-
-              {/* =================================================
                   CALENDAR
-
-                  Calendar stays clearly visible on top of
-                  the common background.
                   ================================================= */}
 
               {invitation.event_date && (
@@ -2382,8 +2349,6 @@ export default function PublicInvitationPage() {
 
               {/* =================================================
                   GALLERY
-
-                  Gallery photos remain fully visible.
                   ================================================= */}
 
               {galleryUrls.length > 0 && (
@@ -2448,8 +2413,6 @@ export default function PublicInvitationPage() {
 
               {/* =================================================
                   MAP
-
-                  Map itself is fully opaque / clear.
                   ================================================= */}
 
               {(invitation.address ||
@@ -2516,9 +2479,6 @@ export default function PublicInvitationPage() {
 
               {/* =================================================
                   RSVP
-
-                  RSVP is placed inside a clear card so the
-                  form remains easy to read.
                   ================================================= */}
 
               <section className="bg-white/45 px-4 py-10 backdrop-blur-[2px] sm:px-8">
