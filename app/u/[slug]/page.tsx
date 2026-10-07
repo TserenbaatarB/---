@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
-
 import EventCalendar from "./EventCalendar";
 import RsvpSection from "./RsvpSection";
 
@@ -25,6 +24,7 @@ type PublicInvitation = {
   background_url: string | null;
   gallery_ids: unknown;
   gallery_urls: unknown;
+  gallery_captions: unknown;
   music_path: string | null;
   public_slug: string;
   published_at: string | null;
@@ -55,7 +55,18 @@ function getGalleryUrls(value: unknown): string[] {
     (item): item is string =>
       typeof item === "string" &&
       item.length > 0 &&
-      (item.startsWith("http://") || item.startsWith("https://"))
+      (item.startsWith("http://") ||
+        item.startsWith("https://"))
+  );
+}
+
+function getGalleryCaptions(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.map((item) =>
+    typeof item === "string" ? item : ""
   );
 }
 
@@ -124,7 +135,6 @@ export default function PublicInvitationPage() {
 
   const [loading, setLoading] = useState(true);
   const [currentSlide, setCurrentSlide] = useState(0);
-
   const [autoScroll, setAutoScroll] = useState(true);
 
   const [musicUrl, setMusicUrl] =
@@ -161,12 +171,25 @@ export default function PublicInvitationPage() {
       return [];
     }
 
-    return getGalleryUrls(invitation.gallery_urls);
+    return getGalleryUrls(
+      invitation.gallery_urls
+    );
+  }, [invitation]);
+
+  const galleryCaptions = useMemo(() => {
+    if (!invitation) {
+      return [];
+    }
+
+    return getGalleryCaptions(
+      invitation.gallery_captions
+    );
   }, [invitation]);
 
   const showInvitation =
     videoChecked &&
-    (videoDone || (!videoUrl && !musicIsVideo));
+    (videoDone ||
+      (!videoUrl && !musicIsVideo));
 
   /*
    * LOAD PUBLIC INVITATION
@@ -231,6 +254,8 @@ export default function PublicInvitationPage() {
 
         let publishedGalleryUrls: string[] = [];
 
+        let publishedGalleryCaptions: string[] = [];
+
         try {
           const mapResponse =
             await fetch(
@@ -258,6 +283,11 @@ export default function PublicInvitationPage() {
                 mapData?.galleryUrls
               );
 
+            publishedGalleryCaptions =
+              getGalleryCaptions(
+                mapData?.galleryCaptions
+              );
+
             if (mapData?.extras) {
               mapExtras = {
                 lat:
@@ -265,11 +295,13 @@ export default function PublicInvitationPage() {
                   "number"
                     ? mapData.extras.lat
                     : null,
+
                 lng:
                   typeof mapData.extras.lng ===
                   "number"
                     ? mapData.extras.lng
                     : null,
+
                 mapUrl:
                   typeof mapData.extras.mapUrl ===
                   "string"
@@ -292,13 +324,27 @@ export default function PublicInvitationPage() {
         }
 
         if (!cancelled) {
+          const resultCaptions =
+            getGalleryCaptions(
+              result.gallery_captions
+            );
+
           setInvitation({
             ...result,
-            background_url: backgroundUrl,
+
+            background_url:
+              backgroundUrl,
+
             gallery_urls:
               publishedGalleryUrls.length > 0
                 ? publishedGalleryUrls
                 : result.gallery_urls,
+
+            gallery_captions:
+              publishedGalleryCaptions.length > 0
+                ? publishedGalleryCaptions
+                : resultCaptions,
+
             extras: mapExtras,
           });
 
@@ -372,7 +418,10 @@ export default function PublicInvitationPage() {
             60 * 60 * 24
           );
 
-        if (error || !data?.signedUrl) {
+        if (
+          error ||
+          !data?.signedUrl
+        ) {
           console.error(
             "MEDIA SIGNED URL ERROR:",
             error
@@ -497,6 +546,7 @@ export default function PublicInvitationPage() {
           setVideoUrl(
             videoData.signedUrl
           );
+
           setVideoChecked(true);
           setVideoDone(false);
         }
@@ -1075,8 +1125,6 @@ export default function PublicInvitationPage() {
 
       /*
        * FALLBACK BACKGROUND
-       *
-       * Зөвхөн ямар ч зураг байхгүй үед гарна.
        */
       {!hasAnyBackground &&
         showInvitation && (
@@ -1370,20 +1418,37 @@ export default function PublicInvitationPage() {
 
                   <div className="grid grid-cols-2 gap-3">
                     {galleryUrls.map(
-                      (url, index) => (
-                        <div
-                          key={`${url}-${index}`}
-                          className="overflow-hidden rounded-2xl"
-                        >
-                          <img
-                            src={url}
-                            alt={`Урилгын зураг ${
-                              index + 1
-                            }`}
-                            className="h-48 w-full object-cover transition duration-700 hover:scale-105 sm:h-64"
-                          />
-                        </div>
-                      )
+                      (url, index) => {
+                        const caption =
+                          galleryCaptions[
+                            index
+                          ]?.trim() ?? "";
+
+                        return (
+                          <div
+                            key={`${url}-${index}`}
+                          >
+                            <div className="overflow-hidden rounded-2xl">
+                              <img
+                                src={url}
+                                alt={
+                                  caption ||
+                                  `Урилгын зураг ${
+                                    index + 1
+                                  }`
+                                }
+                                className="h-48 w-full object-cover transition duration-700 hover:scale-105 sm:h-64"
+                              />
+                            </div>
+
+                            {caption && (
+                              <p className="px-1 pt-2 text-center text-xs leading-5 text-black/55">
+                                {caption}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      }
                     )}
                   </div>
                 </section>

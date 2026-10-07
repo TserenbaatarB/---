@@ -24,11 +24,13 @@ type GalleryPhoto = {
   id: number;
   url: string;
   file: File;
+  caption: string;
 };
 
 type StoredInvitationImages = {
   backgroundId: string | null;
   galleryIds: string[];
+  galleryCaptions?: string[];
 };
 
 type StoredInvitationMusic = {
@@ -860,6 +862,9 @@ function InvitationDetailsPageContent() {
                   blob,
                   `gallery-${index + 1}`
                 ),
+                caption:
+                  images.galleryCaptions?.[index] ??
+                  "",
               });
             }
           }
@@ -1005,6 +1010,7 @@ function InvitationDetailsPageContent() {
             URL.createObjectURL(
               file
             ),
+          caption: "",
         })
       );
 
@@ -1163,6 +1169,9 @@ function InvitationDetailsPageContent() {
       const galleryIds: string[] =
         [];
 
+      const galleryCaptions: string[] =
+        [];
+
       for (
         let index = 0;
         index < gallery.length;
@@ -1187,6 +1196,10 @@ function InvitationDetailsPageContent() {
 
         galleryIds.push(
           galleryId
+        );
+
+        galleryCaptions.push(
+          photo.caption ?? ""
         );
       }
 
@@ -1249,6 +1262,7 @@ function InvitationDetailsPageContent() {
         {
           backgroundId,
           galleryIds,
+          galleryCaptions,
         };
 
       sessionStorage.setItem(
@@ -1675,73 +1689,116 @@ function InvitationDetailsPageContent() {
                             onDragEnd={() =>
                               setDragIndex(null)
                             }
-                            className={`group relative aspect-square cursor-grab overflow-hidden rounded-2xl bg-[#F8F5F0] ${
+                            className={`group cursor-grab rounded-2xl bg-[#F8F5F0] ${
                               dragIndex === index
                                 ? "opacity-40"
                                 : ""
                             }`}
                           >
-                            <img
-                              src={
-                                photo.url
-                              }
-                              alt="Gallery"
-                              draggable={false}
-                              className="h-full w-full object-cover"
-                            />
+                            {/* IMAGE */}
 
-                            {index === 0 && (
-                              <span className="absolute left-2 top-2 rounded-full bg-black/75 px-2.5 py-1 text-[10px] font-semibold text-white">
-                                Нүүр
-                              </span>
-                            )}
+                            <div className="relative aspect-square overflow-hidden rounded-2xl">
+                              <img
+                                src={
+                                  photo.url
+                                }
+                                alt={
+                                  photo.caption ||
+                                  "Gallery"
+                                }
+                                draggable={false}
+                                className="h-full w-full object-cover"
+                              />
 
-                            <div className="absolute inset-x-2 bottom-2 flex justify-between opacity-100 sm:opacity-0 sm:transition sm:group-hover:opacity-100">
+                              {index === 0 && (
+                                <span className="absolute left-2 top-2 rounded-full bg-black/75 px-2.5 py-1 text-[10px] font-semibold text-white">
+                                  Нүүр
+                                </span>
+                              )}
+
+                              <div className="absolute inset-x-2 bottom-2 flex justify-between opacity-100 sm:opacity-0 sm:transition sm:group-hover:opacity-100">
+                                <button
+                                  type="button"
+                                  aria-label="Өмнө нь зөөх"
+                                  disabled={index === 0}
+                                  onClick={() =>
+                                    moveGalleryPhoto(
+                                      index,
+                                      index - 1
+                                    )
+                                  }
+                                  className="rounded-full bg-black/75 px-2.5 py-1 text-xs text-white disabled:opacity-30"
+                                >
+                                  ←
+                                </button>
+
+                                <button
+                                  type="button"
+                                  aria-label="Хойно нь зөөх"
+                                  disabled={
+                                    index ===
+                                    gallery.length - 1
+                                  }
+                                  onClick={() =>
+                                    moveGalleryPhoto(
+                                      index,
+                                      index + 1
+                                    )
+                                  }
+                                  className="rounded-full bg-black/75 px-2.5 py-1 text-xs text-white disabled:opacity-30"
+                                >
+                                  →
+                                </button>
+                              </div>
+
                               <button
                                 type="button"
-                                aria-label="Өмнө нь зөөх"
-                                disabled={index === 0}
                                 onClick={() =>
-                                  moveGalleryPhoto(
-                                    index,
-                                    index - 1
+                                  removeGalleryPhoto(
+                                    photo.id
                                   )
                                 }
-                                className="rounded-full bg-black/75 px-2.5 py-1 text-xs text-white disabled:opacity-30"
+                                className="absolute right-2 top-2 rounded-full bg-black/75 px-2.5 py-1.5 text-xs text-white opacity-100 backdrop-blur transition sm:opacity-0 sm:group-hover:opacity-100"
                               >
-                                ←
-                              </button>
-
-                              <button
-                                type="button"
-                                aria-label="Хойно нь зөөх"
-                                disabled={
-                                  index ===
-                                  gallery.length - 1
-                                }
-                                onClick={() =>
-                                  moveGalleryPhoto(
-                                    index,
-                                    index + 1
-                                  )
-                                }
-                                className="rounded-full bg-black/75 px-2.5 py-1 text-xs text-white disabled:opacity-30"
-                              >
-                                →
+                                ✕
                               </button>
                             </div>
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                removeGalleryPhoto(
-                                  photo.id
-                                )
-                              }
-                              className="absolute right-2 top-2 rounded-full bg-black/75 px-2.5 py-1.5 text-xs text-white opacity-100 backdrop-blur transition sm:opacity-0 sm:group-hover:opacity-100"
-                            >
-                              ✕
-                            </button>
+                            {/* CAPTION */}
+
+                            <div className="pt-2">
+                              <label className="mb-1.5 block text-xs font-semibold text-black/55">
+                                Зургийн тайлбар
+                              </label>
+
+                              <input
+                                type="text"
+                                value={
+                                  photo.caption
+                                }
+                                onChange={(event) => {
+                                  const value =
+                                    event.target.value;
+
+                                  setGallery(
+                                    (current) =>
+                                      current.map(
+                                        (item) =>
+                                          item.id ===
+                                          photo.id
+                                            ? {
+                                                ...item,
+                                                caption:
+                                                  value,
+                                              }
+                                            : item
+                                      )
+                                  );
+                                }}
+                                placeholder="Жишээ: Бидний анхны аялал 🤍"
+                                className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-xs text-black outline-none placeholder:text-black/30 focus:border-black/25"
+                              />
+                            </div>
                           </div>
                         )
                       )}

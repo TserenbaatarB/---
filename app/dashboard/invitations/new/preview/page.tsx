@@ -25,12 +25,14 @@ type InvitationDraft = {
   backgroundId: string | null;
   galleryIds: string[];
   galleryUrls: string[];
+  galleryCaptions: string[];
   savedAt: string;
 };
 
 type StoredInvitationImages = {
   backgroundId: string | null;
   galleryIds: string[];
+  galleryCaptions?: string[];
 };
 
 type StoredInvitationMusic = {
@@ -62,8 +64,14 @@ const DB_NAME = "urilga-invitation-db";
 const DB_VERSION = 1;
 const STORE_NAME = "images";
 
-function hasActiveMembership(expiresAt: string | null | undefined) {
-  return Boolean(expiresAt && new Date(expiresAt).getTime() > Date.now());
+function hasActiveMembership(
+  expiresAt: string | null | undefined
+) {
+  return Boolean(
+    expiresAt &&
+      new Date(expiresAt).getTime() >
+        Date.now()
+  );
 }
 
 /*
@@ -74,7 +82,10 @@ function hasActiveMembership(expiresAt: string | null | undefined) {
 
 function openImageDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    const request = indexedDB.open(
+      DB_NAME,
+      DB_VERSION
+    );
 
     request.onerror = () => {
       reject(request.error);
@@ -87,27 +98,43 @@ function openImageDatabase(): Promise<IDBDatabase> {
     request.onupgradeneeded = () => {
       const db = request.result;
 
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
+      if (
+        !db.objectStoreNames.contains(
+          STORE_NAME
+        )
+      ) {
         db.createObjectStore(STORE_NAME);
       }
     };
   });
 }
 
-async function getStoredImage(id: string): Promise<Blob | null> {
+async function getStoredImage(
+  id: string
+): Promise<Blob | null> {
   if (!id) return null;
 
   const db = await openImageDatabase();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, "readonly");
-    const store = transaction.objectStore(STORE_NAME);
+    const transaction = db.transaction(
+      STORE_NAME,
+      "readonly"
+    );
+
+    const store =
+      transaction.objectStore(
+        STORE_NAME
+      );
+
     const request = store.get(id);
 
     request.onsuccess = () => {
       db.close();
 
-      if (request.result instanceof Blob) {
+      if (
+        request.result instanceof Blob
+      ) {
         resolve(request.result);
       } else {
         resolve(null);
@@ -127,8 +154,12 @@ async function getStoredImage(id: string): Promise<Blob | null> {
  * =========================================================
  */
 
-function getImageExtension(blob: Blob): string {
-  const type = (blob.type || "").toLowerCase();
+function getImageExtension(
+  blob: Blob
+): string {
+  const type = (
+    blob.type || ""
+  ).toLowerCase();
 
   if (type === "image/png") {
     return "png";
@@ -151,14 +182,24 @@ function getImageExtension(blob: Blob): string {
  * =========================================================
  */
 
-function getMusicExtension(blob: Blob): string {
-  const type = (blob.type || "").toLowerCase();
+function getMusicExtension(
+  blob: Blob
+): string {
+  const type = (
+    blob.type || ""
+  ).toLowerCase();
 
-  if (type === "audio/mpeg" || type === "audio/mp3") {
+  if (
+    type === "audio/mpeg" ||
+    type === "audio/mp3"
+  ) {
     return "mp3";
   }
 
-  if (type === "audio/wav" || type === "audio/x-wav") {
+  if (
+    type === "audio/wav" ||
+    type === "audio/x-wav"
+  ) {
     return "wav";
   }
 
@@ -166,7 +207,10 @@ function getMusicExtension(blob: Blob): string {
     return "ogg";
   }
 
-  if (type === "audio/mp4" || type === "audio/x-m4a") {
+  if (
+    type === "audio/mp4" ||
+    type === "audio/x-m4a"
+  ) {
     return "m4a";
   }
 
@@ -191,7 +235,9 @@ async function uploadInvitationImages(
   galleryPaths: string[];
 }> {
   const storedImagesRaw =
-    sessionStorage.getItem("invitation-images");
+    sessionStorage.getItem(
+      "invitation-images"
+    );
 
   if (!storedImagesRaw) {
     return {
@@ -203,7 +249,9 @@ async function uploadInvitationImages(
   let imageData: StoredInvitationImages;
 
   try {
-    imageData = JSON.parse(storedImagesRaw);
+    imageData = JSON.parse(
+      storedImagesRaw
+    );
   } catch {
     throw new Error(
       "Урилгын зургийн мэдээлэл уншихад алдаа гарлаа."
@@ -212,7 +260,9 @@ async function uploadInvitationImages(
 
   const basePath = `${userId}/${invitationId}`;
 
-  let backgroundPath: string | null = null;
+  let backgroundPath: string | null =
+    null;
+
   const galleryPaths: string[] = [];
 
   /*
@@ -220,22 +270,27 @@ async function uploadInvitationImages(
    */
 
   if (imageData.backgroundId) {
-    const backgroundBlob = await getStoredImage(
-      imageData.backgroundId
-    );
+    const backgroundBlob =
+      await getStoredImage(
+        imageData.backgroundId
+      );
 
     if (backgroundBlob) {
       const contentType =
-        backgroundBlob.type || "image/jpeg";
+        backgroundBlob.type ||
+        "image/jpeg";
 
       const extension =
-        getImageExtension(backgroundBlob);
+        getImageExtension(
+          backgroundBlob
+        );
 
       backgroundPath =
         `${basePath}/background.${extension}`;
 
       const {
-        error: backgroundUploadError,
+        error:
+          backgroundUploadError,
       } = await supabase.storage
         .from("invitation-images")
         .upload(
@@ -263,24 +318,30 @@ async function uploadInvitationImages(
   for (
     let index = 0;
     index <
-    (imageData.galleryIds ?? []).length;
+    (imageData.galleryIds ?? [])
+      .length;
     index++
   ) {
     const galleryId =
       imageData.galleryIds[index];
 
     const galleryBlob =
-      await getStoredImage(galleryId);
+      await getStoredImage(
+        galleryId
+      );
 
     if (!galleryBlob) {
       continue;
     }
 
     const contentType =
-      galleryBlob.type || "image/jpeg";
+      galleryBlob.type ||
+      "image/jpeg";
 
     const extension =
-      getImageExtension(galleryBlob);
+      getImageExtension(
+        galleryBlob
+      );
 
     const galleryPath =
       `${basePath}/gallery-${index + 1}.${extension}`;
@@ -305,26 +366,44 @@ async function uploadInvitationImages(
       );
     }
 
-    galleryPaths.push(galleryPath);
+    galleryPaths.push(
+      galleryPath
+    );
   }
 
   /*
    * SAVE STORAGE PATHS TO DB
+   *
+   * gallery_captions is also saved here so that
+   * the captions stay matched with gallery order.
    */
+
+  const galleryCaptions =
+    imageData.galleryCaptions ?? [];
 
   const {
     error: pathUpdateError,
   } = await supabase
     .from("invitations")
     .update({
-      background_id: backgroundPath,
-      gallery_ids: galleryPaths,
+      background_id:
+        backgroundPath,
+      gallery_ids:
+        galleryPaths,
       gallery_urls: [],
+      gallery_captions:
+        galleryCaptions,
       updated_at:
         new Date().toISOString(),
     })
-    .eq("id", invitationId)
-    .eq("user_id", userId);
+    .eq(
+      "id",
+      invitationId
+    )
+    .eq(
+      "user_id",
+      userId
+    );
 
   if (pathUpdateError) {
     throw new Error(
@@ -358,17 +437,22 @@ async function uploadInvitationMusic(
    */
 
   if (!storedMusicRaw) {
-    const {
-      error,
-    } = await supabase
-      .from("invitations")
-      .update({
-        music_path: null,
-        updated_at:
-          new Date().toISOString(),
-      })
-      .eq("id", invitationId)
-      .eq("user_id", userId);
+    const { error } =
+      await supabase
+        .from("invitations")
+        .update({
+          music_path: null,
+          updated_at:
+            new Date().toISOString(),
+        })
+        .eq(
+          "id",
+          invitationId
+        )
+        .eq(
+          "user_id",
+          userId
+        );
 
     if (error) {
       throw new Error(
@@ -383,7 +467,9 @@ async function uploadInvitationMusic(
 
   try {
     musicData =
-      JSON.parse(storedMusicRaw);
+      JSON.parse(
+        storedMusicRaw
+      );
   } catch {
     throw new Error(
       "Урилгын хөгжмийн мэдээлэл уншихад алдаа гарлаа."
@@ -395,20 +481,26 @@ async function uploadInvitationMusic(
    */
 
   if (
-    musicData.musicType !== "custom" ||
+    musicData.musicType !==
+      "custom" ||
     !musicData.musicId
   ) {
-    const {
-      error,
-    } = await supabase
-      .from("invitations")
-      .update({
-        music_path: null,
-        updated_at:
-          new Date().toISOString(),
-      })
-      .eq("id", invitationId)
-      .eq("user_id", userId);
+    const { error } =
+      await supabase
+        .from("invitations")
+        .update({
+          music_path: null,
+          updated_at:
+            new Date().toISOString(),
+        })
+        .eq(
+          "id",
+          invitationId
+        )
+        .eq(
+          "user_id",
+          userId
+        );
 
     if (error) {
       throw new Error(
@@ -480,15 +572,23 @@ async function uploadInvitationMusic(
 
   const {
     error: musicPathUpdateError,
-  } = await supabase
-    .from("invitations")
-    .update({
-      music_path: musicPath,
-      updated_at:
-        new Date().toISOString(),
-    })
-    .eq("id", invitationId)
-    .eq("user_id", userId);
+  } =
+    await supabase
+      .from("invitations")
+      .update({
+        music_path:
+          musicPath,
+        updated_at:
+          new Date().toISOString(),
+      })
+      .eq(
+        "id",
+        invitationId
+      )
+      .eq(
+        "user_id",
+        userId
+      );
 
   if (musicPathUpdateError) {
     throw new Error(
@@ -505,11 +605,24 @@ async function uploadInvitationMusic(
  * =========================================================
  */
 
-function getVideoExtension(blob: Blob): string {
-  const type = (blob.type || "").toLowerCase();
+function getVideoExtension(
+  blob: Blob
+): string {
+  const type = (
+    blob.type || ""
+  ).toLowerCase();
 
-  if (type === "video/webm") return "webm";
-  if (type === "video/quicktime") return "mov";
+  if (
+    type === "video/webm"
+  ) {
+    return "webm";
+  }
+
+  if (
+    type === "video/quicktime"
+  ) {
+    return "mov";
+  }
 
   return "mp4";
 }
@@ -519,60 +632,89 @@ async function uploadInvitationVideo(
   invitationId: string,
   musicPath: string | null
 ): Promise<void> {
-  const folder = `${userId}/${invitationId}`;
+  const folder =
+    `${userId}/${invitationId}`;
 
-  let coverVideoId: string | null = null;
+  let coverVideoId:
+    | string
+    | null = null;
 
   try {
-    const rawExtras = sessionStorage.getItem(
-      "invitation-extras"
-    );
+    const rawExtras =
+      sessionStorage.getItem(
+        "invitation-extras"
+      );
 
     coverVideoId = rawExtras
-      ? (JSON.parse(rawExtras).coverVideoId ??
-          null)
+      ? (
+          JSON.parse(
+            rawExtras
+          ).coverVideoId ??
+          null
+        )
       : null;
   } catch {
     coverVideoId = null;
   }
 
-  const bucket = supabase.storage.from(
-    "invitation-music"
-  );
-
-  const videoBlob = coverVideoId
-    ? await getStoredImage(coverVideoId)
-    : null;
-
-  if (!videoBlob) {
-    const { data: files } = await bucket.list(
-      folder
+  const bucket =
+    supabase.storage.from(
+      "invitation-music"
     );
 
-    const stale = (files ?? [])
-      .filter((file) =>
-        file.name.startsWith("video.")
-      )
-      .map((file) => `${folder}/${file.name}`);
+  const videoBlob =
+    coverVideoId
+      ? await getStoredImage(
+          coverVideoId
+        )
+      : null;
+
+  if (!videoBlob) {
+    const { data: files } =
+      await bucket.list(
+        folder
+      );
+
+    const stale =
+      (files ?? [])
+        .filter((file) =>
+          file.name.startsWith(
+            "video."
+          )
+        )
+        .map(
+          (file) =>
+            `${folder}/${file.name}`
+        );
 
     if (stale.length > 0) {
-      await bucket.remove(stale);
+      await bucket.remove(
+        stale
+      );
     }
 
     return;
   }
 
-  const videoPath = `${folder}/video.${getVideoExtension(
-    videoBlob
-  )}`;
+  const videoPath =
+    `${folder}/video.${getVideoExtension(
+      videoBlob
+    )}`;
 
-  const { error: uploadError } =
-    await bucket.upload(videoPath, videoBlob, {
-      cacheControl: "31536000",
+  const {
+    error: uploadError,
+  } = await bucket.upload(
+    videoPath,
+    videoBlob,
+    {
+      cacheControl:
+        "31536000",
       upsert: true,
       contentType:
-        videoBlob.type || "video/mp4",
-    });
+        videoBlob.type ||
+        "video/mp4",
+    }
+  );
 
   if (uploadError) {
     throw new Error(
@@ -584,14 +726,24 @@ async function uploadInvitationVideo(
     return;
   }
 
-  const { error: pathError } = await supabase
+  const {
+    error: pathError,
+  } = await supabase
     .from("invitations")
     .update({
-      music_path: videoPath,
-      updated_at: new Date().toISOString(),
+      music_path:
+        videoPath,
+      updated_at:
+        new Date().toISOString(),
     })
-    .eq("id", invitationId)
-    .eq("user_id", userId);
+    .eq(
+      "id",
+      invitationId
+    )
+    .eq(
+      "user_id",
+      userId
+    );
 
   if (pathError) {
     throw new Error(
@@ -601,17 +753,20 @@ async function uploadInvitationVideo(
 }
 
 /*
- * Урилгын нэмэлт тохиргоо (RSVP г.м)-ийг DB-д хадгална.
- * Алдаа гарвал нийтлэх урсгалыг зогсоохгүй.
+ * =========================================================
+ * SAVE EXTRAS
+ * =========================================================
  */
+
 async function saveInvitationExtras(
   userId: string,
   invitationId: string
 ): Promise<void> {
   try {
-    const raw = sessionStorage.getItem(
-      "invitation-extras"
-    );
+    const raw =
+      sessionStorage.getItem(
+        "invitation-extras"
+      );
 
     if (!raw) return;
 
@@ -622,17 +777,32 @@ async function saveInvitationExtras(
       ...extras
     } = JSON.parse(raw);
 
-    const { error } = await supabase
-      .from("invitations")
-      .update({ extras })
-      .eq("id", invitationId)
-      .eq("user_id", userId);
+    const { error } =
+      await supabase
+        .from("invitations")
+        .update({
+          extras,
+        })
+        .eq(
+          "id",
+          invitationId
+        )
+        .eq(
+          "user_id",
+          userId
+        );
 
     if (error) {
-      console.error("SAVE EXTRAS ERROR:", error);
+      console.error(
+        "SAVE EXTRAS ERROR:",
+        error
+      );
     }
   } catch (error) {
-    console.error("SAVE EXTRAS ERROR:", error);
+    console.error(
+      "SAVE EXTRAS ERROR:",
+      error
+    );
   }
 }
 
@@ -642,11 +812,15 @@ async function saveInvitationExtras(
  * =========================================================
  */
 
-function formatDate(date: string) {
+function formatDate(
+  date: string
+) {
   if (!date) return "";
 
   const selectedDate =
-    new Date(`${date}T00:00:00`);
+    new Date(
+      `${date}T00:00:00`
+    );
 
   if (
     Number.isNaN(
@@ -678,13 +852,22 @@ function createSlugPart(
   return value
     .toLowerCase()
     .trim()
-    .replace(/\s+/g, "-")
+    .replace(
+      /\s+/g,
+      "-"
+    )
     .replace(
       /[^a-z0-9а-яөүё-]/gi,
       ""
     )
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
+    .replace(
+      /-+/g,
+      "-"
+    )
+    .replace(
+      /^-|-$/g,
+      ""
+    );
 }
 
 function createPublicSlug(
@@ -705,7 +888,10 @@ function createPublicSlug(
   const randomPart =
     Math.random()
       .toString(36)
-      .substring(2, 8);
+      .substring(
+        2,
+        8
+      );
 
   return `${base}-${randomPart}`;
 }
@@ -717,18 +903,21 @@ function createPublicSlug(
  */
 
 function InvitationPreviewPageContent() {
-  const router = useRouter();
+  const router =
+    useRouter();
 
   const searchParams =
     useSearchParams();
 
   const eventType =
-    searchParams.get("event") ??
-    "wedding";
+    searchParams.get(
+      "event"
+    ) ?? "wedding";
 
   const template =
-    searchParams.get("template") ??
-    "classic-gold";
+    searchParams.get(
+      "template"
+    ) ?? "classic-gold";
 
   const [
     draft,
@@ -749,6 +938,12 @@ function InvitationPreviewPageContent() {
   const [
     galleryUrls,
     setGalleryUrls,
+  ] =
+    useState<string[]>([]);
+
+  const [
+    galleryCaptions,
+    setGalleryCaptions,
   ] =
     useState<string[]>([]);
 
@@ -783,9 +978,11 @@ function InvitationPreviewPageContent() {
     setGalleryIndex,
   ] =
     useState(0);
+
   const activeGalleryIndex =
     galleryUrls.length > 0
-      ? galleryIndex % galleryUrls.length
+      ? galleryIndex %
+        galleryUrls.length
       : 0;
 
   const [
@@ -795,7 +992,9 @@ function InvitationPreviewPageContent() {
     useState(false);
 
   const musicRef =
-    useRef<HTMLAudioElement | null>(null);
+    useRef<HTMLAudioElement | null>(
+      null
+    );
 
   /*
    * MUSIC PREVIEW STATE
@@ -854,11 +1053,15 @@ function InvitationPreviewPageContent() {
     setPublishedSlug,
   ] =
     useState("");
-const [
-  qrCodeUrl,
-  setQrCodeUrl,
-] =
-  useState<string | null>(null);
+
+  const [
+    qrCodeUrl,
+    setQrCodeUrl,
+  ] =
+    useState<string | null>(
+      null
+    );
+
   /*
    * =========================================================
    * LOAD PREVIEW
@@ -898,9 +1101,29 @@ const [
             storedDraft
           );
 
+        /*
+         * Backward compatibility:
+         * old drafts may not have galleryCaptions.
+         */
+
+        const normalizedDraft: InvitationDraft =
+          {
+            ...parsedDraft,
+            galleryCaptions:
+              Array.isArray(
+                parsedDraft.galleryCaptions
+              )
+                ? parsedDraft.galleryCaptions
+                : [],
+          };
+
         if (!cancelled) {
           setDraft(
-            parsedDraft
+            normalizedDraft
+          );
+
+          setGalleryCaptions(
+            normalizedDraft.galleryCaptions
           );
         }
 
@@ -991,11 +1214,23 @@ const [
           const loadedGallery:
             string[] = [];
 
+          const loadedCaptions:
+            string[] = [];
+
           for (
-            const galleryId of
-            imageData.galleryIds ??
-            []
+            let index = 0;
+            index <
+            (
+              imageData.galleryIds ??
+              []
+            ).length;
+            index++
           ) {
+            const galleryId =
+              imageData.galleryIds[
+                index
+              ];
+
             const galleryBlob =
               await getStoredImage(
                 galleryId
@@ -1013,6 +1248,18 @@ const [
               loadedGallery.push(
                 url
               );
+
+              loadedCaptions.push(
+                imageData
+                  .galleryCaptions?.[
+                  index
+                ] ??
+                  normalizedDraft
+                    .galleryCaptions?.[
+                    index
+                  ] ??
+                  ""
+              );
             }
           }
 
@@ -1020,7 +1267,18 @@ const [
             setGalleryUrls(
               loadedGallery
             );
+
+            setGalleryCaptions(
+              loadedCaptions
+            );
           }
+        } else if (
+          !cancelled
+        ) {
+          setGalleryCaptions(
+            normalizedDraft.galleryCaptions ??
+              []
+          );
         }
 
         /*
@@ -1049,9 +1307,16 @@ const [
               setCoverVideoUrl(
                 videoUrl
               );
-              setCoverVideoEnded(false);
-            } else if (!cancelled) {
-              setCoverVideoEnded(true);
+
+              setCoverVideoEnded(
+                false
+              );
+            } else if (
+              !cancelled
+            ) {
+              setCoverVideoEnded(
+                true
+              );
             }
           } catch (videoError) {
             console.error(
@@ -1060,11 +1325,17 @@ const [
             );
 
             if (!cancelled) {
-              setCoverVideoEnded(true);
+              setCoverVideoEnded(
+                true
+              );
             }
           }
-        } else if (!cancelled) {
-          setCoverVideoEnded(true);
+        } else if (
+          !cancelled
+        ) {
+          setCoverVideoEnded(
+            true
+          );
         }
 
         /*
@@ -1116,10 +1387,14 @@ const [
                   "custom"
                 );
               }
-            } else if (!cancelled) {
+            } else if (
+              !cancelled
+            ) {
               setMusicUrl(null);
               setMusicName(null);
-              setMusicType("none");
+              setMusicType(
+                "none"
+              );
             }
           } catch (musicError) {
             console.error(
@@ -1130,13 +1405,19 @@ const [
             if (!cancelled) {
               setMusicUrl(null);
               setMusicName(null);
-              setMusicType("none");
+              setMusicType(
+                "none"
+              );
             }
           }
-        } else if (!cancelled) {
+        } else if (
+          !cancelled
+        ) {
           setMusicUrl(null);
           setMusicName(null);
-          setMusicType("none");
+          setMusicType(
+            "none"
+          );
         }
       } catch (error) {
         console.error(
@@ -1170,23 +1451,32 @@ const [
    */
 
   useEffect(() => {
-    if (galleryUrls.length <= 1) {
+    if (
+      galleryUrls.length <= 1
+    ) {
       return;
     }
 
     const timer =
-      window.setInterval(() => {
-        setGalleryIndex(
-          (current) =>
-            (current + 1) %
-            galleryUrls.length
-        );
-      }, 4000);
+      window.setInterval(
+        () => {
+          setGalleryIndex(
+            (current) =>
+              (current + 1) %
+              galleryUrls.length
+          );
+        },
+        4000
+      );
 
     return () => {
-      window.clearInterval(timer);
+      window.clearInterval(
+        timer
+      );
     };
-  }, [galleryUrls.length]);
+  }, [
+    galleryUrls.length,
+  ]);
 
   /*
    * =========================================================
@@ -1205,7 +1495,9 @@ const [
       galleryUrls.forEach(
         (url) => {
           if (
-            url.startsWith("blob:")
+            url.startsWith(
+              "blob:"
+            )
           ) {
             URL.revokeObjectURL(
               url
@@ -1267,10 +1559,14 @@ const [
     try {
       if (audio.paused) {
         await audio.play();
-        setMusicPlaying(true);
+        setMusicPlaying(
+          true
+        );
       } else {
         audio.pause();
-        setMusicPlaying(false);
+        setMusicPlaying(
+          false
+        );
       }
     } catch (error) {
       console.error(
@@ -1334,11 +1630,25 @@ const [
         return;
       }
 
-      const { data: membership, error: membershipError } =
+      /*
+       * MEMBERSHIP
+       */
+
+      const {
+        data: membership,
+        error: membershipError,
+      } =
         await supabase
-          .from("user_memberships")
-          .select("expires_at")
-          .eq("user_id", user.id)
+          .from(
+            "user_memberships"
+          )
+          .select(
+            "expires_at"
+          )
+          .eq(
+            "user_id",
+            user.id
+          )
           .maybeSingle();
 
       if (membershipError) {
@@ -1347,9 +1657,14 @@ const [
 
       if (
         !membership ||
-        !hasActiveMembership(membership.expires_at)
+        !hasActiveMembership(
+          membership.expires_at
+        )
       ) {
-        router.push("/dashboard/billing");
+        router.push(
+          "/dashboard/billing"
+        );
+
         return;
       }
 
@@ -1364,8 +1679,7 @@ const [
         ) ||
         "";
 
-      let invitationId:
-        | string =
+      let invitationId: string =
         existingId;
 
       let publicSlug =
@@ -1386,51 +1700,125 @@ const [
       const now =
         new Date().toISOString();
 
+      /*
+       * GALLERY CAPTIONS
+       *
+       * Prefer draft data.
+       * If draft is old, fall back to
+       * sessionStorage invitation-images.
+       */
+
+      let finalGalleryCaptions =
+        Array.isArray(
+          draft.galleryCaptions
+        )
+          ? draft.galleryCaptions
+          : [];
+
+      const storedImagesRaw =
+        sessionStorage.getItem(
+          "invitation-images"
+        );
+
+      if (
+        storedImagesRaw &&
+        finalGalleryCaptions.length ===
+          0
+      ) {
+        try {
+          const imageData:
+            StoredInvitationImages =
+            JSON.parse(
+              storedImagesRaw
+            );
+
+          finalGalleryCaptions =
+            imageData.galleryCaptions ??
+            [];
+        } catch {
+          finalGalleryCaptions =
+            [];
+        }
+      }
+
+      /*
+       * INVITATION DATA
+       */
+
       const invitationData = {
-        user_id: user.id,
+        user_id:
+          user.id,
+
         event_type:
           draft.eventType,
+
         template:
           draft.template,
+
         title:
           draft.title || "",
+
         names:
           draft.names || "",
+
         event_date:
           draft.date || "",
+
         event_time:
           draft.time || "",
+
         venue:
           draft.venue || "",
+
         address:
           draft.address || "",
+
         message:
           draft.message || "",
+
         phone:
           draft.phone || "",
+
         selected_style:
           draft.selectedStyle ||
           "romantic",
+
         ai_prompt:
           draft.aiPrompt || "",
+
         active_section:
           draft.activeSection ||
           "cover",
+
         background_id:
           draft.backgroundId ||
           null,
+
         gallery_ids:
           draft.galleryIds ||
           [],
+
         gallery_urls:
           draft.galleryUrls ||
           [],
+
+        /*
+         * NEW:
+         * Save gallery captions to Supabase.
+         */
+
+        gallery_captions:
+          finalGalleryCaptions,
+
         status:
           "published",
+
         public_slug:
           publicSlug,
+
         published_at:
           now,
+
         updated_at:
           now,
       };
@@ -1445,7 +1833,9 @@ const [
           error,
         } =
           await supabase
-            .from("invitations")
+            .from(
+              "invitations"
+            )
             .update(
               invitationData
             )
@@ -1477,7 +1867,9 @@ const [
           error,
         } =
           await supabase
-            .from("invitations")
+            .from(
+              "invitations"
+            )
             .insert(
               invitationData
             )
@@ -1515,17 +1907,23 @@ const [
        */
 
       if (
-        musicType === "custom"
+        musicType ===
+        "custom"
       ) {
         setPublishMessage(
           "Урилгын хөгжмийг хадгалж байна..."
         );
       }
 
-      const savedMusicPath = await uploadInvitationMusic(
-        user.id,
-        invitationId
-      );
+      const savedMusicPath =
+        await uploadInvitationMusic(
+          user.id,
+          invitationId
+        );
+
+      /*
+       * UPLOAD COVER VIDEO
+       */
 
       setPublishMessage(
         "Урилгын видеог хадгалж байна..."
@@ -1536,6 +1934,10 @@ const [
         invitationId,
         savedMusicPath
       );
+
+      /*
+       * SAVE EXTRAS
+       */
 
       await saveInvitationExtras(
         user.id,
@@ -1556,7 +1958,7 @@ const [
         publicSlug
       );
 
-setPublishedSlug(
+      setPublishedSlug(
         publicSlug
       );
 
@@ -1569,6 +1971,8 @@ setPublishedSlug(
         ...draft,
         id:
           invitationId,
+        galleryCaptions:
+          finalGalleryCaptions,
         savedAt:
           now,
       };
@@ -1584,11 +1988,18 @@ setPublishedSlug(
         updatedDraft
       );
 
+      setGalleryCaptions(
+        finalGalleryCaptions
+      );
+
       setPublishMessage(
         "Урилга амжилттай нийтлэгдлээ ✓"
       );
-      void generatePublicQrCode(publicSlug);
-} catch (error) {
+
+      void generatePublicQrCode(
+        publicSlug
+      );
+    } catch (error) {
       console.error(
         "PUBLISH ERROR:",
         error
@@ -1603,7 +2014,9 @@ setPublishedSlug(
         `Урилга нийтлэх үед алдаа гарлаа: ${message}`
       );
     } finally {
-      setPublishing(false);
+      setPublishing(
+        false
+      );
     }
   }
 
@@ -1622,7 +2035,9 @@ setPublishedSlug(
       `${window.location.origin}/u/${publishedSlug}`;
 
     navigator.clipboard
-      .writeText(publicUrl)
+      .writeText(
+        publicUrl
+      )
       .then(() => {
         setPublishMessage(
           "Урилгын линк clipboard-д хууллаа ✓"
@@ -1634,39 +2049,50 @@ setPublishedSlug(
         );
       });
   }
-async function generatePublicQrCode(
-  slug: string
-) {
-  if (!slug) {
-    return;
-  }
 
-  try {
-    const publicUrl =
-      `${window.location.origin}/u/${slug}`;
+  /*
+   * =========================================================
+   * QR CODE
+   * =========================================================
+   */
 
-    const qrDataUrl =
-      await QRCode.toDataURL(
-        publicUrl,
-        {
-          width: 320,
-          margin: 2,
-          errorCorrectionLevel: "H",
-        }
+  async function generatePublicQrCode(
+    slug: string
+  ) {
+    if (!slug) {
+      return;
+    }
+
+    try {
+      const publicUrl =
+        `${window.location.origin}/u/${slug}`;
+
+      const qrDataUrl =
+        await QRCode.toDataURL(
+          publicUrl,
+          {
+            width: 320,
+            margin: 2,
+            errorCorrectionLevel:
+              "H",
+          }
+        );
+
+      setQrCodeUrl(
+        qrDataUrl
+      );
+    } catch (error) {
+      console.error(
+        "QR CODE ERROR:",
+        error
       );
 
-    setQrCodeUrl(
-      qrDataUrl
-    );
-  } catch (error) {
-    console.error(
-      "QR CODE ERROR:",
-      error
-    );
-
-    setQrCodeUrl(null);
+      setQrCodeUrl(
+        null
+      );
+    }
   }
-}
+
   function openPublicLink() {
     if (!publishedSlug) {
       return;
@@ -1689,7 +2115,7 @@ async function generatePublicQrCode(
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#F4F1EC] flex items-center justify-center">
+      <main className="flex min-h-screen items-center justify-center bg-[#F4F1EC]">
         <div className="text-center">
           <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-black border-t-transparent" />
 
@@ -1703,7 +2129,7 @@ async function generatePublicQrCode(
 
   if (!draft) {
     return (
-      <main className="min-h-screen bg-[#F4F1EC] flex items-center justify-center px-5">
+      <main className="flex min-h-screen items-center justify-center bg-[#F4F1EC] px-5">
         <div className="w-full max-w-md rounded-[28px] bg-white p-8 text-center shadow-sm">
           <div className="text-4xl">
             💌
@@ -1845,21 +2271,26 @@ async function generatePublicQrCode(
   }
 
   const hasMap =
-    typeof extras?.lat === "number" &&
-    typeof extras?.lng === "number";
+    typeof extras?.lat ===
+      "number" &&
+    typeof extras?.lng ===
+      "number";
 
   const mapLatitude =
-    typeof extras?.lat === "number"
+    typeof extras?.lat ===
+    "number"
       ? extras.lat
       : null;
 
   const mapLongitude =
-    typeof extras?.lng === "number"
+    typeof extras?.lng ===
+    "number"
       ? extras.lng
       : null;
 
   const mapUrl =
-    typeof extras?.mapUrl === "string"
+    typeof extras?.mapUrl ===
+    "string"
       ? extras.mapUrl
       : "";
 
@@ -1867,10 +2298,12 @@ async function generatePublicQrCode(
     extras?.rsvp;
 
   const rsvpEnabled =
-    rsvpSettings?.enabled === true;
+    rsvpSettings?.enabled ===
+    true;
 
   const rsvpDeadline =
-    rsvpSettings?.deadline || "";
+    rsvpSettings?.deadline ||
+    "";
 
   const rsvpDeadlineFormatted =
     rsvpDeadline
@@ -1922,10 +2355,16 @@ async function generatePublicQrCode(
       <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-5">
         <WizardStepper
           step={4}
-          onStepClick={(target) => {
-            if (target === 3) {
+          onStepClick={(
+            target
+          ) => {
+            if (
+              target === 3
+            ) {
               goBackToBuilder();
-            } else if (target < 3) {
+            } else if (
+              target < 3
+            ) {
               router.push(
                 `/dashboard/invitations/new/details?event=${encodeURIComponent(
                   eventType
@@ -1940,14 +2379,9 @@ async function generatePublicQrCode(
 
       {/* CONTENT */}
 
-      <section className="px-4 py-8 sm:px-6 lg:py-10">
-        <div className="mx-auto flex max-w-7xl flex-col items-stretch gap-8 lg:flex-row lg:items-start">
-
-          {/* =================================================
-              SIDE PANEL
-              ================================================= */}
-
-          <div className="w-full shrink-0 lg:w-[380px] lg:pt-8">
+      <section className="px-4 py-8 sm:px-6 lg:py-12">
+        <div className="mx-auto flex max-w-2xl justify-center">
+          <div className="w-full">
             <div className="rounded-[28px] bg-white p-6 shadow-sm">
               <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-black/35">
                 Invitation Preview
@@ -2066,7 +2500,81 @@ async function generatePublicQrCode(
                     зураг
                   </span>
                 </div>
+
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-xs text-black/45">
+                    Caption
+                  </span>
+
+                  <span className="text-xs font-semibold">
+                    {
+                      galleryCaptions.filter(
+                        (caption) =>
+                          Boolean(
+                            caption?.trim()
+                          )
+                      ).length
+                    }{" "}
+                    тайлбар
+                  </span>
+                </div>
               </div>
+
+              {/* GALLERY PREVIEW */}
+
+              {galleryUrls.length >
+                0 && (
+                <div className="mt-3 rounded-2xl border border-black/10 p-4">
+                  <div className="text-[10px] uppercase tracking-[0.15em] text-black/35">
+                    Gallery Preview
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    {galleryUrls.map(
+                      (
+                        url,
+                        index
+                      ) => {
+                        const caption =
+                          galleryCaptions[
+                            index
+                          ]?.trim() ||
+                          "";
+
+                        return (
+                          <div
+                            key={`${url}-${index}`}
+                          >
+                            <div className="aspect-square overflow-hidden rounded-2xl bg-[#F8F5F0]">
+                              <img
+                                src={
+                                  url
+                                }
+                                alt={
+                                  caption ||
+                                  `Gallery зураг ${
+                                    index +
+                                    1
+                                  }`
+                                }
+                                className="h-full w-full object-cover"
+                              />
+                            </div>
+
+                            {caption && (
+                              <p className="mt-2 px-1 text-center text-[10px] leading-4 text-black/55">
+                                {
+                                  caption
+                                }
+                              </p>
+                            )}
+                          </div>
+                        );
+                      }
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* EXTRA STATUS */}
 
@@ -2078,12 +2586,14 @@ async function generatePublicQrCode(
 
                   <span
                     className={`text-xs font-semibold ${
-                      hasMap || mapUrl
+                      hasMap ||
+                      mapUrl
                         ? "text-green-700"
                         : "text-black/30"
                     }`}
                   >
-                    {hasMap || mapUrl
+                    {hasMap ||
+                    mapUrl
                       ? "✓ Added"
                       : "None"}
                   </span>
@@ -2184,11 +2694,17 @@ async function generatePublicQrCode(
               {!publishedSlug ? (
                 <button
                   type="button"
-                  onClick={handlePublish}
-                  disabled={publishing}
+                  onClick={
+                    handlePublish
+                  }
+                  disabled={
+                    publishing
+                  }
                   className="mt-3 w-full rounded-2xl bg-black px-5 py-3.5 text-sm font-semibold text-white hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Урилгаа нийтлэх →
+                  {publishing
+                    ? "Нийтэлж байна..."
+                    : "Урилгаа нийтлэх →"}
                 </button>
               ) : (
                 <>
@@ -2213,7 +2729,10 @@ async function generatePublicQrCode(
                   </button>
                 </>
               )}
-                            {qrCodeUrl && (
+
+              {/* QR */}
+
+              {qrCodeUrl && (
                 <div className="mt-5 rounded-3xl border border-black/10 bg-white p-5 text-center">
                   <p className="text-sm font-bold text-black/80">
                     📱 QR кодоор хуваалцах
@@ -2225,7 +2744,9 @@ async function generatePublicQrCode(
 
                   <div className="mt-4 flex flex-col items-center">
                     <img
-                      src={qrCodeUrl}
+                      src={
+                        qrCodeUrl
+                      }
                       alt="Урилгын QR код"
                       className="h-56 w-56 rounded-2xl"
                     />
@@ -2233,14 +2754,26 @@ async function generatePublicQrCode(
                     <button
                       type="button"
                       onClick={() => {
-                        const link = document.createElement("a");
+                        const link =
+                          document.createElement(
+                            "a"
+                          );
 
-                        link.href = qrCodeUrl;
-                        link.download = "urilga-qr-code.png";
+                        link.href =
+                          qrCodeUrl;
 
-                        document.body.appendChild(link);
+                        link.download =
+                          "urilga-qr-code.png";
+
+                        document.body.appendChild(
+                          link
+                        );
+
                         link.click();
-                        document.body.removeChild(link);
+
+                        document.body.removeChild(
+                          link
+                        );
                       }}
                       className="mt-4 w-full rounded-2xl bg-black px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-black/80"
                     >

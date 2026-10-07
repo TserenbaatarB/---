@@ -33,6 +33,7 @@ const AppearanceControls = dynamic(
 type GalleryPhoto = {
   id: string;
   url: string;
+  caption: string;
 };
 
 type DesignStyle = {
@@ -59,6 +60,7 @@ type InvitationDetails = {
 type StoredInvitationImages = {
   backgroundId: string | null;
   galleryIds: string[];
+  galleryCaptions?: string[];
 };
 
 type StoredInvitationMusic = {
@@ -84,6 +86,7 @@ type InvitationDraft = {
   backgroundId: string | null;
   galleryIds: string[];
   galleryUrls: string[];
+  galleryCaptions?: string[];
   savedAt: string;
 };
 
@@ -272,9 +275,8 @@ function InvitationBuilderPageContent() {
       keywords: [
         "romantic",
         "romance",
-        "romantic",
-        "хайр",
         "романтик",
+        "хайр",
         "зөөлөн",
         "хурим",
       ],
@@ -294,8 +296,6 @@ function InvitationBuilderPageContent() {
         "premium",
         "luxurious",
         "тансаг",
-        "premium",
-        "luxury",
         "дээд зэрэглэлийн",
       ],
     },
@@ -315,7 +315,6 @@ function InvitationBuilderPageContent() {
         "modern",
         "clean",
         "simple",
-        "minimal",
         "энгийн",
         "цэвэрхэн",
         "орчин үеийн",
@@ -396,7 +395,6 @@ function InvitationBuilderPageContent() {
         "pastel",
         "soft",
         "pink",
-        "pastel",
         "ягаан",
         "зөөлөн өнгө",
       ],
@@ -415,7 +413,6 @@ function InvitationBuilderPageContent() {
         "editorial",
         "magazine",
         "fashion",
-        "editorial",
         "сэтгүүл",
         "fashion",
       ],
@@ -435,7 +432,6 @@ function InvitationBuilderPageContent() {
         "retro",
         "old",
         "classic",
-        "retro",
         "хуучны",
         "сонгодог",
       ],
@@ -454,7 +450,6 @@ function InvitationBuilderPageContent() {
         "boho",
         "bohemian",
         "natural",
-        "boho",
         "чөлөөт",
         "natural",
       ],
@@ -497,7 +492,6 @@ function InvitationBuilderPageContent() {
         "cinematic",
         "харанхуй",
         "романтик",
-        "dark",
       ],
     },
     {
@@ -516,7 +510,6 @@ function InvitationBuilderPageContent() {
         "navy",
         "цэнхэр",
         "хөх",
-        "elegant",
       ],
     },
     {
@@ -572,10 +565,8 @@ function InvitationBuilderPageContent() {
         "blush",
         "pink",
         "rose",
-        "pink",
         "ягаан",
         "rose",
-        "blush",
       ],
     },
     {
@@ -655,7 +646,6 @@ function InvitationBuilderPageContent() {
         "timeless",
         "сонгодог",
         "уламжлалт",
-        "classic",
       ],
     },
   ];
@@ -821,6 +811,10 @@ function InvitationBuilderPageContent() {
             loadedPhotos.push({
               id: galleryId,
               url: galleryUrl,
+              caption:
+                imageData.galleryCaptions?.[
+                  index
+                ] ?? "",
             });
           }
         }
@@ -988,8 +982,7 @@ function InvitationBuilderPageContent() {
    */
 
   async function buildDesignFromPrompt() {
-    const prompt = aiPrompt
-      .trim();
+    const prompt = aiPrompt.trim();
 
     if (!prompt) {
       setAiError(
@@ -1004,53 +997,80 @@ function InvitationBuilderPageContent() {
     setAiError("");
 
     try {
-      const response = await fetch("/api/ai/design", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt,
-          eventType,
-          styles: styles.map(({ id, name, description }) => ({
-            id,
-            name,
-            description,
-          })),
-        }),
-      });
-      const result: unknown = await response.json();
+      const response = await fetch(
+        "/api/ai/design",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            prompt,
+            eventType,
+            styles: styles.map(
+              ({
+                id,
+                name,
+                description,
+              }) => ({
+                id,
+                name,
+                description,
+              })
+            ),
+          }),
+        }
+      );
+
+      const result: unknown =
+        await response.json();
 
       if (
         typeof result !== "object" ||
         result === null ||
         Array.isArray(result)
       ) {
-        throw new Error("Gemini-ээс буруу хариу ирлээ.");
+        throw new Error(
+          "Gemini-ээс буруу хариу ирлээ."
+        );
       }
 
       if (!response.ok) {
         const errorMessage =
-          "error" in result && typeof result.error === "string"
+          "error" in result &&
+          typeof result.error ===
+            "string"
             ? result.error
             : "Gemini хүсэлтийг боловсруулж чадсангүй.";
+
         throw new Error(
           errorMessage
         );
       }
 
-      const selected = styles.find(
-        (style) =>
-          style.id ===
-          ("styleId" in result ? result.styleId : undefined)
-      );
+      const selected =
+        styles.find(
+          (style) =>
+            style.id ===
+            ("styleId" in result
+              ? result.styleId
+              : undefined)
+        );
 
       if (!selected) {
-        throw new Error("Gemini боломжит загвараас сонгож чадсангүй.");
+        throw new Error(
+          "Gemini боломжит загвараас сонгож чадсангүй."
+        );
       }
 
-      setSelectedStyle(selected.id);
-      setAiMessage(`Дизайн үүсгэлээ — ${selected.name}`);
+      setSelectedStyle(
+        selected.id
+      );
+
+      setAiMessage(
+        `Дизайн үүсгэлээ — ${selected.name}`
+      );
     } catch (error) {
       setAiError(
         error instanceof Error
@@ -1079,14 +1099,13 @@ function InvitationBuilderPageContent() {
     }
 
     return styles.filter((style) => {
-      const searchableText =
-        [
-          style.name,
-          style.description,
-          ...style.keywords,
-        ]
-          .join(" ")
-          .toLowerCase();
+      const searchableText = [
+        style.name,
+        style.description,
+        ...style.keywords,
+      ]
+        .join(" ")
+        .toLowerCase();
 
       return searchableText.includes(
         query
@@ -1118,8 +1137,31 @@ function InvitationBuilderPageContent() {
       {
         id: `demo-${Date.now()}`,
         url: demoUrl,
+        caption: "",
       },
     ]);
+  }
+
+  /*
+   * =========================================================
+   * UPDATE PHOTO CAPTION
+   * =========================================================
+   */
+
+  function updatePhotoCaption(
+    photoId: string,
+    caption: string
+  ) {
+    setPhotos((current) =>
+      current.map((photo) =>
+        photo.id === photoId
+          ? {
+              ...photo,
+              caption,
+            }
+          : photo
+      )
+    );
   }
 
   /*
@@ -1170,19 +1212,20 @@ function InvitationBuilderPageContent() {
   const formattedDate =
     formatDate(date);
 
-  const livePreviewPattern = useMemo(
-    () =>
-      patternStyle(
-        appearance.pattern,
+  const livePreviewPattern =
+    useMemo(
+      () =>
+        patternStyle(
+          appearance.pattern,
+          appearance.accent,
+          appearance.tone
+        ),
+      [
         appearance.accent,
-        appearance.tone
-      ),
-    [
-      appearance.accent,
-      appearance.pattern,
-      appearance.tone,
-    ]
-  );
+        appearance.pattern,
+        appearance.tone,
+      ]
+    );
 
   /*
    * =========================================================
@@ -1223,31 +1266,39 @@ function InvitationBuilderPageContent() {
           JSON.parse(storedMusic);
       }
 
-      const draft: InvitationDraft = {
-        eventType,
-        template,
-        title,
-        names,
-        date,
-        time,
-        venue,
-        address,
-        message,
-        phone,
-        selectedStyle,
-        aiPrompt,
-        activeSection,
-        backgroundId:
-          imageData?.backgroundId ??
-          null,
-        galleryIds:
-          imageData?.galleryIds ?? [],
-        galleryUrls: photos.map(
-          (photo) => photo.url
-        ),
-        savedAt:
-          new Date().toISOString(),
-      };
+      const draft: InvitationDraft =
+        {
+          eventType,
+          template,
+          title,
+          names,
+          date,
+          time,
+          venue,
+          address,
+          message,
+          phone,
+          selectedStyle,
+          aiPrompt,
+          activeSection,
+          backgroundId:
+            imageData?.backgroundId ??
+            null,
+          galleryIds:
+            imageData?.galleryIds ??
+            [],
+          galleryUrls:
+            photos.map(
+              (photo) => photo.url
+            ),
+          galleryCaptions:
+            photos.map(
+              (photo) =>
+                photo.caption ?? ""
+            ),
+          savedAt:
+            new Date().toISOString(),
+        };
 
       sessionStorage.setItem(
         "invitation-draft",
@@ -1277,6 +1328,34 @@ function InvitationBuilderPageContent() {
         })
       );
 
+      /*
+       * Keep gallery captions synced
+       * into invitation-images.
+       */
+      if (imageData) {
+        const syncedImageData: StoredInvitationImages =
+          {
+            backgroundId:
+              imageData.backgroundId ??
+              null,
+            galleryIds:
+              imageData.galleryIds ??
+              [],
+            galleryCaptions:
+              photos.map(
+                (photo) =>
+                  photo.caption ?? ""
+              ),
+          };
+
+        sessionStorage.setItem(
+          "invitation-images",
+          JSON.stringify(
+            syncedImageData
+          )
+        );
+      }
+
       setSavedMessage(
         "Амжилттай хадгалагдлаа ✓"
       );
@@ -1304,7 +1383,9 @@ function InvitationBuilderPageContent() {
    * =========================================================
    */
 
-  function goToStep(target: 1 | 2 | 3 | 4) {
+  function goToStep(
+    target: 1 | 2 | 3 | 4
+  ) {
     if (target >= 3) return;
 
     router.push(
@@ -1386,7 +1467,9 @@ function InvitationBuilderPageContent() {
         <WizardStepper
           step={3}
           showHeading={false}
-          onStepClick={(target) => goToStep(target)}
+          onStepClick={(target) =>
+            goToStep(target)
+          }
         />
       </div>
 
@@ -1402,40 +1485,46 @@ function InvitationBuilderPageContent() {
             </div>
 
             <div className="mt-4 space-y-1.5">
-              {sections.map((section) => (
-                <button
-                  key={section.id}
-                  type="button"
-                  onClick={() =>
-                    setActiveSection(
+              {sections.map(
+                (section) => (
+                  <button
+                    key={
                       section.id
-                    )
-                  }
-                  className={`w-full rounded-2xl px-4 py-3 text-left transition ${
-                    activeSection ===
-                    section.id
-                      ? "bg-black text-white"
-                      : "hover:bg-black/5"
-                  }`}
-                >
-                  <div className="text-sm font-semibold">
-                    {section.name}
-                  </div>
-
-                  <div
-                    className={`mt-1 text-[10px] ${
+                    }
+                    type="button"
+                    onClick={() =>
+                      setActiveSection(
+                        section.id
+                      )
+                    }
+                    className={`w-full rounded-2xl px-4 py-3 text-left transition ${
                       activeSection ===
                       section.id
-                        ? "text-white/60"
-                        : "text-black/35"
+                        ? "bg-black text-white"
+                        : "hover:bg-black/5"
                     }`}
                   >
-                    {
-                      section.description
-                    }
-                  </div>
-                </button>
-              ))}
+                    <div className="text-sm font-semibold">
+                      {
+                        section.name
+                      }
+                    </div>
+
+                    <div
+                      className={`mt-1 text-[10px] ${
+                        activeSection ===
+                        section.id
+                          ? "text-white/60"
+                          : "text-black/35"
+                      }`}
+                    >
+                      {
+                        section.description
+                      }
+                    </div>
+                  </button>
+                )
+              )}
             </div>
 
             <div className="mt-8 rounded-2xl border border-black/10 bg-[#F8F5F0] p-4">
@@ -1474,8 +1563,6 @@ function InvitationBuilderPageContent() {
               </div>
             </div>
 
-            {/* MUSIC STATUS */}
-
             <div className="mt-3 rounded-2xl border border-black/10 bg-[#F8F5F0] p-4">
               <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-black/35">
                 Music
@@ -1494,7 +1581,8 @@ function InvitationBuilderPageContent() {
                   ) : musicType ===
                     "custom" ? (
                     <div className="mt-1 truncate text-[10px] font-semibold text-green-700">
-                      ✓ {musicName}
+                      ✓{" "}
+                      {musicName}
                     </div>
                   ) : (
                     <div className="mt-1 text-[10px] text-black/30">
@@ -1526,19 +1614,26 @@ function InvitationBuilderPageContent() {
               </div>
 
               <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
-                Урилгаа өөрийнхөөрөө загварчлаарай
+                Урилгаа өөрийнхөөрөө
+                загварчлаарай
               </h1>
 
               <p className="mt-2 text-sm text-black/40">
-                Хүссэн дизайнаа AI Designer-д
-                бичээд шууд үүсгээрэй.
+                Хүссэн дизайнаа AI
+                Designer-д бичээд
+                шууд үүсгээрэй.
               </p>
             </div>
 
             <AppearanceControls
-  appearance={appearance}
-  backgroundImage={backgroundImage ?? undefined}
-/>
+              appearance={
+                appearance
+              }
+              backgroundImage={
+                backgroundImage ??
+                undefined
+              }
+            />
 
             {/* =================================================
                 MUSIC
@@ -1556,9 +1651,10 @@ function InvitationBuilderPageContent() {
                   </div>
 
                   <div className="mt-1 text-xs leading-5 text-black/40">
-                    Details хэсгээс нэмсэн таны
-                    сонгосон дуу энд автоматаар
-                    орно.
+                    Details хэсгээс
+                    нэмсэн таны
+                    сонгосон дуу энд
+                    автоматаар орно.
                   </div>
 
                   {loadingMusic ? (
@@ -1598,8 +1694,10 @@ function InvitationBuilderPageContent() {
                       />
 
                       <div className="mt-3 text-[10px] leading-5 text-black/35">
-                        Энэ дуу урилга нийтлэгдсэний
-                        дараа public урилган дээр
+                        Энэ дуу урилга
+                        нийтлэгдсэний
+                        дараа public
+                        урилган дээр
                         тоглогдоно.
                       </div>
                     </div>
@@ -1610,12 +1708,14 @@ function InvitationBuilderPageContent() {
                       </div>
 
                       <div className="mt-2 text-xs font-semibold text-black/55">
-                        Дуу сонгогдоогүй байна
+                        Дуу сонгогдоогүй
+                        байна
                       </div>
 
                       <div className="mt-1 text-[10px] text-black/35">
-                        Details хэсэг рүү буцаж өөрийн
-                        MP3 дуугаа нэмнэ үү.
+                        Details хэсэг рүү
+                        буцаж өөрийн MP3
+                        дуугаа нэмнэ үү.
                       </div>
                     </div>
                   )}
@@ -1639,8 +1739,9 @@ function InvitationBuilderPageContent() {
                   </div>
 
                   <div className="mt-1 text-xs leading-5 text-black/40">
-                    Хүссэн урилгынхаа дизайн,
-                    өнгө болон мэдрэмжийг
+                    Хүссэн урилгынхаа
+                    дизайн, өнгө болон
+                    мэдрэмжийг
                     тайлбарлаарай.
                   </div>
 
@@ -1669,8 +1770,10 @@ function InvitationBuilderPageContent() {
                         </span>
                       ) : (
                         <span className="text-black/30">
-                          Жишээ: luxury, minimal,
-                          garden, black & gold...
+                          Жишээ: luxury,
+                          minimal,
+                          garden, black &
+                          gold...
                         </span>
                       )}
                     </div>
@@ -1697,13 +1800,15 @@ function InvitationBuilderPageContent() {
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <div className="text-[9px] uppercase tracking-[0.16em] text-black/35">
-                            Gemini AI Designer
+                            Gemini AI
+                            Designer
                           </div>
 
                           <div className="mt-1 text-xs font-semibold">
-                            {currentStyle.name}
+                            {
+                              currentStyle.name
+                            }
                           </div>
-
                         </div>
 
                         <div
@@ -1732,7 +1837,8 @@ function InvitationBuilderPageContent() {
                   </div>
 
                   <div className="mt-1 text-xs text-black/40">
-                    Хүссэн загвараа хайж сонгоно уу.
+                    Хүссэн загвараа хайж
+                    сонгоно уу.
                   </div>
                 </div>
 
@@ -1761,7 +1867,9 @@ function InvitationBuilderPageContent() {
                         : "text-black/60"
                     }
                   >
-                    {currentStyle.name}
+                    {
+                      currentStyle.name
+                    }
                   </span>
                 </div>
               </div>
@@ -1809,7 +1917,8 @@ function InvitationBuilderPageContent() {
                       </div>
 
                       <div className="mt-1 text-[10px] text-black/35">
-                        Өөр keyword хайж үзээрэй.
+                        Өөр keyword хайж
+                        үзээрэй.
                       </div>
                     </div>
                   ) : (
@@ -1825,6 +1934,7 @@ function InvitationBuilderPageContent() {
                               setSelectedStyle(
                                 style.id
                               );
+
                               setAiMessage(
                                 `${style.name} загвар сонгогдлоо`
                               );
@@ -1884,12 +1994,14 @@ function InvitationBuilderPageContent() {
               ) : (
                 <div className="mt-4 rounded-2xl border border-dashed border-black/10 bg-[#F8F5F0] p-5 text-center">
                   <div className="text-xs font-semibold text-black/60">
-                    Загвар хайж сонгоно уу
+                    Загвар хайж
+                    сонгоно уу
                   </div>
 
                   <div className="mt-1 text-[10px] text-black/35">
-                    Жишээ: Luxury, Minimal,
-                    Garden, Gold, Vintage...
+                    Жишээ: Luxury,
+                    Minimal, Garden,
+                    Gold, Vintage...
                   </div>
                 </div>
               )}
@@ -1903,12 +2015,14 @@ function InvitationBuilderPageContent() {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-sm font-semibold">
-                    {sections.find(
-                      (section) =>
-                        section.id ===
-                        activeSection
-                    )?.name ??
-                      "Cover"}
+                    {
+                      sections.find(
+                        (section) =>
+                          section.id ===
+                          activeSection
+                      )?.name ??
+                        "Cover"
+                    }
                   </div>
 
                   <div className="mt-1 text-xs text-black/40">
@@ -1971,7 +2085,8 @@ function InvitationBuilderPageContent() {
                         </div>
 
                         <div className="mt-1 text-sm font-semibold">
-                          {time || "Цаг"}
+                          {time ||
+                            "Цаг"}
                         </div>
                       </div>
 
@@ -2009,7 +2124,8 @@ function InvitationBuilderPageContent() {
 
                     {loadingImages ? (
                       <div className="mt-4 rounded-2xl bg-white p-8 text-center text-xs text-black/35">
-                        Зургийг ачаалж байна...
+                        Зургийг ачаалж
+                        байна...
                       </div>
                     ) : photos.length ===
                       0 ? (
@@ -2030,7 +2146,8 @@ function InvitationBuilderPageContent() {
                           }
                           className="mt-4 rounded-full bg-black px-4 py-2 text-xs font-semibold text-white"
                         >
-                          Demo зураг нэмэх
+                          Demo зураг
+                          нэмэх
                         </button>
                       </div>
                     ) : (
@@ -2041,15 +2158,30 @@ function InvitationBuilderPageContent() {
                               key={
                                 photo.id
                               }
-                              className="aspect-square overflow-hidden rounded-2xl bg-white"
+                              className="overflow-hidden rounded-2xl bg-white"
                             >
-                              <img
-                                src={
-                                  photo.url
-                                }
-                                alt=""
-                                className="h-full w-full object-cover"
-                              />
+                              <div className="aspect-square overflow-hidden">
+                                <img
+                                  src={
+                                    photo.url
+                                  }
+                                  alt={
+                                    photo.caption ||
+                                    "Gallery"
+                                  }
+                                  className="h-full w-full object-cover"
+                                />
+                              </div>
+
+                              {photo.caption.trim() && (
+                                <div className="px-3 pb-3 pt-2.5 text-center">
+                                  <p className="text-[10px] leading-4 text-black/55">
+                                    {
+                                      photo.caption
+                                    }
+                                  </p>
+                                </div>
+                              )}
                             </div>
                           )
                         )}
@@ -2118,25 +2250,29 @@ function InvitationBuilderPageContent() {
             {/* MOBILE SECTIONS */}
 
             <div className="mt-6 flex gap-2 overflow-x-auto pb-2 lg:hidden">
-              {sections.map((section) => (
-                <button
-                  key={section.id}
-                  type="button"
-                  onClick={() =>
-                    setActiveSection(
+              {sections.map(
+                (section) => (
+                  <button
+                    key={
                       section.id
-                    )
-                  }
-                  className={`shrink-0 rounded-full px-4 py-2.5 text-xs font-semibold ${
-                    activeSection ===
-                    section.id
-                      ? "bg-black text-white"
-                      : "bg-white text-black/60"
-                  }`}
-                >
-                  {section.name}
-                </button>
-              ))}
+                    }
+                    type="button"
+                    onClick={() =>
+                      setActiveSection(
+                        section.id
+                      )
+                    }
+                    className={`shrink-0 rounded-full px-4 py-2.5 text-xs font-semibold ${
+                      activeSection ===
+                      section.id
+                        ? "bg-black text-white"
+                        : "bg-white text-black/60"
+                    }`}
+                  >
+                    {section.name}
+                  </button>
+                )
+              )}
             </div>
           </div>
         </section>
@@ -2170,14 +2306,19 @@ function InvitationBuilderPageContent() {
                 </div>
 
                 <div className="mt-1 text-xs font-semibold">
-                  {currentStyle.name}
+                  {
+                    currentStyle.name
+                  }
                 </div>
 
                 <div className="mt-1 text-[10px] text-black/45">
                   Нээх хэлбэр:{" "}
                   {OPEN_STYLES.find(
-                    (style) => style.id === appearance.open
-                  )?.label ?? appearance.open}
+                    (style) =>
+                      style.id ===
+                      appearance.open
+                  )?.label ??
+                    appearance.open}
                 </div>
               </div>
 
@@ -2194,12 +2335,15 @@ function InvitationBuilderPageContent() {
               <div
                 className="relative aspect-[9/18] overflow-hidden rounded-[30px] bg-[#EEE6DA]"
                 style={{
-                  backgroundColor: livePreviewPattern.backgroundColor,
+                  backgroundColor:
+                    livePreviewPattern.backgroundColor,
                 }}
               >
                 {backgroundImage && (
                   <img
-                    src={backgroundImage}
+                    src={
+                      backgroundImage
+                    }
                     alt=""
                     className="absolute inset-0 h-full w-full object-cover"
                   />
@@ -2216,8 +2360,10 @@ function InvitationBuilderPageContent() {
                 <div
                   className="pointer-events-none absolute inset-0 opacity-40"
                   style={{
-                    backgroundImage: livePreviewPattern.backgroundImage,
-                    backgroundSize: livePreviewPattern.backgroundSize,
+                    backgroundImage:
+                      livePreviewPattern.backgroundImage,
+                    backgroundSize:
+                      livePreviewPattern.backgroundSize,
                   }}
                 />
 
@@ -2231,7 +2377,8 @@ function InvitationBuilderPageContent() {
 
                 <div
                   className={`relative z-10 flex h-full flex-col items-center justify-between px-6 py-10 text-center ${
-                    appearance.tone === "dark"
+                    appearance.tone ===
+                    "dark"
                       ? "text-white"
                       : "text-[#24211E]"
                   }`}
@@ -2239,7 +2386,8 @@ function InvitationBuilderPageContent() {
                   <div>
                     <div
                       className={`text-[8px] font-medium uppercase tracking-[0.35em] ${
-                        appearance.tone === "dark"
+                        appearance.tone ===
+                        "dark"
                           ? "text-white/75"
                           : "text-black/55"
                       }`}
@@ -2257,7 +2405,8 @@ function InvitationBuilderPageContent() {
 
                     <div
                       className={`mt-3 text-[9px] tracking-[0.2em] ${
-                        appearance.tone === "dark"
+                        appearance.tone ===
+                        "dark"
                           ? "text-white/75"
                           : "text-black/55"
                       }`}
@@ -2272,36 +2421,47 @@ function InvitationBuilderPageContent() {
                   </div>
 
                   {!backgroundImage && (
-  <FrameBox
-    frame={appearance.frame}
-    accent={appearance.accent}
-    className="h-24 w-24 shrink-0 shadow-xl"
-  >
-    <div
-      className="flex h-full w-full items-center justify-center overflow-hidden backdrop-blur-sm"
-      style={{
-        backgroundColor: `${appearance.accent}33`,
-      }}
-    >
-      {photos[0] ? (
-        <img
-          src={photos[0].url}
-          alt=""
-          className="h-full w-full object-cover"
-        />
-      ) : (
-        <span className="text-3xl">
-          💍
-        </span>
-      )}
-    </div>
-  </FrameBox>
-)}
+                    <FrameBox
+                      frame={
+                        appearance.frame
+                      }
+                      accent={
+                        appearance.accent
+                      }
+                      className="h-24 w-24 shrink-0 shadow-xl"
+                    >
+                      <div
+                        className="flex h-full w-full items-center justify-center overflow-hidden backdrop-blur-sm"
+                        style={{
+                          backgroundColor: `${appearance.accent}33`,
+                        }}
+                      >
+                        {photos[0] ? (
+                          <img
+                            src={
+                              photos[0].url
+                            }
+                            alt={
+                              photos[0]
+                                .caption ||
+                              ""
+                            }
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-3xl">
+                            💍
+                          </span>
+                        )}
+                      </div>
+                    </FrameBox>
+                  )}
 
                   <div className="max-w-[230px]">
                     <p
                       className={`text-[10px] leading-5 ${
-                        appearance.tone === "dark"
+                        appearance.tone ===
+                        "dark"
                           ? "text-white/85"
                           : "text-black/65"
                       }`}
@@ -2318,7 +2478,8 @@ function InvitationBuilderPageContent() {
 
                     <div
                       className={`mt-1 text-[8px] ${
-                        appearance.tone === "dark"
+                        appearance.tone ===
+                        "dark"
                           ? "text-white/60"
                           : "text-black/45"
                       }`}
@@ -2342,7 +2503,10 @@ function InvitationBuilderPageContent() {
                               src={
                                 photo.url
                               }
-                              alt=""
+                              alt={
+                                photo.caption ||
+                                ""
+                              }
                               className="h-7 w-7 rounded-full border border-white/50 object-cover"
                             />
                           )
@@ -2352,8 +2516,12 @@ function InvitationBuilderPageContent() {
                 </div>
 
                 <FxOverlay
-                  animation={appearance.animation}
-                  accent={appearance.accent}
+                  animation={
+                    appearance.animation
+                  }
+                  accent={
+                    appearance.accent
+                  }
                   className="absolute"
                 />
               </div>
