@@ -16,6 +16,9 @@ const eventTypes = [
   { icon: "🎉", mn: "Бусад арга хэмжээ", en: "Other Events", type: "other" },
 ];
 
+const demoInvitationUrl =
+  "/u/%D1%85%D0%B0%D0%BD%D0%B3%D0%B0%D0%B9-%D1%81%D0%B0%D1%80%D0%BD%D0%B0%D0%B9-c1ogp7";
+
 export default function Home() {
   const router = useRouter();
 
@@ -298,13 +301,17 @@ export default function Home() {
             <div className="pointer-events-none absolute -right-14 top-8 h-44 w-44 rounded-full bg-[#C8AD8D]/30 blur-[70px]" />
             <div className="pointer-events-none absolute -bottom-14 -left-14 h-44 w-44 rounded-full bg-[#B9C4B5]/30 blur-[70px]" />
 
-            <div className="relative rotate-[2deg] transition duration-700 hover:rotate-0">
+            <a
+              href={demoInvitationUrl}
+              aria-label="Хангай & Сарнай жишээ урилгыг үзэх"
+              className="group relative block rotate-[2deg] transition duration-700 hover:rotate-0"
+            >
 
               {/* Back card */}
               <div className="absolute -right-4 top-6 h-full w-full rotate-[5deg] rounded-[30px] border border-black/5 bg-[#E5DDD2] shadow-xl" />
 
               {/* Main card */}
-              <div className="relative rounded-[30px] border border-white/70 bg-white/80 p-2.5 shadow-[0_25px_60px_rgba(50,40,30,0.14)] backdrop-blur-sm">
+              <div className="relative rounded-[30px] border border-white/70 bg-white/80 p-2.5 shadow-[0_25px_60px_rgba(50,40,30,0.14)] backdrop-blur-sm transition duration-500 group-hover:-translate-y-1 group-hover:shadow-[0_30px_75px_rgba(50,40,30,0.20)]">
                 <div className="overflow-hidden rounded-[24px] bg-[#E9E0D4]">
                   <div className="relative flex min-h-[390px] flex-col items-center justify-between overflow-hidden px-6 py-6 text-center">
 
@@ -320,11 +327,11 @@ export default function Home() {
 
                     <div className="relative">
                       <div className="font-serif text-[2.35rem] font-normal italic leading-none tracking-[-0.04em] text-black/80">
-                        Bat & Nomin
+                        Хангай & Сарнай
                       </div>
 
                       <div className="mt-4 text-[8px] font-medium tracking-[0.35em] text-black/40">
-                        JUNE 20 · 2027
+                        WEDDING INVITATION
                       </div>
                     </div>
 
@@ -336,12 +343,18 @@ export default function Home() {
 
                     <div className="relative">
                       <div className="text-[9px] font-medium tracking-wide">
-                        Уригч Бат & Номин
+                        Хангай & Сарнай
                       </div>
 
                       <div className="mt-1.5 text-[7px] uppercase tracking-[0.2em] text-black/40">
-                        Ulaanbaatar · Mongolia
+                        Жишээ урилга
                       </div>
+                    </div>
+
+                    <div className="relative mt-2 rounded-full bg-[#171513] px-5 py-2.5 text-[9px] font-semibold text-white shadow-lg transition duration-300 group-hover:bg-black">
+                      {isMN
+                        ? "✨ Жишээ урилгыг үзэх →"
+                        : "✨ View example invitation →"}
                     </div>
                   </div>
                 </div>
@@ -350,14 +363,14 @@ export default function Home() {
               {/* Floating label */}
               <div className="absolute -bottom-3 -left-4 rounded-2xl border border-black/10 bg-white/90 px-3 py-2 shadow-[0_12px_30px_rgba(0,0,0,0.11)] backdrop-blur-md">
                 <div className="text-[6px] font-medium uppercase tracking-[0.2em] text-black/35">
-                  Crafted with
+                  {isMN ? "Бодит урилгын жишээ" : "Real invitation example"}
                 </div>
 
                 <div className="mt-1 text-[9px] font-semibold tracking-[0.22em]">
                   URILGA
                 </div>
               </div>
-            </div>
+            </a>
           </div>
         </div>
 
@@ -527,13 +540,13 @@ export default function Home() {
                       </div>
 
                       <div className="mt-5 font-serif text-4xl italic tracking-[-0.03em]">
-                        Bat & Nomin
+                        Хангай & Сарнай
                       </div>
 
                       <div className="mx-auto mt-5 h-px w-10 bg-black/15" />
 
                       <div className="mt-5 text-[9px] font-medium tracking-[0.28em] text-black/35">
-                        20 JUNE 2027
+                        WEDDING INVITATION
                       </div>
                     </div>
                   </div>
