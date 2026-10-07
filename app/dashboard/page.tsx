@@ -5,24 +5,19 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import BrandLogo from "@/components/BrandLogo";
 
-type InvitationDraft = {
-  eventType: string;
-  template: string;
-  title: string;
-  names: string;
-  date: string;
-  time: string;
-  venue: string;
-  address: string;
-  message: string;
-  phone: string;
-  selectedStyle: string;
-  aiPrompt: string;
-  activeSection: string;
-  backgroundId: string | null;
-  galleryIds: string[];
-  galleryUrls: string[];
-  savedAt: string;
+type Invitation = {
+  id: string;
+  event_type: string | null;
+  title: string | null;
+  names: string | null;
+  event_date: string | null;
+  event_time: string | null;
+  venue: string | null;
+  address: string | null;
+  status: string | null;
+  public_slug: string | null;
+  created_at: string;
+  updated_at: string | null;
 };
 
 const eventNames: Record<string, string> = {
@@ -42,17 +37,42 @@ function hasActiveMembership(expiresAt: string | null | undefined) {
   return Boolean(expiresAt && new Date(expiresAt).getTime() > Date.now());
 }
 
+function getEventIcon(eventType: string | null) {
+  switch (eventType) {
+    case "wedding":
+      return "💍";
+    case "birthday":
+      return "🎂";
+    case "baby":
+      return "👶";
+    case "graduation":
+      return "🎓";
+    case "engagement":
+      return "💎";
+    case "anniversary":
+      return "🥂";
+    case "housewarming":
+      return "🏠";
+    default:
+      return "💌";
+  }
+}
+
 export default function DashboardPage() {
   const router = useRouter();
 
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(true);
-  const [draft, setDraft] = useState<InvitationDraft | null>(null);
-  const [draftLoading, setDraftLoading] = useState(true);
+
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [invitationsLoading, setInvitationsLoading] = useState(true);
+
   const [membershipExpiresAt, setMembershipExpiresAt] =
     useState<string | null>(null);
   const [membershipActive, setMembershipActive] = useState(false);
   const [membershipError, setMembershipError] = useState("");
+
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadUser() {
@@ -75,11 +95,14 @@ export default function DashboardPage() {
           .maybeSingle();
 
         if (error) throw error;
+
         const expiresAt = membership?.expires_at ?? null;
+
         setMembershipExpiresAt(expiresAt);
         setMembershipActive(hasActiveMembership(expiresAt));
       } catch (error) {
         console.error("DASHBOARD MEMBERSHIP LOAD ERROR:", error);
+
         setMembershipError(
           error instanceof Error
             ? error.message
@@ -87,28 +110,37 @@ export default function DashboardPage() {
         );
       }
 
-      // Хадгалсан урилгаа browser-оос унших
-      try {
-        const savedDraft = sessionStorage.getItem("invitation-draft");
-
-        if (savedDraft) {
-          const parsedDraft = JSON.parse(savedDraft) as InvitationDraft;
-
-          if (parsedDraft && typeof parsedDraft === "object") {
-            setDraft(parsedDraft);
-          }
-        }
-      } catch (error) {
-        console.error("INVITATION DRAFT LOAD ERROR:", error);
-      } finally {
-        setDraftLoading(false);
-      }
+      await loadInvitations(user.id);
 
       setLoading(false);
     }
 
     loadUser();
   }, [router]);
+
+  async function loadInvitations(userId: string) {
+    setInvitationsLoading(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("invitations")
+        .select(
+          "id, event_type, title, names, event_date, event_time, venue, address, status, public_slug, created_at, updated_at"
+        )
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("INVITATIONS LOAD ERROR:", error);
+        setInvitations([]);
+        return;
+      }
+
+      setInvitations((data ?? []) as Invitation[]);
+    } finally {
+      setInvitationsLoading(false);
+    }
+  }
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -126,27 +158,120 @@ export default function DashboardPage() {
     router.push("/dashboard/invitations/new");
   }
 
-  function handlePreview() {
-    if (!draft) return;
+  function handlePreview(invitation: Invitation) {
+    if (invitation.public_slug) {
+      router.push(`/u/${invitation.public_slug}`);
+      return;
+    }
 
-    router.push(
-      `/dashboard/invitations/new/preview?event=${encodeURIComponent(
-        draft.eventType
-      )}&template=${encodeURIComponent(draft.template)}`
-    );
+    router.push("/dashboard/invitations/new/preview");
   }
 
-  function handleEdit() {
-    if (!draft) return;
-
+  function handleEdit(invitation: Invitation) {
     router.push(
       `/dashboard/invitations/new/builder?event=${encodeURIComponent(
-        draft.eventType
-      )}&template=${encodeURIComponent(draft.template)}`
+        invitation.event_type ?? "wedding"
+      )}`
     );
   }
 
-  function formatSavedDate(value: string) {
+  async function handleDeleteInvitation(invitation: Invitation) {
+    const invitationName =
+      invitation.title ||
+      invitation.names ||
+      eventNames[invitation.event_type ?? ""] ||
+      "энэ урилга";
+
+    const confirmed = window.confirm(
+      `“${invitationName}” урилгыг устгах уу?\n\nЭнэ урилгатай холбоотой бүх зочдын хариу мөн устах болно.`
+    );
+
+    if (!confirmed) return;
+
+    setDeletingId(invitation.id);
+
+    try {
+      /*
+       * Эхлээд тухайн invitation-ийн бүх RSVP-г устгана.
+       * Дараа нь invitation өөрийг нь устгана.
+       */
+      const { error: rsvpDeleteError } = await supabase
+        .from("invitation_rsvps")
+        .delete()
+        .eq("invitation_id", invitation.id);
+
+      if (rsvpDeleteError) {
+        console.error("RSVP DELETE ERROR:", rsvpDeleteError);
+
+        alert(
+          "Зочдын хариуг устгаж чадсангүй. Урилгыг устгаагүй тул дахин оролдоно уу."
+        );
+
+        return;
+      }
+
+      const { error: invitationDeleteError } = await supabase
+        .from("invitations")
+        .delete()
+        .eq("id", invitation.id);
+
+      if (invitationDeleteError) {
+        console.error("INVITATION DELETE ERROR:", invitationDeleteError);
+
+        alert(
+          "Урилгыг устгаж чадсангүй. Дахин оролдоно уу."
+        );
+
+        return;
+      }
+
+      setInvitations((current) =>
+        current.filter((item) => item.id !== invitation.id)
+      );
+
+      /*
+       * Хэрэв хуучин browser sessionStorage-д энэ урилга
+       * хадгалагдсан байсан бол мөн цэвэрлэнэ.
+       */
+      try {
+        const savedDraftRaw = sessionStorage.getItem("invitation-draft");
+
+        if (savedDraftRaw) {
+          sessionStorage.removeItem("invitation-draft");
+          sessionStorage.removeItem("invitation-images");
+          sessionStorage.removeItem("invitation-extras");
+          sessionStorage.removeItem("invitation-music");
+          sessionStorage.removeItem("invitation-cover-video");
+        }
+      } catch (storageError) {
+        console.error("SESSION STORAGE CLEANUP ERROR:", storageError);
+      }
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  function formatDate(value: string | null) {
+    if (!value) return "";
+
+    try {
+      const date = new Date(value);
+
+      if (Number.isNaN(date.getTime())) {
+        return value;
+      }
+
+      return date.toLocaleDateString("mn-MN", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    } catch {
+      return value;
+    }
+  }
+
+  function formatCreatedDate(value: string) {
     if (!value) return "";
 
     try {
@@ -202,14 +327,18 @@ export default function DashboardPage() {
           <div className="mt-6 rounded-2xl bg-[#F8F5F0] p-4">
             <p className="text-sm font-semibold">
               {membershipActive
-                ? `Сарын эрх ${new Date(membershipExpiresAt ?? "").toLocaleDateString("mn-MN")} хүртэл идэвхтэй`
+                ? `Сарын эрх ${new Date(
+                    membershipExpiresAt ?? ""
+                  ).toLocaleDateString("mn-MN")} хүртэл идэвхтэй`
                 : "Урилга нийтлэхэд ₮19,900 сарын эрх шаардлагатай"}
             </p>
+
             {membershipError && (
               <p role="alert" className="mt-2 text-xs text-red-700">
                 Эрхийн төлөв уншигдсангүй: {membershipError}
               </p>
             )}
+
             <button
               type="button"
               onClick={() => router.push("/dashboard/billing")}
@@ -223,7 +352,9 @@ export default function DashboardPage() {
             onClick={handleCreateInvitation}
             className="mt-8 rounded-full bg-black px-7 py-4 text-sm font-semibold text-white transition hover:bg-black/85"
           >
-            {membershipActive ? "+ Шинэ урилга үүсгэх" : "Сарын эрхээ идэвхжүүлэх"}
+            {membershipActive
+              ? "+ Шинэ урилга үүсгэх"
+              : "Сарын эрхээ идэвхжүүлэх"}
           </button>
 
           <button
@@ -251,11 +382,11 @@ export default function DashboardPage() {
               <h2 className="text-3xl font-medium">Миний урилгууд</h2>
 
               <p className="mt-2 text-sm text-black/45">
-                Таны хадгалсан урилгууд энд харагдана.
+                Таны үүсгэсэн урилгууд энд харагдана.
               </p>
             </div>
 
-            {draft && (
+            {invitations.length > 0 && (
               <button
                 onClick={handleCreateInvitation}
                 className="hidden rounded-full border border-black/10 bg-white px-5 py-2.5 text-sm font-medium transition hover:bg-black hover:text-white sm:block"
@@ -265,113 +396,149 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {draftLoading ? (
+          {invitationsLoading ? (
             <div className="rounded-[28px] bg-white p-10 text-center shadow-sm">
               <p className="text-sm text-black/40">
                 Урилгуудыг уншиж байна...
               </p>
             </div>
-          ) : draft ? (
-            <div className="overflow-hidden rounded-[28px] bg-white shadow-sm">
-              <div className="p-6 sm:p-8">
-                <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-[#F8F5F0] px-3 py-1.5 text-xs font-medium text-black/60">
-                        {eventNames[draft.eventType] ?? "Урилга"}
-                      </span>
+          ) : invitations.length > 0 ? (
+            <div className="space-y-5">
+              {invitations.map((invitation) => {
+                const eventLabel =
+                  eventNames[invitation.event_type ?? ""] ?? "Урилга";
 
-                      <span className="rounded-full bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700">
-                        Хадгалсан
-                      </span>
-                    </div>
+                const title =
+                  invitation.title ||
+                  invitation.names ||
+                  "Шинэ дижитал урилга";
 
-                    <h3 className="mt-5 text-2xl font-semibold">
-                      {draft.title ||
-                        draft.names ||
-                        "Шинэ дижитал урилга"}
-                    </h3>
+                const isDeleting = deletingId === invitation.id;
 
-                    {draft.names && draft.title !== draft.names && (
-                      <p className="mt-2 text-black/55">{draft.names}</p>
-                    )}
+                return (
+                  <div
+                    key={invitation.id}
+                    className="overflow-hidden rounded-[28px] bg-white shadow-sm"
+                  >
+                    <div className="p-6 sm:p-8">
+                      <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full bg-[#F8F5F0] px-3 py-1.5 text-xs font-medium text-black/60">
+                              {eventLabel}
+                            </span>
 
-                    <div className="mt-5 grid gap-3 text-sm text-black/55 sm:grid-cols-2">
-                      {draft.date && (
-                        <div className="rounded-2xl bg-[#F8F5F0] px-4 py-3">
-                          <div className="text-xs text-black/35">Огноо</div>
-                          <div className="mt-1 font-medium text-black/70">
-                            {draft.date}
+                            <span
+                              className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+                                invitation.status === "published"
+                                  ? "bg-green-50 text-green-700"
+                                  : "bg-yellow-50 text-yellow-700"
+                              }`}
+                            >
+                              {invitation.status === "published"
+                                ? "Нийтэлсэн"
+                                : "Хадгалсан"}
+                            </span>
+                          </div>
+
+                          <h3 className="mt-5 text-2xl font-semibold">
+                            {title}
+                          </h3>
+
+                          {invitation.names &&
+                            invitation.title !== invitation.names && (
+                              <p className="mt-2 text-black/55">
+                                {invitation.names}
+                              </p>
+                            )}
+
+                          <div className="mt-5 grid gap-3 text-sm text-black/55 sm:grid-cols-2">
+                            {invitation.event_date && (
+                              <div className="rounded-2xl bg-[#F8F5F0] px-4 py-3">
+                                <div className="text-xs text-black/35">
+                                  Огноо
+                                </div>
+
+                                <div className="mt-1 font-medium text-black/70">
+                                  {formatDate(invitation.event_date)}
+                                </div>
+                              </div>
+                            )}
+
+                            {invitation.event_time && (
+                              <div className="rounded-2xl bg-[#F8F5F0] px-4 py-3">
+                                <div className="text-xs text-black/35">
+                                  Цаг
+                                </div>
+
+                                <div className="mt-1 font-medium text-black/70">
+                                  {invitation.event_time}
+                                </div>
+                              </div>
+                            )}
+
+                            {invitation.venue && (
+                              <div className="rounded-2xl bg-[#F8F5F0] px-4 py-3">
+                                <div className="text-xs text-black/35">
+                                  Байршил
+                                </div>
+
+                                <div className="mt-1 font-medium text-black/70">
+                                  {invitation.venue}
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="rounded-2xl bg-[#F8F5F0] px-4 py-3">
+                              <div className="text-xs text-black/35">
+                                Үүсгэсэн
+                              </div>
+
+                              <div className="mt-1 font-medium text-black/70">
+                                {formatCreatedDate(invitation.created_at)}
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      )}
 
-                      {draft.time && (
-                        <div className="rounded-2xl bg-[#F8F5F0] px-4 py-3">
-                          <div className="text-xs text-black/35">Цаг</div>
-                          <div className="mt-1 font-medium text-black/70">
-                            {draft.time}
-                          </div>
+                        <div className="flex items-center justify-center text-5xl sm:pl-4">
+                          {getEventIcon(invitation.event_type)}
                         </div>
-                      )}
+                      </div>
 
-                      {draft.venue && (
-                        <div className="rounded-2xl bg-[#F8F5F0] px-4 py-3">
-                          <div className="text-xs text-black/35">Байршил</div>
-                          <div className="mt-1 font-medium text-black/70">
-                            {draft.venue}
-                          </div>
-                        </div>
-                      )}
+                      <div className="mt-8 flex flex-col gap-3 border-t border-black/5 pt-6 sm:flex-row">
+                        <button
+                          onClick={() => handlePreview(invitation)}
+                          disabled={isDeleting}
+                          className="rounded-full border border-black/10 bg-white px-6 py-3 text-sm font-semibold transition hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          👁️ Урилгаа харах
+                        </button>
 
-                      {draft.savedAt && (
-                        <div className="rounded-2xl bg-[#F8F5F0] px-4 py-3">
-                          <div className="text-xs text-black/35">
-                            Сүүлд хадгалсан
-                          </div>
-                          <div className="mt-1 font-medium text-black/70">
-                            {formatSavedDate(draft.savedAt)}
-                          </div>
-                        </div>
-                      )}
+                        <button
+                          onClick={() => handleEdit(invitation)}
+                          disabled={isDeleting}
+                          className="rounded-full bg-black px-6 py-3 text-sm font-semibold text-white transition hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          ✏️ Засах
+                        </button>
+
+                        <button
+                          onClick={() =>
+                            handleDeleteInvitation(invitation)
+                          }
+                          disabled={isDeleting}
+                          className="rounded-full border border-red-200 bg-red-50 px-6 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {isDeleting
+                            ? "Устгаж байна..."
+                            : "🗑️ Устгах"}
+                        </button>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="flex gap-2 text-5xl">
-                    {draft.eventType === "wedding"
-                      ? "💍"
-                      : draft.eventType === "birthday"
-                      ? "🎂"
-                      : draft.eventType === "baby"
-                      ? "👶"
-                      : draft.eventType === "graduation"
-                      ? "🎓"
-                      : draft.eventType === "engagement"
-                      ? "💎"
-                      : draft.eventType === "anniversary"
-                      ? "🥂"
-                      : draft.eventType === "housewarming"
-                      ? "🏠"
-                      : "💌"}
-                  </div>
-                </div>
-
-                <div className="mt-8 flex flex-col gap-3 border-t border-black/5 pt-6 sm:flex-row">
-                  <button
-                    onClick={handlePreview}
-                    className="rounded-full border border-black/10 bg-white px-6 py-3 text-sm font-semibold transition hover:bg-black hover:text-white"
-                  >
-                    Урьдчилж харах
-                  </button>
-
-                  <button
-                    onClick={handleEdit}
-                    className="rounded-full bg-black px-6 py-3 text-sm font-semibold text-white transition hover:bg-black/85"
-                  >
-                    ✏️ Засах
-                  </button>
-                </div>
-              </div>
+                );
+              })}
             </div>
           ) : (
             <div className="rounded-[28px] border border-dashed border-black/10 bg-white p-10 text-center sm:p-14">
@@ -390,7 +557,9 @@ export default function DashboardPage() {
                 onClick={handleCreateInvitation}
                 className="mt-7 rounded-full bg-black px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-black/85"
               >
-                {membershipActive ? "+ Анхны урилгаа үүсгэх" : "Сарын эрх авах"}
+                {membershipActive
+                  ? "+ Анхны урилгаа үүсгэх"
+                  : "Сарын эрх авах"}
               </button>
             </div>
           )}
