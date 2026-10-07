@@ -486,14 +486,41 @@ export default function PublicInvitationPage() {
               result.gallery_captions
             );
 
-          const finalExtras =
-            mapExtras ?? result.extras ?? null;
+          /*
+           * IMPORTANT:
+           * Keep the existing extras from the invitation and
+           * merge the public design extras on top.
+           *
+           * This prevents appearance.open from disappearing.
+           */
+          const finalExtras: NonNullable<
+            PublicInvitation["extras"]
+          > = {
+            lat:
+              mapExtras?.lat ??
+              result.extras?.lat ??
+              null,
+            lng:
+              mapExtras?.lng ??
+              result.extras?.lng ??
+              null,
+            mapUrl:
+              mapExtras?.mapUrl ??
+              result.extras?.mapUrl ??
+              "",
+            appearance: {
+              ...(result.extras?.appearance ?? {}),
+              ...(mapExtras?.appearance ?? {}),
+            },
+          };
 
           setInvitation({
             ...result,
 
             background_url:
-              backgroundUrl,
+              backgroundUrl ??
+              result.background_url ??
+              null,
 
             gallery_urls:
               publishedGalleryUrls.length > 0
@@ -512,12 +539,6 @@ export default function PublicInvitationPage() {
            * ------------------------------------------------------
            * OPENING SCREEN
            * ------------------------------------------------------
-           *
-           * Every published invitation starts with the opening
-           * screen. The selected opening style comes from:
-           *
-           * extras.appearance.open
-           *
            */
 
           setOpeningStarted(false);
@@ -865,19 +886,9 @@ export default function PublicInvitationPage() {
 
     setOpeningStarted(true);
 
-    /*
-     * Small delay makes the click feel natural before
-     * the selected animation begins.
-     */
     await new Promise((resolve) =>
       window.setTimeout(resolve, 120)
     );
-
-    /*
-     * ----------------------------------------------------------
-     * ANIMATION DURATIONS
-     * ----------------------------------------------------------
-     */
 
     const duration =
       openingStyle === "envelope" ||
@@ -903,9 +914,6 @@ export default function PublicInvitationPage() {
 
     setOpeningFinished(true);
 
-    /*
-     * Reset scroll position before auto-scroll starts.
-     */
     window.scrollTo({
       top: 0,
       behavior: "auto",
@@ -1972,19 +1980,15 @@ export default function PublicInvitationPage() {
       data-invitation
       className={`relative min-h-screen overflow-x-hidden ${style.page}`}
     >
-      {/*
-       * ========================================================
-       * OPENING SCREEN
-       * ========================================================
-       */}
+      {/* ========================================================
+          OPENING SCREEN
+          ======================================================== */}
 
       {renderOpeningScreen()}
 
-      {/*
-       * ========================================================
-       * MUSIC
-       * ========================================================
-       */}
+      {/* ========================================================
+          MUSIC
+          ======================================================== */}
 
       {musicUrl &&
         !musicIsVideo && (
@@ -1996,11 +2000,9 @@ export default function PublicInvitationPage() {
           />
         )}
 
-      {/*
-       * ========================================================
-       * COVER VIDEO
-       * ========================================================
-       */}
+      {/* ========================================================
+          COVER VIDEO
+          ======================================================== */}
 
       {videoUrl &&
         !videoDone && (
@@ -2043,11 +2045,13 @@ export default function PublicInvitationPage() {
           </section>
         )}
 
-      {/*
-       * ========================================================
-       * PAGE-WIDE BACKGROUND
-       * ========================================================
-       */}
+      {/* ========================================================
+          ONE PAGE-WIDE BACKGROUND IMAGE
+
+          The selected background image is used as ONE image
+          behind the complete invitation:
+          Cover → Message → Calendar → Gallery → Map → RSVP → Footer
+          ======================================================== */}
 
       {invitation.background_url &&
         showInvitation && (
@@ -2058,15 +2062,19 @@ export default function PublicInvitationPage() {
               className="h-full w-full object-cover"
             />
 
-            <div className="absolute inset-0 bg-black/25" />
+            {/* Slight dark layer so text remains readable */}
+            <div className="absolute inset-0 bg-black/20" />
+
+            {/* Soft bottom-to-top readability gradient */}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/20" />
           </div>
         )}
 
-      {/*
-       * ========================================================
-       * GALLERY SLIDESHOW FALLBACK BACKGROUND
-       * ========================================================
-       */}
+      {/* ========================================================
+          GALLERY SLIDESHOW FALLBACK BACKGROUND
+
+          Only used when there is NO selected background image.
+          ======================================================== */}
 
       {!invitation.background_url &&
         galleryUrls.length > 0 &&
@@ -2102,11 +2110,9 @@ export default function PublicInvitationPage() {
           </div>
         )}
 
-      {/*
-       * ========================================================
-       * DEFAULT BACKGROUND
-       * ========================================================
-       */}
+      {/* ========================================================
+          DEFAULT BACKGROUND
+          ======================================================== */}
 
       {!hasAnyBackground &&
         showInvitation && (
@@ -2121,11 +2127,9 @@ export default function PublicInvitationPage() {
           </div>
         )}
 
-      {/*
-       * ========================================================
-       * MUSIC BUTTON
-       * ========================================================
-       */}
+      {/* ========================================================
+          MUSIC BUTTON
+          ======================================================== */}
 
       {musicUrl &&
         !musicError &&
@@ -2160,25 +2164,33 @@ export default function PublicInvitationPage() {
           </div>
         )}
 
-      {/*
-       * ========================================================
-       * MAIN INVITATION
-       * ========================================================
-      */}
+      {/* ========================================================
+          MAIN INVITATION
+          ======================================================== */}
 
       {showInvitation && (
         <div className="relative z-10 px-4 py-6 sm:px-6 sm:py-10">
           <div className="mx-auto max-w-2xl">
-            <article
-              className={`overflow-hidden rounded-[32px] border ${style.border} ${style.card} shadow-2xl backdrop-blur-sm`}
-            >
-              {/*
-               * =================================================
-               * COVER
-               * =================================================
-               */}
 
-              <section className="relative min-h-[620px] overflow-hidden px-6 pb-16 pt-16 text-center sm:px-12 sm:pt-24">
+            {/* ==================================================
+                MAIN CARD
+
+                IMPORTANT:
+                This is now semi-transparent so the selected
+                background image remains visible behind ALL
+                invitation sections.
+                ================================================== */}
+
+            <article
+              className={`overflow-hidden rounded-[32px] border ${style.border} bg-white/55 shadow-2xl backdrop-blur-[3px]`}
+            >
+
+              {/* =================================================
+                  COVER
+                  ================================================= */}
+
+              <section className="relative min-h-[620px] overflow-hidden bg-white/20 px-6 pb-16 pt-16 text-center sm:px-12 sm:pt-24">
+
                 <div
                   className="mx-auto mb-8 h-px w-16"
                   style={{
@@ -2199,7 +2211,7 @@ export default function PublicInvitationPage() {
                 )}
 
                 {invitation.names && (
-                  <h1 className="whitespace-pre-line text-4xl font-semibold leading-tight tracking-tight sm:text-6xl">
+                  <h1 className="whitespace-pre-line text-4xl font-semibold leading-tight tracking-tight drop-shadow-sm sm:text-6xl">
                     {invitation.names}
                   </h1>
                 )}
@@ -2222,7 +2234,7 @@ export default function PublicInvitationPage() {
                     )}
 
                     {invitation.event_time && (
-                      <p className="text-sm opacity-70">
+                      <p className="text-sm opacity-75">
                         {invitation.event_time}
                       </p>
                     )}
@@ -2239,8 +2251,8 @@ export default function PublicInvitationPage() {
                           className={`h-1.5 rounded-full transition-all duration-500 ${
                             index ===
                             currentSlide
-                              ? "w-7 bg-white"
-                              : "w-1.5 bg-white/40"
+                              ? "w-7 bg-white shadow"
+                              : "w-1.5 bg-white/60"
                           }`}
                         />
                       )
@@ -2250,30 +2262,22 @@ export default function PublicInvitationPage() {
 
                 {galleryUrls.length >
                   0 && (
-                  <div className="absolute bottom-7 right-6 text-xs text-white/70">
+                  <div className="absolute bottom-7 right-6 rounded-full bg-black/25 px-2.5 py-1 text-xs text-white/80 backdrop-blur-sm">
                     {currentSlide + 1} /{" "}
                     {galleryUrls.length}
                   </div>
                 )}
               </section>
 
-              {/*
-               * =================================================
-               * EVENT
-               * =================================================
-               */}
+              {/* =================================================
+                  EVENT
+                  ================================================= */}
 
               {(invitation.venue ||
                 invitation.address ||
                 invitation.event_date ||
                 invitation.event_time) && (
-                <section
-                  className="px-6 py-10 sm:px-12"
-                  style={{
-                    backgroundColor:
-                      style.accentSoft,
-                  }}
-                >
+                <section className="bg-white/65 px-6 py-10 backdrop-blur-[2px] sm:px-12">
                   <div className="text-center">
                     {invitation.venue && (
                       <h2 className="text-2xl font-semibold">
@@ -2291,14 +2295,14 @@ export default function PublicInvitationPage() {
                       invitation.event_time) && (
                       <div className="mt-7 flex flex-wrap justify-center gap-3">
                         {invitation.event_date && (
-                          <div className="rounded-full bg-white/80 px-5 py-2 text-sm">
+                          <div className="rounded-full bg-white/90 px-5 py-2 text-sm shadow-sm">
                             📅{" "}
                             {invitation.event_date}
                           </div>
                         )}
 
                         {invitation.event_time && (
-                          <div className="rounded-full bg-white/80 px-5 py-2 text-sm">
+                          <div className="rounded-full bg-white/90 px-5 py-2 text-sm shadow-sm">
                             🕐{" "}
                             {invitation.event_time}
                           </div>
@@ -2309,15 +2313,13 @@ export default function PublicInvitationPage() {
                 </section>
               )}
 
-              {/*
-               * =================================================
-               * MESSAGE
-               * =================================================
-               */}
+              {/* =================================================
+                  MESSAGE
+                  ================================================= */}
 
               {invitation.message && (
-                <section className="px-6 py-12 sm:px-12">
-                  <div className="mx-auto max-w-xl text-center">
+                <section className="bg-white/45 px-6 py-12 backdrop-blur-[2px] sm:px-12">
+                  <div className="mx-auto max-w-xl rounded-[28px] bg-white/65 px-6 py-8 text-center shadow-sm backdrop-blur-md sm:px-10">
                     <p
                       className="mb-5 text-sm font-semibold uppercase tracking-[0.22em]"
                       style={{
@@ -2342,47 +2344,69 @@ export default function PublicInvitationPage() {
                 </section>
               )}
 
-              {/*
-               * =================================================
-               * CALENDAR
-               * =================================================
-               */}
+              {/* =================================================
+                  CALENDAR
+
+                  Calendar stays clearly visible on top of
+                  the common background.
+                  ================================================= */}
 
               {invitation.event_date && (
-                <section className="px-6 py-12 sm:px-12">
-                  <EventCalendar
-                    date={
-                      invitation.event_date
-                    }
-                    time={
-                      invitation.event_time
-                    }
-                    title={
-                      invitation.names ||
-                      invitation.title
-                    }
-                    location={[
-                      invitation.venue,
-                      invitation.address,
-                    ]
-                      .filter(Boolean)
-                      .join(", ")}
-                    accent={style.accent}
-                    buttonClass={
-                      style.button
-                    }
-                  />
+                <section className="bg-white/45 px-6 py-12 backdrop-blur-[2px] sm:px-12">
+                  <div className="rounded-[28px] bg-white/80 p-4 shadow-sm backdrop-blur-md sm:p-6">
+                    <EventCalendar
+                      date={
+                        invitation.event_date
+                      }
+                      time={
+                        invitation.event_time
+                      }
+                      title={
+                        invitation.names ||
+                        invitation.title
+                      }
+                      location={[
+                        invitation.venue,
+                        invitation.address,
+                      ]
+                        .filter(Boolean)
+                        .join(", ")}
+                      accent={style.accent}
+                      buttonClass={
+                        style.button
+                      }
+                    />
+                  </div>
                 </section>
               )}
 
-              {/*
-               * =================================================
-               * GALLERY
-               * =================================================
-               */}
+              {/* =================================================
+                  GALLERY
+
+                  Gallery photos remain fully visible.
+                  ================================================= */}
 
               {galleryUrls.length > 0 && (
-                <section className="px-5 pb-12 sm:px-8">
+                <section className="bg-white/35 px-5 pb-12 pt-4 backdrop-blur-[1px] sm:px-8">
+                  <div className="mb-6 text-center">
+                    <p
+                      className="text-sm font-semibold uppercase tracking-[0.22em]"
+                      style={{
+                        color: style.accent,
+                      }}
+                    >
+                      Дурсамж
+                    </p>
+
+                    <div
+                      className="mx-auto mt-3 h-px w-10"
+                      style={{
+                        backgroundColor:
+                          style.accent,
+                      }}
+                    />
+                  </div>
+
                   <div className="grid grid-cols-2 gap-3">
                     {galleryUrls.map(
                       (url, index) => {
@@ -2394,8 +2418,9 @@ export default function PublicInvitationPage() {
                         return (
                           <div
                             key={`${url}-${index}`}
+                            className="rounded-2xl bg-white/80 p-1.5 shadow-lg backdrop-blur-sm"
                           >
-                            <div className="overflow-hidden rounded-2xl">
+                            <div className="overflow-hidden rounded-[14px]">
                               <img
                                 src={url}
                                 alt={
@@ -2409,7 +2434,7 @@ export default function PublicInvitationPage() {
                             </div>
 
                             {caption && (
-                              <p className="px-1 pt-2 text-center text-xs leading-5 text-black/55">
+                              <p className="px-1 pb-1 pt-2 text-center text-xs leading-5 text-black/55">
                                 {caption}
                               </p>
                             )}
@@ -2421,105 +2446,98 @@ export default function PublicInvitationPage() {
                 </section>
               )}
 
-              {/*
-               * =================================================
-               * MAP
-               * =================================================
-               */}
+              {/* =================================================
+                  MAP
+
+                  Map itself is fully opaque / clear.
+                  ================================================= */}
 
               {(invitation.address ||
                 hasCoordinates) && (
-                <section
-                  className="px-6 py-10 sm:px-12"
-                  style={{
-                    backgroundColor:
-                      style.accentSoft,
-                  }}
-                >
-                  <div className="text-center">
-                    {invitation.venue && (
-                      <h2 className="text-xl font-semibold">
-                        {invitation.venue}
-                      </h2>
-                    )}
+                <section className="bg-white/60 px-6 py-10 backdrop-blur-[2px] sm:px-12">
+                  <div className="rounded-[28px] bg-white/80 p-5 shadow-sm backdrop-blur-md sm:p-7">
+                    <div className="text-center">
+                      {invitation.venue && (
+                        <h2 className="text-xl font-semibold">
+                          {invitation.venue}
+                        </h2>
+                      )}
 
-                    {invitation.address && (
-                      <p className="mx-auto mt-3 max-w-lg text-sm leading-6 opacity-75">
-                        {invitation.address}
-                      </p>
-                    )}
+                      {invitation.address && (
+                        <p className="mx-auto mt-3 max-w-lg text-sm leading-6 opacity-75">
+                          {invitation.address}
+                        </p>
+                      )}
 
-                    {hasCoordinates && (
-                      <div className="mt-6 overflow-hidden rounded-[24px] border border-black/10 bg-white shadow-lg">
-                        <iframe
-                          title="Урилгын байршлын газрын зураг"
-                          src={mapEmbedUrl}
-                          className="block h-[320px] w-full sm:h-[380px]"
-                          loading="lazy"
-                          referrerPolicy="no-referrer-when-downgrade"
-                        />
-                      </div>
-                    )}
+                      {hasCoordinates && (
+                        <div className="mt-6 overflow-hidden rounded-[24px] border border-black/10 bg-white shadow-lg">
+                          <iframe
+                            title="Урилгын байршлын газрын зураг"
+                            src={mapEmbedUrl}
+                            className="block h-[320px] w-full sm:h-[380px]"
+                            loading="lazy"
+                            referrerPolicy="no-referrer-when-downgrade"
+                          />
+                        </div>
+                      )}
 
-                    <div className="mt-6 flex flex-wrap justify-center gap-3">
-                      <a
-                        href={
-                          googleMapsUrl
-                        }
-                        target="_blank"
-                        rel="noreferrer"
-                        className={`inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold shadow-sm ${style.button}`}
-                      >
-                        📍 Чиглэл харах
-                      </a>
-
-                      {invitation.extras
-                        ?.mapUrl && (
+                      <div className="mt-6 flex flex-wrap justify-center gap-3">
                         <a
                           href={
-                            invitation
-                              .extras
-                              .mapUrl
+                            googleMapsUrl
                           }
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center justify-center rounded-full border border-black/10 bg-white px-6 py-3 text-sm font-semibold shadow-sm"
+                          className={`inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold shadow-sm ${style.button}`}
                         >
-                          🗺️ Газрын зураг
+                          📍 Чиглэл харах
                         </a>
-                      )}
+
+                        {invitation.extras
+                          ?.mapUrl && (
+                          <a
+                            href={
+                              invitation
+                                .extras
+                                .mapUrl
+                            }
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center justify-center rounded-full border border-black/10 bg-white px-6 py-3 text-sm font-semibold shadow-sm"
+                          >
+                            🗺️ Газрын зураг
+                          </a>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </section>
               )}
 
-              {/*
-               * =================================================
-               * RSVP
-               * =================================================
-               */}
+              {/* =================================================
+                  RSVP
 
-              <RsvpSection
-                slug={slug}
-                accent={style.accent}
-                buttonClass={
-                  style.button
-                }
-              />
+                  RSVP is placed inside a clear card so the
+                  form remains easy to read.
+                  ================================================= */}
 
-              {/*
-               * =================================================
-               * FOOTER
-               * =================================================
-               */}
+              <section className="bg-white/45 px-4 py-10 backdrop-blur-[2px] sm:px-8">
+                <div className="rounded-[28px] bg-white/80 p-4 shadow-sm backdrop-blur-md sm:p-6">
+                  <RsvpSection
+                    slug={slug}
+                    accent={style.accent}
+                    buttonClass={
+                      style.button
+                    }
+                  />
+                </div>
+              </section>
 
-              <footer
-                className="px-6 py-8 text-center"
-                style={{
-                  backgroundColor:
-                    style.accentSoft,
-                }}
-              >
+              {/* =================================================
+                  FOOTER
+                  ================================================= */}
+
+              <footer className="bg-white/50 px-6 py-10 text-center backdrop-blur-[2px]">
                 <div
                   className="mx-auto h-px w-12"
                   style={{
@@ -2527,17 +2545,20 @@ export default function PublicInvitationPage() {
                       style.accent,
                   }}
                 />
+
+                <p className="mt-5 text-xs opacity-50">
+                  Урилгыг хүлээн авсанд
+                  баярлалаа 💌
+                </p>
               </footer>
             </article>
           </div>
         </div>
       )}
 
-      {/*
-       * ========================================================
-       * VIDEO MESSAGE
-       * ========================================================
-       */}
+      {/* ========================================================
+          VIDEO MESSAGE
+          ======================================================== */}
 
       {!showInvitation &&
         !videoDone && (
@@ -2548,11 +2569,9 @@ export default function PublicInvitationPage() {
           </div>
         )}
 
-      {/*
-       * ========================================================
-       * MUSIC LOADING
-       * ========================================================
-       */}
+      {/* ========================================================
+          MUSIC LOADING
+          ======================================================== */}
 
       {musicUrl &&
         !audioReady &&
@@ -2564,11 +2583,9 @@ export default function PublicInvitationPage() {
           </div>
         )}
 
-      {/*
-       * ========================================================
-       * MUSIC ERROR
-       * ========================================================
-       */}
+      {/* ========================================================
+          MUSIC ERROR
+          ======================================================== */}
 
       {musicError &&
         showInvitation && (
@@ -2577,19 +2594,10 @@ export default function PublicInvitationPage() {
           </div>
         )}
 
-      {/*
-       * ========================================================
-       * OPENING STYLE DEBUG / OPTIONAL
-       * ========================================================
-       *
-       * This is intentionally hidden from users.
-       * It confirms which opening style was loaded from extras.
-       *
-       * Selected:
-       * {getOpeningLabel(openingStyle)}
-       *
-       * ========================================================
-       */}
+      {/* ========================================================
+          OPENING STYLE DEBUG
+          ======================================================== */}
+
       <div className="hidden">
         {getOpeningLabel(
           openingStyle
