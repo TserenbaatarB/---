@@ -1474,27 +1474,6 @@ export default function PublicInvitationPage() {
       if (
         isMusicControl(event.target)
       ) {
-        const media =
-          audioRef.current;
-
-        if (
-          media &&
-          media.paused &&
-          !musicError
-        ) {
-          void media
-            .play()
-            .then(() => {
-              setMusicPlaying(true);
-            })
-            .catch((error) => {
-              console.warn(
-                "MUSIC BUTTON PLAY BLOCKED:",
-                error
-              );
-            });
-        }
-
         return;
       }
 
@@ -1675,7 +1654,7 @@ export default function PublicInvitationPage() {
         handleVisibilityChange
       );
     };
-  }, [showInvitation, musicError]);
+  }, [showInvitation]);
 
   /*
    * ============================================================
@@ -2489,7 +2468,7 @@ export default function PublicInvitationPage() {
   return (
     <main
       data-invitation
-      className={`relative min-h-screen overflow-x-hidden ${style.page}`}
+      className={`relative min-h-dvh overflow-x-hidden ${style.page}`}
     >
       {/* ========================================================
           OPENING SCREEN
@@ -2706,16 +2685,7 @@ export default function PublicInvitationPage() {
               type="button"
               data-music-control="true"
               onClick={toggleMusic}
-              disabled={
-                !audioReady &&
-                !musicIsVideo
-              }
-              className={`flex h-12 w-12 items-center justify-center rounded-full border border-white/30 bg-black/45 text-lg text-white shadow-lg backdrop-blur-md transition hover:bg-black/60 ${
-                !audioReady &&
-                !musicIsVideo
-                  ? "cursor-wait opacity-60"
-                  : ""
-              }`}
+              className="flex h-12 w-12 items-center justify-center rounded-full border border-white/30 bg-black/45 text-lg text-white shadow-lg backdrop-blur-md transition hover:bg-black/60"
               aria-label={
                 musicPlaying
                   ? "Хөгжим зогсоох"
@@ -2734,7 +2704,7 @@ export default function PublicInvitationPage() {
           ======================================================== */}
 
       {showInvitation && (
-        <div className="relative z-10 px-4 py-6 sm:px-6 sm:py-10">
+        <div className="relative z-10 px-4 pt-6 pb-16 sm:px-6 sm:py-10">
           <div className="mx-auto max-w-2xl">
             <article
               className={`overflow-hidden rounded-[32px] border ${style.border} bg-white/55 shadow-2xl backdrop-blur-[3px]`}
