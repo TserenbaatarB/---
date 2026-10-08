@@ -16,6 +16,11 @@ type OpeningStyle =
   | "circle"
   | string;
 
+type ProgramItem = {
+  time: string;
+  title: string;
+};
+
 type PublicInvitation = {
   id: string;
   event_type: string;
@@ -38,10 +43,13 @@ type PublicInvitation = {
   music_path: string | null;
   public_slug: string;
   published_at: string | null;
+
   extras?: {
     lat: number | null;
     lng: number | null;
     mapUrl: string;
+
+    program?: ProgramItem[];
 
     appearance?: {
       open?: OpeningStyle;
@@ -94,6 +102,34 @@ function getGalleryCaptions(value: unknown): string[] {
   return value.map((item) =>
     typeof item === "string" ? item : ""
   );
+}
+
+function getProgramItems(value: unknown): ProgramItem[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter(
+      (item): item is Record<string, unknown> =>
+        typeof item === "object" &&
+        item !== null
+    )
+    .map((item) => ({
+      time:
+        typeof item.time === "string"
+          ? item.time.trim()
+          : "",
+      title:
+        typeof item.title === "string"
+          ? item.title.trim()
+          : "",
+    }))
+    .filter(
+      (item) =>
+        item.time.length > 0 ||
+        item.title.length > 0
+    );
 }
 
 function getStyle(style: string) {
@@ -262,6 +298,16 @@ export default function PublicInvitationPage() {
     );
   }, [invitation]);
 
+  const program = useMemo(() => {
+    if (!invitation) {
+      return [];
+    }
+
+    return getProgramItems(
+      invitation.extras?.program
+    );
+  }, [invitation]);
+
   const openingStyle = useMemo(() => {
     if (!invitation) {
       return "envelope";
@@ -389,6 +435,12 @@ export default function PublicInvitationPage() {
               const rawAppearance =
                 rawExtras?.appearance;
 
+              const rawProgram =
+                getProgramItems(
+                  rawExtras?.program ??
+                    result.extras?.program
+                );
+
               mapExtras = {
                 lat:
                   typeof rawExtras.lat ===
@@ -407,6 +459,8 @@ export default function PublicInvitationPage() {
                   "string"
                     ? rawExtras.mapUrl
                     : "",
+
+                program: rawProgram,
 
                 appearance:
                   rawAppearance &&
@@ -473,7 +527,12 @@ export default function PublicInvitationPage() {
          */
 
         if (!mapExtras && result.extras) {
-          mapExtras = result.extras;
+          mapExtras = {
+            ...result.extras,
+            program: getProgramItems(
+              result.extras.program
+            ),
+          };
         }
 
         /*
@@ -487,6 +546,14 @@ export default function PublicInvitationPage() {
             getGalleryCaptions(
               result.gallery_captions
             );
+
+          const finalProgram =
+            mapExtras?.program &&
+            mapExtras.program.length > 0
+              ? mapExtras.program
+              : getProgramItems(
+                  result.extras?.program
+                );
 
           const finalExtras: NonNullable<
             PublicInvitation["extras"]
@@ -506,11 +573,18 @@ export default function PublicInvitationPage() {
               result.extras?.mapUrl ??
               "",
 
+            program: finalProgram,
+
             appearance: {
               ...(result.extras?.appearance ?? {}),
               ...(mapExtras?.appearance ?? {}),
             },
           };
+
+          console.log(
+            "PUBLIC PROGRAM:",
+            finalProgram
+          );
 
           setInvitation({
             ...result,
@@ -1578,6 +1652,9 @@ export default function PublicInvitationPage() {
     hasEventDate ||
     hasEventTime;
 
+  const hasProgram =
+    program.length > 0;
+
   const mapLat =
     invitation.extras?.lat ?? null;
 
@@ -2266,8 +2343,6 @@ export default function PublicInvitationPage() {
                     }}
                   />
 
-                  {/* TITLE */}
-
                   {hasTitle && (
                     <p
                       className="mb-5 text-xs font-semibold uppercase tracking-[0.28em]"
@@ -2279,15 +2354,11 @@ export default function PublicInvitationPage() {
                     </p>
                   )}
 
-                  {/* NAMES */}
-
                   {hasNames && (
                     <h1 className="whitespace-pre-line text-4xl font-semibold leading-tight tracking-tight drop-shadow-sm sm:text-6xl">
                       {invitation.names}
                     </h1>
                   )}
-
-                  {/* MESSAGE */}
 
                   {hasMessage && (
                     <div className="mx-auto mt-10 max-w-xl rounded-[28px] bg-white/55 px-6 py-7 shadow-sm backdrop-blur-md sm:px-10">
@@ -2331,8 +2402,6 @@ export default function PublicInvitationPage() {
                     />
                   )}
 
-                  {/* DATE / TIME */}
-
                   {(hasEventDate ||
                     hasEventTime) && (
                     <div className="mt-8 space-y-2">
@@ -2353,8 +2422,6 @@ export default function PublicInvitationPage() {
                       )}
                     </div>
                   )}
-
-                  {/* GALLERY INDICATORS */}
 
                   {galleryUrls.length >
                     1 && (
@@ -2469,6 +2536,65 @@ export default function PublicInvitationPage() {
                         style.button
                       }
                     />
+                  </div>
+                </section>
+              )}
+
+              {/* =================================================
+                  PROGRAM / ХӨТӨЛБӨР
+                  ================================================= */}
+
+              {hasProgram && (
+                <section className="bg-white/55 px-6 py-12 backdrop-blur-[2px] sm:px-12">
+                  <div className="mx-auto max-w-xl">
+                    <div className="text-center">
+                      <p
+                        className="text-sm font-semibold uppercase tracking-[0.22em]"
+                        style={{
+                          color:
+                            style.accent,
+                        }}
+                      >
+                        Хөтөлбөр
+                      </p>
+
+                      <div
+                        className="mx-auto mt-3 h-px w-10"
+                        style={{
+                          backgroundColor:
+                            style.accent,
+                        }}
+                      />
+                    </div>
+
+                    <div className="mt-8 space-y-3">
+                      {program.map(
+                        (item, index) => (
+                          <div
+                            key={`${item.time}-${item.title}-${index}`}
+                            className="flex items-center gap-4 rounded-2xl bg-white/85 px-5 py-4 shadow-sm"
+                          >
+                            <div
+                              className="min-w-[72px] text-center text-sm font-semibold"
+                              style={{
+                                color:
+                                  style.accent,
+                              }}
+                            >
+                              {item.time ||
+                                "--:--"}
+                            </div>
+
+                            <div className="h-8 w-px bg-black/10" />
+
+                            <div className="min-w-0 flex-1 text-sm font-medium leading-6">
+                              {item.title ||
+                                "Хөтөлбөр"}
+                            </div>
+                          </div>
+                        )
+                      )}
+                    </div>
                   </div>
                 </section>
               )}

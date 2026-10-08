@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
+
 import { createClient } from "@supabase/supabase-js";
 
 type RouteContext = {
   params: Promise<{
     slug: string;
   }>;
+};
+
+type ProgramItem = {
+  time: string;
+  title: string;
 };
 
 function getSupabaseAdmin() {
@@ -88,6 +94,34 @@ function normalizeStoragePath(
   return null;
 }
 
+function normalizeProgram(value: unknown): ProgramItem[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter(
+      (item): item is Record<string, unknown> =>
+        typeof item === "object" &&
+        item !== null
+    )
+    .map((item) => ({
+      time:
+        typeof item.time === "string"
+          ? item.time.trim()
+          : "",
+      title:
+        typeof item.title === "string"
+          ? item.title.trim()
+          : "",
+    }))
+    .filter(
+      (item) =>
+        item.time.length > 0 ||
+        item.title.length > 0
+    );
+}
+
 export async function GET(
   _request: Request,
   context: RouteContext
@@ -155,7 +189,7 @@ export async function GET(
     }
 
     // --------------------------------------------------
-    // EXTRA / MAP DATA
+    // EXTRA / MAP / PROGRAM DATA
     // --------------------------------------------------
 
     const rawExtras =
@@ -178,6 +212,11 @@ export async function GET(
       typeof rawExtras.mapUrl === "string"
         ? rawExtras.mapUrl
         : "";
+
+    // Хөтөлбөр
+    const program = normalizeProgram(
+      rawExtras.program
+    );
 
     // --------------------------------------------------
     // IMAGE STORAGE PATHS
@@ -358,7 +397,7 @@ export async function GET(
     // --------------------------------------------------
 
     console.log(
-      "PUBLIC INVITATION IMAGE RESULT:",
+      "PUBLIC INVITATION RESULT:",
       {
         slug,
         invitationId: data.id,
@@ -372,6 +411,8 @@ export async function GET(
           signedGalleryUrls.length,
         legacyUrlsCount:
           legacyGalleryUrls.length,
+        programCount: program.length,
+        program,
       }
     );
 
@@ -387,12 +428,11 @@ export async function GET(
           lat,
           lng,
           mapUrl,
+          program,
         },
 
         backgroundUrl,
-
         galleryUrls,
-
         galleryCaptions,
       },
       {
