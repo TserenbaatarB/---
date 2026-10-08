@@ -273,6 +273,9 @@ export default function PublicInvitationPage() {
   const videoRef =
     useRef<HTMLVideoElement | null>(null);
 
+  const audioRef =
+    useRef<HTMLAudioElement | null>(null);
+
   const musicIsVideo =
     /\.(mp4|webm|mov)$/i.test(
       invitation?.music_path ?? ""
@@ -908,9 +911,7 @@ export default function PublicInvitationPage() {
     }
 
     const media =
-      document.getElementById(
-        "invitation-background-music"
-      ) as HTMLAudioElement | null;
+      audioRef.current;
 
     if (!media) {
       return;
@@ -948,6 +949,44 @@ export default function PublicInvitationPage() {
   async function handleOpenInvitation() {
     if (openingStarted) {
       return;
+    }
+
+    /*
+     * ============================================================
+     * START MUSIC FROM USER GESTURE
+     *
+     * Энэ play() нь "Урилгаа нээх" товчны click event-ийн
+     * шууд дотор ажиллаж байгаа тул mobile browser дээр
+     * autoplay зөвшөөрөгдөх хамгийн өндөр боломжтой.
+     * ============================================================
+     */
+
+    if (
+      musicUrl &&
+      !musicIsVideo &&
+      audioRef.current
+    ) {
+      try {
+        const audio =
+          audioRef.current;
+
+        audio.volume = 1;
+        audio.muted = false;
+        audio.setAttribute("playsinline", "true");
+        audio.setAttribute("webkit-playsinline", "true");
+
+        await audio.play();
+
+        setMusicPlaying(true);
+        setMusicError(false);
+      } catch (error) {
+        console.warn(
+          "MOBILE MUSIC AUTOPLAY BLOCKED:",
+          error
+        );
+
+        setMusicPlaying(false);
+      }
     }
 
     setOpeningStarted(true);
@@ -1208,9 +1247,7 @@ export default function PublicInvitationPage() {
         isMusicControl(event.target)
       ) {
         const media =
-          document.getElementById(
-            "invitation-background-music"
-          ) as HTMLAudioElement | null;
+          audioRef.current;
 
         if (
           media &&
@@ -1424,9 +1461,7 @@ export default function PublicInvitationPage() {
     }
 
     const media =
-      document.getElementById(
-        "invitation-background-music"
-      ) as HTMLAudioElement | null;
+      audioRef.current;
 
     if (!media) {
       return;
@@ -1534,9 +1569,7 @@ export default function PublicInvitationPage() {
 
   async function toggleMusic() {
     const media =
-      document.getElementById(
-        "invitation-background-music"
-      ) as HTMLMediaElement | null;
+      audioRef.current;
 
     if (!media) {
       return;
@@ -2156,10 +2189,12 @@ export default function PublicInvitationPage() {
       {musicUrl &&
         !musicIsVideo && (
           <audio
+            ref={audioRef}
             id="invitation-background-music"
             src={musicUrl}
             loop
             preload="auto"
+            playsInline
           />
         )}
 
