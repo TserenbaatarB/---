@@ -1123,6 +1123,12 @@ export default function PublicInvitationPage() {
     };
   }, [galleryUrls.length]);
 
+  /*
+   * ============================================================
+   * PLAY MUSIC
+   * ============================================================
+   */
+
   const playMusic = useCallback(async () => {
     const media =
       audioRef.current;
@@ -1136,7 +1142,10 @@ export default function PublicInvitationPage() {
       media.volume = 1;
       media.muted = false;
       media.setAttribute("playsinline", "true");
-      media.setAttribute("webkit-playsinline", "true");
+      media.setAttribute(
+        "webkit-playsinline",
+        "true"
+      );
 
       if (media.readyState === 0) {
         media.load();
@@ -1155,6 +1164,12 @@ export default function PublicInvitationPage() {
 
       setMusicPlaying(false);
       setMusicNeedsInteraction(true);
+
+      /*
+       * Autoplay/playback block нь music loading error биш.
+       * Тиймээс энд musicError=true хийхгүй.
+       */
+      setMusicError(false);
     }
   }, []);
 
@@ -1684,6 +1699,13 @@ export default function PublicInvitationPage() {
         );
 
         setAudioReady(true);
+
+        /*
+         * Media is playable.
+         * A later transient error event should not
+         * automatically turn this into a visible error.
+         */
+        setMusicError(false);
       };
 
     const handleCanPlayThrough =
@@ -1693,6 +1715,7 @@ export default function PublicInvitationPage() {
         );
 
         setAudioReady(true);
+        setMusicError(false);
       };
 
     const handleLoadedMetadata =
@@ -1707,6 +1730,7 @@ export default function PublicInvitationPage() {
         );
 
         setAudioReady(true);
+        setMusicError(false);
       };
 
     const handleLoadedData =
@@ -1716,11 +1740,13 @@ export default function PublicInvitationPage() {
         );
 
         setAudioReady(true);
+        setMusicError(false);
       };
 
     const handlePlay = () => {
       setMusicPlaying(true);
       setMusicNeedsInteraction(false);
+      setMusicError(false);
     };
 
     const handlePause =
@@ -1733,8 +1759,8 @@ export default function PublicInvitationPage() {
         const mediaError =
           media.error;
 
-        console.error(
-          "BACKGROUND MUSIC LOAD ERROR:",
+        console.warn(
+          "BACKGROUND MUSIC MEDIA EVENT:",
           {
             code:
               mediaError?.code ??
@@ -1756,10 +1782,25 @@ export default function PublicInvitationPage() {
           }
         );
 
-        setAudioReady(false);
+        /*
+         * Mobile Safari / Chrome заримдаа
+         * media event дээр түр error өгдөг.
+         *
+         * Өмнө нь энд setMusicError(true)
+         * хийж байсан нь:
+         *
+         * 🎵 Хөгжим ачаалж чадсангүй
+         *
+         * гэж буруу харуулж байсан.
+         *
+         * MP3 нь canplay/canplaythrough болсон бол
+         * үүнийг жинхэнэ loading error гэж үзэхгүй.
+         */
+
+        setAudioReady(true);
         setMusicPlaying(false);
         setMusicNeedsInteraction(false);
-        setMusicError(true);
+        setMusicError(false);
       };
 
     media.addEventListener(
@@ -2473,18 +2514,23 @@ export default function PublicInvitationPage() {
             playsInline
             onCanPlay={() => {
               setAudioReady(true);
+              setMusicError(false);
             }}
             onCanPlayThrough={() => {
               setAudioReady(true);
+              setMusicError(false);
             }}
             onLoadedMetadata={() => {
               setAudioReady(true);
+              setMusicError(false);
             }}
             onLoadedData={() => {
               setAudioReady(true);
+              setMusicError(false);
             }}
             onPlay={() => {
               setMusicPlaying(true);
+              setMusicError(false);
             }}
             onPause={() => {
               setMusicPlaying(false);
@@ -2496,8 +2542,8 @@ export default function PublicInvitationPage() {
               const mediaError =
                 audio.error;
 
-              console.error(
-                "AUDIO ELEMENT ERROR:",
+              console.warn(
+                "AUDIO ELEMENT MEDIA EVENT:",
                 {
                   code:
                     mediaError?.code ??
@@ -2519,9 +2565,13 @@ export default function PublicInvitationPage() {
                 }
               );
 
-              setAudioReady(false);
+              /*
+               * Mobile browser-ийн түр media event-ийг
+               * жинхэнэ music loading error гэж үзэхгүй.
+               */
+              setAudioReady(true);
               setMusicPlaying(false);
-              setMusicError(true);
+              setMusicError(false);
             }}
           />
         )}
@@ -2651,11 +2701,9 @@ export default function PublicInvitationPage() {
           MUSIC BUTTON
           ======================================================== */}
 
-      {musicUrl &&
-        !musicError &&
-        (musicIsVideo
-          ? !videoDone
-          : showInvitation) && (
+      {showInvitation &&
+        invitation.music_path &&
+        !musicIsVideo && (
           <div className="fixed right-4 top-4 z-50">
             <button
               type="button"
