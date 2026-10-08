@@ -62,15 +62,41 @@ type PublicInvitation = {
   } | null;
 };
 
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+/*
+ * ============================================================
+ * SUPABASE CLIENT
+ * ============================================================
+ *
+ * Нэг browser context дотор олон GoTrueClient үүсгэхгүй.
+ */
 
-  if (!url || !key) {
-    throw new Error("Missing Supabase environment variables");
+let supabaseClient:
+  | ReturnType<typeof createClient>
+  | null = null;
+
+function getSupabase() {
+  if (supabaseClient) {
+    return supabaseClient;
   }
 
-  return createClient(url, key);
+  const url =
+    process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !key) {
+    throw new Error(
+      "Missing Supabase environment variables"
+    );
+  }
+
+  supabaseClient = createClient(
+    url,
+    key
+  );
+
+  return supabaseClient;
 }
 
 function hasText(value: unknown): boolean {
@@ -180,7 +206,8 @@ function getStyle(style: string) {
 function getOpeningStyle(
   invitation: PublicInvitation
 ): OpeningStyle {
-  const value = invitation.extras?.appearance?.open;
+  const value =
+    invitation.extras?.appearance?.open;
 
   if (!value) {
     return "envelope";
@@ -239,9 +266,11 @@ export default function PublicInvitationPage() {
   const [invitation, setInvitation] =
     useState<PublicInvitation | null>(null);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] =
+    useState(true);
 
-  const [currentSlide, setCurrentSlide] = useState(0);
+  const [currentSlide, setCurrentSlide] =
+    useState(0);
 
   const [musicUrl, setMusicUrl] =
     useState<string | null>(null);
@@ -349,7 +378,7 @@ export default function PublicInvitationPage() {
             "get_public_invitation",
             {
               p_slug: slug,
-            }
+            } as never
           );
 
         if (error) {
@@ -366,11 +395,11 @@ export default function PublicInvitationPage() {
           return;
         }
 
-        const result = (
-          Array.isArray(data)
-            ? data[0]
-            : null
-        ) as PublicInvitation | undefined;
+        const result = Array.isArray(data)
+          ? (data[0] ?? undefined) as
+              | PublicInvitation
+              | undefined
+          : undefined;
 
         if (!result) {
           if (!cancelled) {
@@ -385,11 +414,15 @@ export default function PublicInvitationPage() {
           | PublicInvitation["extras"]
           | null = null;
 
-        let backgroundUrl: string | null = null;
+        let backgroundUrl:
+          | string
+          | null = null;
 
-        let publishedGalleryUrls: string[] = [];
+        let publishedGalleryUrls: string[] =
+          [];
 
-        let publishedGalleryCaptions: string[] = [];
+        let publishedGalleryCaptions: string[] =
+          [];
 
         /*
          * --------------------------------------------------------
@@ -579,8 +612,10 @@ export default function PublicInvitationPage() {
             program: finalProgram,
 
             appearance: {
-              ...(result.extras?.appearance ?? {}),
-              ...(mapExtras?.appearance ?? {}),
+              ...(result.extras?.appearance ??
+                {}),
+              ...(mapExtras?.appearance ??
+                {}),
             },
           };
 
@@ -628,7 +663,7 @@ export default function PublicInvitationPage() {
       }
     }
 
-    loadInvitation();
+    void loadInvitation();
 
     return () => {
       cancelled = true;
@@ -676,17 +711,60 @@ export default function PublicInvitationPage() {
           setVideoDone(true);
         }
 
+        /*
+         * ========================================================
+         * NORMALIZE STORAGE PATH
+         * ========================================================
+         */
+
+        const rawMusicPath =
+          invitation.music_path.trim();
+
+        const musicPath =
+          rawMusicPath
+            .replace(/^\/+/, "")
+            .replace(
+              /^invitation-music\//i,
+              ""
+            );
+
         console.log(
-          "LOADING MUSIC PATH:",
-          invitation.music_path
+          "================================================"
         );
 
-        const { data, error } =
+        console.log(
+          "CREATING MUSIC SIGNED URL"
+        );
+
+        console.log({
+          bucket: "invitation-music",
+          originalPath:
+            invitation.music_path,
+          normalizedPath: musicPath,
+          isVideo: musicIsVideo,
+        });
+
+        console.log(
+          "================================================"
+        );
+
+        /*
+         * ========================================================
+         * CREATE MUSIC SIGNED URL
+         *
+         * 1 hour is enough for invitation.
+         * ========================================================
+         */
+
+        const {
+          data,
+          error,
+        } =
           await supabase.storage
             .from("invitation-music")
             .createSignedUrl(
-              invitation.music_path,
-              60 * 60 * 24
+              musicPath,
+              60 * 60
             );
 
         if (
@@ -694,11 +772,52 @@ export default function PublicInvitationPage() {
           !data?.signedUrl
         ) {
           console.error(
-            "MEDIA SIGNED URL ERROR:",
-            {
-              path: invitation.music_path,
-              error,
-            }
+            "================================================"
+          );
+
+          console.error(
+            "MEDIA SIGNED URL FAILED"
+          );
+
+          console.error({
+            bucket:
+              "invitation-music",
+
+            originalPath:
+              invitation.music_path,
+
+            normalizedPath:
+              musicPath,
+
+            status:
+              (error as any)?.status ??
+              null,
+
+            statusCode:
+              (error as any)?.statusCode ??
+              null,
+
+            name:
+              (error as any)?.name ??
+              null,
+
+            message:
+              (error as any)?.message ??
+              null,
+
+            error:
+              error
+                ? JSON.stringify(
+                    error,
+                    Object.getOwnPropertyNames(
+                      error
+                    )
+                  )
+                : null,
+          });
+
+          console.error(
+            "================================================"
           );
 
           if (!cancelled) {
@@ -719,26 +838,47 @@ export default function PublicInvitationPage() {
           data.signedUrl;
 
         console.log(
+          "================================================"
+        );
+
+        console.log(
           "MUSIC SIGNED URL CREATED SUCCESSFULLY"
         );
 
+        console.log({
+          path: musicPath,
+          signedUrlCreated:
+            Boolean(signedUrl),
+        });
+
+        console.log(
+          "================================================"
+        );
+
         setMusicUrl(signedUrl);
+
+        /*
+         * ========================================================
+         * IF FILE ITSELF IS VIDEO
+         * ========================================================
+         */
 
         if (musicIsVideo) {
           setVideoUrl(signedUrl);
           setVideoChecked(true);
           setVideoDone(false);
+
           return;
         }
 
         /*
-         * --------------------------------------------------------
+         * ========================================================
          * FIND COVER VIDEO
-         * --------------------------------------------------------
+         * ========================================================
          */
 
         const folder =
-          invitation.music_path
+          musicPath
             .split("/")
             .slice(0, -1)
             .join("/");
@@ -756,7 +896,14 @@ export default function PublicInvitationPage() {
         if (listError) {
           console.error(
             "COVER VIDEO LIST ERROR:",
-            listError
+            {
+              folder,
+              error: listError,
+              message:
+                (listError as any)
+                  ?.message ??
+                null,
+            }
           );
 
           if (!cancelled) {
@@ -775,7 +922,15 @@ export default function PublicInvitationPage() {
             )
           );
 
+        /*
+         * No cover video is completely normal.
+         */
+
         if (!video) {
+          console.log(
+            "NO COVER VIDEO FOUND"
+          );
+
           if (!cancelled) {
             setVideoUrl(null);
             setVideoChecked(true);
@@ -788,13 +943,24 @@ export default function PublicInvitationPage() {
         const videoPath =
           `${folder}/${video.name}`;
 
+        console.log(
+          "COVER VIDEO PATH:",
+          videoPath
+        );
+
+        /*
+         * ========================================================
+         * CREATE COVER VIDEO SIGNED URL
+         * ========================================================
+         */
+
         const {
           data: videoData,
           error: videoError,
         } =
           await bucket.createSignedUrl(
             videoPath,
-            60 * 60 * 24
+            60 * 60
           );
 
         if (
@@ -803,7 +969,34 @@ export default function PublicInvitationPage() {
         ) {
           console.error(
             "COVER VIDEO SIGNED URL ERROR:",
-            videoError
+            {
+              path: videoPath,
+
+              status:
+                (videoError as any)
+                  ?.status ??
+                null,
+
+              statusCode:
+                (videoError as any)
+                  ?.statusCode ??
+                null,
+
+              message:
+                (videoError as any)
+                  ?.message ??
+                null,
+
+              error:
+                videoError
+                  ? JSON.stringify(
+                      videoError,
+                      Object.getOwnPropertyNames(
+                        videoError
+                      )
+                    )
+                  : null,
+            }
           );
 
           if (!cancelled) {
@@ -825,8 +1018,17 @@ export default function PublicInvitationPage() {
         }
       } catch (error) {
         console.error(
-          "MEDIA LOAD ERROR:",
-          error
+          "================================================"
+        );
+
+        console.error(
+          "MEDIA LOAD ERROR"
+        );
+
+        console.error(error);
+
+        console.error(
+          "================================================"
         );
 
         if (!cancelled) {
@@ -839,7 +1041,7 @@ export default function PublicInvitationPage() {
       }
     }
 
-    loadMedia();
+    void loadMedia();
 
     return () => {
       cancelled = true;
@@ -940,16 +1142,10 @@ export default function PublicInvitationPage() {
       async () => {
         try {
           await media.play();
+
           setMusicPlaying(true);
           setMusicError(false);
         } catch (error) {
-          /*
-           * Mobile browser autoplay blocked.
-           *
-           * Энэ нь ERROR биш.
-           * Хэрэглэгч "Урилгаа нээх" товч
-           * дарахад play() дахин хийгдэнэ.
-           */
           console.warn(
             "BACKGROUND MUSIC AUTOPLAY BLOCKED:",
             error
@@ -979,14 +1175,9 @@ export default function PublicInvitationPage() {
     }
 
     /*
-     * ============================================================
+     * ========================================================
      * START MUSIC FROM USER GESTURE
-     *
-     * Mobile browser дээр хамгийн чухал хэсэг.
-     *
-     * play() нь "Урилгаа нээх" button click event-ийн
-     * шууд дотор ажиллана.
-     * ============================================================
+     * ========================================================
      */
 
     if (
@@ -1000,6 +1191,7 @@ export default function PublicInvitationPage() {
 
         audio.volume = 1;
         audio.muted = false;
+
         audio.setAttribute(
           "playsinline",
           "true"
@@ -1010,10 +1202,6 @@ export default function PublicInvitationPage() {
           "true"
         );
 
-        /*
-         * Mobile browser дээр audio source-ийг
-         * дахин ачаалж өгнө.
-         */
         if (audio.readyState === 0) {
           audio.load();
         }
@@ -1023,12 +1211,6 @@ export default function PublicInvitationPage() {
         setMusicPlaying(true);
         setMusicError(false);
       } catch (error) {
-        /*
-         * Autoplay blocked байж болно.
-         *
-         * ЭНД musicError = true хийхгүй.
-         * Учир нь autoplay block бол файл эвдэрсэн гэсэн үг биш.
-         */
         console.warn(
           "MOBILE MUSIC PLAY BLOCKED:",
           error
@@ -1086,10 +1268,14 @@ export default function PublicInvitationPage() {
     }
 
     let frameId = 0;
-    let initialTimer: number | null =
-      null;
-    let resumeTimer: number | null =
-      null;
+
+    let initialTimer:
+      | number
+      | null = null;
+
+    let resumeTimer:
+      | number
+      | null = null;
 
     let previousTime = 0;
     let reachedEnd = false;
@@ -1181,11 +1367,6 @@ export default function PublicInvitationPage() {
         return;
       }
 
-      /*
-       * AUTO-SCROLL SPEED
-       *
-       * 38px / second
-       */
       window.scrollBy(
         0,
         elapsedSeconds * 38
@@ -1547,7 +1728,8 @@ export default function PublicInvitationPage() {
           "BACKGROUND MUSIC METADATA LOADED",
           {
             duration: media.duration,
-            readyState: media.readyState,
+            readyState:
+              media.readyState,
           }
         );
 
@@ -1600,11 +1782,6 @@ export default function PublicInvitationPage() {
           }
         );
 
-        /*
-         * Native audio file error.
-         *
-         * Autoplay blocked үед энд ирэхгүй.
-         */
         setAudioReady(false);
         setMusicPlaying(false);
         setMusicError(true);
@@ -1645,18 +1822,10 @@ export default function PublicInvitationPage() {
       handleError
     );
 
-    /*
-     * Зарим mobile browser event listener
-     * суулгахаас өмнө audio-г ачаачихсан байж болно.
-     */
     if (media.readyState >= 2) {
       setAudioReady(true);
     }
 
-    /*
-     * Хэрэв өмнө нь error гарсан бол
-     * шууд шалгана.
-     */
     if (media.error) {
       handleError();
     }
@@ -1718,10 +1887,6 @@ export default function PublicInvitationPage() {
 
     try {
       if (media.paused) {
-        /*
-         * Mobile browser дээр source
-         * бүрэн бэлэн биш бол дахин load хийнэ.
-         */
         if (media.readyState === 0) {
           media.load();
         }
@@ -1735,10 +1900,6 @@ export default function PublicInvitationPage() {
         setMusicPlaying(false);
       }
     } catch (error) {
-      /*
-       * Энэ нь autoplay permission error байж болно.
-       * Шууд "файл эвдэрсэн" гэж үзэхгүй.
-       */
       console.warn(
         "BACKGROUND MUSIC PLAY ERROR:",
         error
@@ -2596,7 +2757,8 @@ export default function PublicInvitationPage() {
                     <p
                       className="mb-5 text-xs font-semibold uppercase tracking-[0.28em]"
                       style={{
-                        color: style.accent,
+                        color:
+                          style.accent,
                       }}
                     >
                       {invitation.title}
