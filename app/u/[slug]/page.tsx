@@ -671,7 +671,15 @@ export default function PublicInvitationPage() {
         if (musicIsVideo) {
           setVideoChecked(false);
           setVideoDone(false);
+        } else {
+          setVideoChecked(true);
+          setVideoDone(true);
         }
+
+        console.log(
+          "LOADING MUSIC PATH:",
+          invitation.music_path
+        );
 
         const { data, error } =
           await supabase.storage
@@ -687,12 +695,15 @@ export default function PublicInvitationPage() {
         ) {
           console.error(
             "MEDIA SIGNED URL ERROR:",
-            error
+            {
+              path: invitation.music_path,
+              error,
+            }
           );
 
           if (!cancelled) {
-            setMusicError(true);
             setMusicUrl(null);
+            setMusicError(true);
             setVideoChecked(true);
             setVideoDone(true);
           }
@@ -706,6 +717,10 @@ export default function PublicInvitationPage() {
 
         const signedUrl =
           data.signedUrl;
+
+        console.log(
+          "MUSIC SIGNED URL CREATED SUCCESSFULLY"
+        );
 
         setMusicUrl(signedUrl);
 
@@ -917,22 +932,34 @@ export default function PublicInvitationPage() {
       return;
     }
 
+    if (!audioReady) {
+      return;
+    }
+
     const tryAutoplay =
       async () => {
         try {
           await media.play();
           setMusicPlaying(true);
-        } catch {
+          setMusicError(false);
+        } catch (error) {
           /*
-           * Browser blocked autoplay.
-           * User can press music button.
+           * Mobile browser autoplay blocked.
+           *
+           * Энэ нь ERROR биш.
+           * Хэрэглэгч "Урилгаа нээх" товч
+           * дарахад play() дахин хийгдэнэ.
            */
+          console.warn(
+            "BACKGROUND MUSIC AUTOPLAY BLOCKED:",
+            error
+          );
+
+          setMusicPlaying(false);
         }
       };
 
-    if (audioReady) {
-      void tryAutoplay();
-    }
+    void tryAutoplay();
   }, [
     musicUrl,
     musicIsVideo,
@@ -955,9 +982,10 @@ export default function PublicInvitationPage() {
      * ============================================================
      * START MUSIC FROM USER GESTURE
      *
-     * Энэ play() нь "Урилгаа нээх" товчны click event-ийн
-     * шууд дотор ажиллаж байгаа тул mobile browser дээр
-     * autoplay зөвшөөрөгдөх хамгийн өндөр боломжтой.
+     * Mobile browser дээр хамгийн чухал хэсэг.
+     *
+     * play() нь "Урилгаа нээх" button click event-ийн
+     * шууд дотор ажиллана.
      * ============================================================
      */
 
@@ -972,16 +1000,37 @@ export default function PublicInvitationPage() {
 
         audio.volume = 1;
         audio.muted = false;
-        audio.setAttribute("playsinline", "true");
-        audio.setAttribute("webkit-playsinline", "true");
+        audio.setAttribute(
+          "playsinline",
+          "true"
+        );
+
+        audio.setAttribute(
+          "webkit-playsinline",
+          "true"
+        );
+
+        /*
+         * Mobile browser дээр audio source-ийг
+         * дахин ачаалж өгнө.
+         */
+        if (audio.readyState === 0) {
+          audio.load();
+        }
 
         await audio.play();
 
         setMusicPlaying(true);
         setMusicError(false);
       } catch (error) {
+        /*
+         * Autoplay blocked байж болно.
+         *
+         * ЭНД musicError = true хийхгүй.
+         * Учир нь autoplay block бол файл эвдэрсэн гэсэн үг биш.
+         */
         console.warn(
-          "MOBILE MUSIC AUTOPLAY BLOCKED:",
+          "MOBILE MUSIC PLAY BLOCKED:",
           error
         );
 
@@ -1229,10 +1278,8 @@ export default function PublicInvitationPage() {
       event: WheelEvent
     ) => {
       if (
-        Math.abs(event.deltaY) <
-          0.5 &&
-        Math.abs(event.deltaX) <
-          0.5
+        Math.abs(event.deltaY) < 0.5 &&
+        Math.abs(event.deltaX) < 0.5
       ) {
         return;
       }
@@ -1259,7 +1306,12 @@ export default function PublicInvitationPage() {
             .then(() => {
               setMusicPlaying(true);
             })
-            .catch(() => {});
+            .catch((error) => {
+              console.warn(
+                "MUSIC BUTTON PLAY BLOCKED:",
+                error
+              );
+            });
         }
 
         return;
@@ -1473,11 +1525,41 @@ export default function PublicInvitationPage() {
 
     const handleCanPlay =
       () => {
+        console.log(
+          "BACKGROUND MUSIC CAN PLAY"
+        );
+
+        setAudioReady(true);
+      };
+
+    const handleCanPlayThrough =
+      () => {
+        console.log(
+          "BACKGROUND MUSIC CAN PLAY THROUGH"
+        );
+
+        setAudioReady(true);
+      };
+
+    const handleLoadedMetadata =
+      () => {
+        console.log(
+          "BACKGROUND MUSIC METADATA LOADED",
+          {
+            duration: media.duration,
+            readyState: media.readyState,
+          }
+        );
+
         setAudioReady(true);
       };
 
     const handleLoadedData =
       () => {
+        console.log(
+          "BACKGROUND MUSIC DATA LOADED"
+        );
+
         setAudioReady(true);
       };
 
@@ -1492,10 +1574,37 @@ export default function PublicInvitationPage() {
 
     const handleError =
       () => {
+        const mediaError =
+          media.error;
+
         console.error(
-          "BACKGROUND MUSIC LOAD ERROR"
+          "BACKGROUND MUSIC LOAD ERROR:",
+          {
+            code:
+              mediaError?.code ??
+              null,
+
+            message:
+              mediaError?.message ??
+              null,
+
+            src:
+              media.currentSrc ||
+              media.src,
+
+            readyState:
+              media.readyState,
+
+            networkState:
+              media.networkState,
+          }
         );
 
+        /*
+         * Native audio file error.
+         *
+         * Autoplay blocked үед энд ирэхгүй.
+         */
         setAudioReady(false);
         setMusicPlaying(false);
         setMusicError(true);
@@ -1504,6 +1613,16 @@ export default function PublicInvitationPage() {
     media.addEventListener(
       "canplay",
       handleCanPlay
+    );
+
+    media.addEventListener(
+      "canplaythrough",
+      handleCanPlayThrough
+    );
+
+    media.addEventListener(
+      "loadedmetadata",
+      handleLoadedMetadata
     );
 
     media.addEventListener(
@@ -1526,14 +1645,36 @@ export default function PublicInvitationPage() {
       handleError
     );
 
+    /*
+     * Зарим mobile browser event listener
+     * суулгахаас өмнө audio-г ачаачихсан байж болно.
+     */
     if (media.readyState >= 2) {
       setAudioReady(true);
+    }
+
+    /*
+     * Хэрэв өмнө нь error гарсан бол
+     * шууд шалгана.
+     */
+    if (media.error) {
+      handleError();
     }
 
     return () => {
       media.removeEventListener(
         "canplay",
         handleCanPlay
+      );
+
+      media.removeEventListener(
+        "canplaythrough",
+        handleCanPlayThrough
+      );
+
+      media.removeEventListener(
+        "loadedmetadata",
+        handleLoadedMetadata
       );
 
       media.removeEventListener(
@@ -1577,20 +1718,33 @@ export default function PublicInvitationPage() {
 
     try {
       if (media.paused) {
+        /*
+         * Mobile browser дээр source
+         * бүрэн бэлэн биш бол дахин load хийнэ.
+         */
+        if (media.readyState === 0) {
+          media.load();
+        }
+
         await media.play();
+
         setMusicPlaying(true);
+        setMusicError(false);
       } else {
         media.pause();
         setMusicPlaying(false);
       }
     } catch (error) {
-      console.error(
-        "BACKGROUND MUSIC ERROR:",
+      /*
+       * Энэ нь autoplay permission error байж болно.
+       * Шууд "файл эвдэрсэн" гэж үзэхгүй.
+       */
+      console.warn(
+        "BACKGROUND MUSIC PLAY ERROR:",
         error
       );
 
       setMusicPlaying(false);
-      setMusicError(true);
     }
   }
 
@@ -2191,11 +2345,69 @@ export default function PublicInvitationPage() {
           <audio
             ref={audioRef}
             id="invitation-background-music"
+            key={musicUrl}
             src={musicUrl}
             loop
             preload="auto"
             playsInline
-          />
+            onCanPlay={() => {
+              setAudioReady(true);
+            }}
+            onCanPlayThrough={() => {
+              setAudioReady(true);
+            }}
+            onLoadedMetadata={() => {
+              setAudioReady(true);
+            }}
+            onLoadedData={() => {
+              setAudioReady(true);
+            }}
+            onPlay={() => {
+              setMusicPlaying(true);
+            }}
+            onPause={() => {
+              setMusicPlaying(false);
+            }}
+            onError={(event) => {
+              const audio =
+                event.currentTarget;
+
+              const mediaError =
+                audio.error;
+
+              console.error(
+                "AUDIO ELEMENT ERROR:",
+                {
+                  code:
+                    mediaError?.code ??
+                    null,
+
+                  message:
+                    mediaError?.message ??
+                    null,
+
+                  src:
+                    audio.currentSrc ||
+                    audio.src,
+
+                  readyState:
+                    audio.readyState,
+
+                  networkState:
+                    audio.networkState,
+                }
+              );
+
+              setAudioReady(false);
+              setMusicPlaying(false);
+              setMusicError(true);
+            }}
+          >
+            <source
+              src={musicUrl}
+              type="audio/mpeg"
+            />
+          </audio>
         )}
 
       {/* ========================================================
@@ -2251,7 +2463,9 @@ export default function PublicInvitationPage() {
         showInvitation && (
           <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
             <img
-              src={invitation.background_url}
+              src={
+                invitation.background_url
+              }
               alt=""
               className="h-full w-full object-cover"
             />
