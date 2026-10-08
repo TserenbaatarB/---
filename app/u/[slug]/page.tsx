@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
@@ -276,6 +282,9 @@ export default function PublicInvitationPage() {
     useState<string | null>(null);
 
   const [musicPlaying, setMusicPlaying] =
+    useState(false);
+
+  const [musicNeedsInteraction, setMusicNeedsInteraction] =
     useState(false);
 
   const [audioReady, setAudioReady] =
@@ -688,6 +697,7 @@ export default function PublicInvitationPage() {
           setVideoDone(true);
           setAudioReady(false);
           setMusicPlaying(false);
+          setMusicNeedsInteraction(false);
           setMusicError(false);
         }
 
@@ -698,6 +708,7 @@ export default function PublicInvitationPage() {
         setMusicError(false);
         setAudioReady(false);
         setMusicPlaying(false);
+        setMusicNeedsInteraction(false);
         setMusicUrl(null);
         setVideoUrl(null);
 
@@ -1112,6 +1123,41 @@ export default function PublicInvitationPage() {
     };
   }, [galleryUrls.length]);
 
+  const playMusic = useCallback(async () => {
+    const media =
+      audioRef.current;
+
+    if (!media) {
+      setMusicNeedsInteraction(true);
+      return;
+    }
+
+    try {
+      media.volume = 1;
+      media.muted = false;
+      media.setAttribute("playsinline", "true");
+      media.setAttribute("webkit-playsinline", "true");
+
+      if (media.readyState === 0) {
+        media.load();
+      }
+
+      await media.play();
+
+      setMusicPlaying(true);
+      setMusicNeedsInteraction(false);
+      setMusicError(false);
+    } catch (error) {
+      console.warn(
+        "BACKGROUND MUSIC PLAY ERROR:",
+        error
+      );
+
+      setMusicPlaying(false);
+      setMusicNeedsInteraction(true);
+    }
+  }, []);
+
   /*
    * ============================================================
    * MUSIC AUTOPLAY
@@ -1138,29 +1184,13 @@ export default function PublicInvitationPage() {
       return;
     }
 
-    const tryAutoplay =
-      async () => {
-        try {
-          await media.play();
-
-          setMusicPlaying(true);
-          setMusicError(false);
-        } catch (error) {
-          console.warn(
-            "BACKGROUND MUSIC AUTOPLAY BLOCKED:",
-            error
-          );
-
-          setMusicPlaying(false);
-        }
-      };
-
-    void tryAutoplay();
+    void playMusic();
   }, [
     musicUrl,
     musicIsVideo,
     showInvitation,
     audioReady,
+    playMusic,
   ]);
 
   /*
@@ -1180,44 +1210,8 @@ export default function PublicInvitationPage() {
      * ========================================================
      */
 
-    if (
-      musicUrl &&
-      !musicIsVideo &&
-      audioRef.current
-    ) {
-      try {
-        const audio =
-          audioRef.current;
-
-        audio.volume = 1;
-        audio.muted = false;
-
-        audio.setAttribute(
-          "playsinline",
-          "true"
-        );
-
-        audio.setAttribute(
-          "webkit-playsinline",
-          "true"
-        );
-
-        if (audio.readyState === 0) {
-          audio.load();
-        }
-
-        await audio.play();
-
-        setMusicPlaying(true);
-        setMusicError(false);
-      } catch (error) {
-        console.warn(
-          "MOBILE MUSIC PLAY BLOCKED:",
-          error
-        );
-
-        setMusicPlaying(false);
-      }
+    if (musicUrl && !musicIsVideo) {
+      void playMusic();
     }
 
     setOpeningStarted(true);
@@ -1726,6 +1720,7 @@ export default function PublicInvitationPage() {
 
     const handlePlay = () => {
       setMusicPlaying(true);
+      setMusicNeedsInteraction(false);
     };
 
     const handlePause =
@@ -1763,6 +1758,7 @@ export default function PublicInvitationPage() {
 
         setAudioReady(false);
         setMusicPlaying(false);
+        setMusicNeedsInteraction(false);
         setMusicError(true);
       };
 
@@ -1856,7 +1852,7 @@ export default function PublicInvitationPage() {
    * ============================================================
    */
 
-  async function toggleMusic() {
+  function toggleMusic() {
     const media =
       audioRef.current;
 
@@ -1864,27 +1860,12 @@ export default function PublicInvitationPage() {
       return;
     }
 
-    try {
-      if (media.paused) {
-        if (media.readyState === 0) {
-          media.load();
-        }
-
-        await media.play();
-
-        setMusicPlaying(true);
-        setMusicError(false);
-      } else {
-        media.pause();
-        setMusicPlaying(false);
-      }
-    } catch (error) {
-      console.warn(
-        "BACKGROUND MUSIC PLAY ERROR:",
-        error
-      );
-
+    if (media.paused) {
+      void playMusic();
+    } else {
+      media.pause();
       setMusicPlaying(false);
+      setMusicNeedsInteraction(false);
     }
   }
 
@@ -2542,12 +2523,7 @@ export default function PublicInvitationPage() {
               setMusicPlaying(false);
               setMusicError(true);
             }}
-          >
-            <source
-              src={musicUrl}
-              type="audio/mpeg"
-            />
-          </audio>
+          />
         )}
 
       {/* ========================================================
@@ -3187,6 +3163,29 @@ export default function PublicInvitationPage() {
         showInvitation && (
           <div className="pointer-events-none fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full bg-black/40 px-4 py-2 text-xs text-white/70 backdrop-blur-md">
             🎵 Хөгжим ачаалж чадсангүй
+          </div>
+        )}
+
+      {musicNeedsInteraction &&
+        showInvitation &&
+        !musicError &&
+        !musicIsVideo && (
+          <div
+            className="fixed inset-x-0 z-50 flex justify-center px-4"
+            style={{
+              bottom:
+                "calc(env(safe-area-inset-bottom, 0px) + 1rem)",
+            }}
+          >
+            <button
+              type="button"
+              data-music-control="true"
+              onClick={() => void playMusic()}
+              className="rounded-full bg-black/75 px-5 py-3 text-sm font-semibold text-white shadow-lg backdrop-blur-md transition hover:bg-black/90"
+              aria-label="Хөгжим тоглуулах"
+            >
+              🎵 Хөгжим сонсохын тулд товшино уу
+            </button>
           </div>
         )}
 
