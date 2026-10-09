@@ -140,6 +140,40 @@ function readableTextOn(hex: string): string {
   return luminance > 0.6 ? "#2c241b" : "#ffffff";
 }
 
+function contrastRatio(first: string, second: string): number {
+  function luminance(hex: string) {
+    const match = /^#?([\da-f]{6})$/i.exec(hex.trim());
+
+    if (!match) return 0;
+
+    const value = parseInt(match[1], 16);
+    const channels = [
+      (value >> 16) & 255,
+      (value >> 8) & 255,
+      value & 255,
+    ].map((channel) => {
+      const normalized = channel / 255;
+      return normalized <= 0.04045
+        ? normalized / 12.92
+        : ((normalized + 0.055) / 1.055) ** 2.4;
+    });
+
+    return (
+      0.2126 * channels[0] +
+      0.7152 * channels[1] +
+      0.0722 * channels[2]
+    );
+  }
+
+  const firstLuminance = luminance(first);
+  const secondLuminance = luminance(second);
+
+  return (
+    (Math.max(firstLuminance, secondLuminance) + 0.05) /
+    (Math.min(firstLuminance, secondLuminance) + 0.05)
+  );
+}
+
 function getProgramItems(value: unknown): ProgramItem[] {
   if (!Array.isArray(value)) return [];
 
@@ -1257,6 +1291,36 @@ export default function PublicInvitationPage() {
     button: baseStyle.button,
   };
   const buttonTextColor = readableTextOn(style.accent);
+  const contentTextColor =
+    customTone === "dark" ? "#ffffff" : style.textColor;
+  const contrastAccent =
+    contrastRatio(style.secondaryAccent, contentTextColor) >= 3
+      ? style.secondaryAccent
+      : contentTextColor;
+  const mutedTextColor =
+    customTone === "dark"
+      ? "rgba(255, 255, 255, 0.76)"
+      : "rgba(44, 36, 27, 0.72)";
+  const sectionSurface =
+    customTone === "dark"
+      ? "rgba(20, 18, 22, 0.58)"
+      : "rgba(255, 255, 255, 0.48)";
+  const panelSurface =
+    customTone === "dark"
+      ? "rgba(20, 18, 22, 0.82)"
+      : "rgba(255, 255, 255, 0.84)";
+  const softSurface =
+    customTone === "dark"
+      ? "rgba(255, 255, 255, 0.10)"
+      : "rgba(255, 255, 255, 0.72)";
+  const panelBorder =
+    customTone === "dark"
+      ? "rgba(255, 255, 255, 0.22)"
+      : `${contrastAccent}55`;
+  const coverSurface =
+    customTone === "dark"
+      ? "rgba(12, 10, 14, 0.18)"
+      : "rgba(255, 255, 255, 0.24)";
 
   const hasTitle = hasText(invitation.title);
   const hasNames = hasText(invitation.names);
@@ -1317,31 +1381,31 @@ export default function PublicInvitationPage() {
       ? { borderColor: "transparent" }
       : customFrame === "cloud"
         ? {
-          borderColor: style.secondaryAccent,
+          borderColor: contrastAccent,
             borderWidth: "3px",
             borderStyle: "double",
           }
         : customFrame === "sprout"
           ? {
-              borderColor: style.secondaryAccent,
+              borderColor: contrastAccent,
               borderWidth: "2px",
               borderStyle: "dashed",
             }
           : customFrame === "khadag"
             ? {
-                borderColor: style.secondaryAccent,
+                borderColor: contrastAccent,
                 borderWidth: "4px",
                 borderStyle: "double",
               }
             : customFrame === "khaan"
               ? {
-                  borderColor: style.secondaryAccent,
+                  borderColor: contrastAccent,
                   borderWidth: "3px",
-                  boxShadow: `inset 0 0 0 5px ${style.secondaryAccent}22`,
+                  boxShadow: `inset 0 0 0 5px ${contrastAccent}22`,
                 }
               : customFrame === "evereguls"
                 ? {
-                    borderColor: style.secondaryAccent,
+                    borderColor: contrastAccent,
                     borderWidth: "2px",
                   }
                 : {};
@@ -1954,13 +2018,12 @@ export default function PublicInvitationPage() {
         <div className="relative z-10 px-4 pb-16 pt-6 sm:px-6 sm:py-10">
           <div className="mx-auto max-w-2xl">
             <article
-              className={`overflow-hidden rounded-[32px] border shadow-2xl ${
-                hasBackgroundPhoto
-                  ? "bg-transparent backdrop-blur-0"
-                  : "bg-white/55 backdrop-blur-[3px]"
-              }`}
+              className="overflow-hidden rounded-[32px] border shadow-2xl"
               style={{
                 ...frameStyle,
+                backgroundColor: hasBackgroundPhoto
+                  ? "transparent"
+                  : panelSurface,
                 fontFamily: appearance.font
                   ? fontFamilyFor(appearance.font)
                   : undefined,
@@ -1970,25 +2033,26 @@ export default function PublicInvitationPage() {
               {hasCoverInfo && (
                 <section
                   className={`relative min-h-[620px] overflow-hidden px-6 pb-16 pt-16 text-center sm:px-12 sm:pt-24 ${
-                    hasBackgroundPhoto
-                      ? "bg-transparent"
-                      : "bg-white/20"
-                  } ${
                     customTone === "dark"
                       ? "text-white"
                       : "text-[#2c241b]"
                   }`}
-                  style={{ textShadow }}
+                  style={{
+                    textShadow,
+                    backgroundColor: hasBackgroundPhoto
+                      ? coverSurface
+                      : softSurface,
+                  }}
                 >
                   <div
                     className="mx-auto mb-8 h-px w-16"
-                    style={{ backgroundColor: style.accent }}
+                    style={{ backgroundColor: contrastAccent }}
                   />
 
                   {hasTitle && (
                     <p
                       className="mb-5 text-xs font-semibold uppercase tracking-[0.28em]"
-                      style={{ color: style.accent }}
+                      style={{ color: contentTextColor }}
                     >
                       {invitation.title}
                     </p>
@@ -2001,20 +2065,30 @@ export default function PublicInvitationPage() {
                   )}
 
                   {hasMessage && (
-                    <div className="mx-auto mt-10 max-w-xl rounded-[28px] bg-white/65 px-6 py-7 text-[#2c241b] shadow-sm backdrop-blur-md sm:px-10">
+                    <div
+                      className="mx-auto mt-10 max-w-xl rounded-[28px] border px-6 py-7 shadow-sm backdrop-blur-md sm:px-10"
+                      style={{
+                        backgroundColor: panelSurface,
+                        borderColor: panelBorder,
+                        color: contentTextColor,
+                      }}
+                    >
                       <p
                         className="mb-4 text-sm font-semibold uppercase tracking-[0.22em]"
-                        style={{ color: style.accent }}
+                        style={{ color: contentTextColor }}
                       >
                         Мэндчилгээ
                       </p>
 
                       <div
                         className="mx-auto mb-5 h-px w-10"
-                        style={{ backgroundColor: style.accent }}
+                        style={{ backgroundColor: contrastAccent }}
                       />
 
-                      <p className="whitespace-pre-line text-base leading-8 opacity-80 [text-shadow:none]">
+                      <p
+                        className="whitespace-pre-line text-base leading-8 [text-shadow:none]"
+                        style={{ color: mutedTextColor }}
+                      >
                         {invitation.message}
                       </p>
                     </div>
@@ -2027,20 +2101,23 @@ export default function PublicInvitationPage() {
                     hasTitle) && (
                     <div
                       className="mx-auto mt-8 h-px w-24"
-                      style={{ backgroundColor: style.accent }}
+                      style={{ backgroundColor: contrastAccent }}
                     />
                   )}
 
                   {(hasEventDate || hasEventTime) && (
                     <div className="mt-8 space-y-2">
                       {hasEventDate && (
-                        <p className="text-lg font-medium" style={{ textShadow }}>
+                        <p
+                          className="text-lg font-medium"
+                          style={{ textShadow, color: contentTextColor }}
+                        >
                           {invitation.event_date}
                         </p>
                       )}
 
                       {hasEventTime && (
-                        <p className="text-sm opacity-75">
+                        <p className="text-sm" style={{ color: mutedTextColor }}>
                           {invitation.event_time}
                         </p>
                       )}
@@ -2063,7 +2140,13 @@ export default function PublicInvitationPage() {
                   )}
 
                   {galleryUrls.length > 0 && (
-                    <div className="absolute bottom-7 right-6 rounded-full bg-black/25 px-2.5 py-1 text-xs text-white/80 backdrop-blur-sm">
+                    <div
+                      className="absolute bottom-7 right-6 rounded-full px-2.5 py-1 text-xs backdrop-blur-sm"
+                      style={{
+                        backgroundColor: panelSurface,
+                        color: contentTextColor,
+                      }}
+                    >
                       {currentSlide + 1} / {galleryUrls.length}
                     </div>
                   )}
@@ -2072,7 +2155,14 @@ export default function PublicInvitationPage() {
 
               {/* EVENT */}
               {hasEventInfo && (
-                <section className="bg-white/65 px-6 py-10 backdrop-blur-[10px] sm:px-12">
+                <section
+                  className="border-t px-6 py-10 backdrop-blur-[10px] sm:px-12"
+                  style={{
+                    backgroundColor: sectionSurface,
+                    borderColor: panelBorder,
+                    color: contentTextColor,
+                  }}
+                >
                   <div className="text-center">
                     {hasVenue && (
                       <h2 className="text-2xl font-semibold">
@@ -2081,7 +2171,7 @@ export default function PublicInvitationPage() {
                     )}
 
                     {hasAddress && (
-                      <p className="mx-auto mt-3 max-w-lg text-sm leading-6 opacity-75">
+                      <p className="mx-auto mt-3 max-w-lg text-sm leading-6" style={{ color: mutedTextColor }}>
                         {invitation.address}
                       </p>
                     )}
@@ -2089,13 +2179,27 @@ export default function PublicInvitationPage() {
                     {(hasEventDate || hasEventTime) && (
                       <div className="mt-7 flex flex-wrap justify-center gap-3">
                         {hasEventDate && (
-                          <div className="rounded-full bg-white/90 px-5 py-2 text-sm shadow-sm">
+                          <div
+                            className="rounded-full border px-5 py-2 text-sm shadow-sm"
+                            style={{
+                              backgroundColor: panelSurface,
+                              borderColor: panelBorder,
+                              color: contentTextColor,
+                            }}
+                          >
                             📅 {invitation.event_date}
                           </div>
                         )}
 
                         {hasEventTime && (
-                          <div className="rounded-full bg-white/90 px-5 py-2 text-sm shadow-sm">
+                          <div
+                            className="rounded-full border px-5 py-2 text-sm shadow-sm"
+                            style={{
+                              backgroundColor: panelSurface,
+                              borderColor: panelBorder,
+                              color: contentTextColor,
+                            }}
+                          >
                             🕐 {invitation.event_time}
                           </div>
                         )}
@@ -2107,8 +2211,21 @@ export default function PublicInvitationPage() {
 
               {/* CALENDAR */}
               {hasEventDate && (
-                <section className="bg-white/45 px-6 py-12 backdrop-blur-[10px] sm:px-12">
-                  <div className="rounded-[28px] bg-white/80 p-4 shadow-sm backdrop-blur-md sm:p-6">
+                <section
+                  className="border-t px-6 py-12 backdrop-blur-[10px] sm:px-12"
+                  style={{
+                    backgroundColor: sectionSurface,
+                    borderColor: panelBorder,
+                    color: contentTextColor,
+                  }}
+                >
+                  <div
+                    className="rounded-[28px] border p-4 shadow-sm backdrop-blur-md sm:p-6"
+                    style={{
+                      backgroundColor: panelSurface,
+                      borderColor: panelBorder,
+                    }}
+                  >
                     <EventCalendar
                       date={invitation.event_date}
                       time={hasEventTime ? invitation.event_time : ""}
@@ -2126,7 +2243,9 @@ export default function PublicInvitationPage() {
                       accent={style.accent}
                       buttonClass={style.button}
                       buttonTextColor={buttonTextColor}
-                      textColor={style.textColor}
+                      textColor={contentTextColor}
+                      surfaceColor={panelSurface}
+                      surfaceBorderColor={panelBorder}
                     />
                   </div>
                 </section>
@@ -2134,19 +2253,26 @@ export default function PublicInvitationPage() {
 
               {/* PROGRAM */}
               {hasProgram && (
-                <section className="bg-white/55 px-6 py-12 backdrop-blur-[10px] sm:px-12">
+                <section
+                  className="border-t px-6 py-12 backdrop-blur-[10px] sm:px-12"
+                  style={{
+                    backgroundColor: sectionSurface,
+                    borderColor: panelBorder,
+                    color: contentTextColor,
+                  }}
+                >
                   <div className="mx-auto max-w-xl">
                     <div className="text-center">
                       <p
                         className="text-sm font-semibold uppercase tracking-[0.22em]"
-                        style={{ color: style.accent }}
+                        style={{ color: contentTextColor }}
                       >
                         Хөтөлбөр
                       </p>
 
                       <div
                         className="mx-auto mt-3 h-px w-10"
-                        style={{ backgroundColor: style.accent }}
+                        style={{ backgroundColor: contrastAccent }}
                       />
                     </div>
 
@@ -2154,7 +2280,11 @@ export default function PublicInvitationPage() {
                       {program.map((item, index) => (
                         <div
                           key={`${item.time}-${item.title}-${index}`}
-                          className="flex items-center gap-4 rounded-2xl bg-white/85 px-5 py-4 shadow-sm"
+                          className="flex items-center gap-4 rounded-2xl border px-5 py-4 shadow-sm backdrop-blur-md"
+                          style={{
+                            backgroundColor: panelSurface,
+                            borderColor: panelBorder,
+                          }}
                         >
                           <div
                             className="min-w-[72px] rounded-full px-3 py-1 text-center text-sm font-semibold"
@@ -2167,7 +2297,12 @@ export default function PublicInvitationPage() {
                             {item.time || "--:--"}
                           </div>
 
-                          <div className="h-8 w-px bg-black/10" />
+                          <div
+                            className="h-8 w-px"
+                            style={{
+                              backgroundColor: panelBorder,
+                            }}
+                          />
 
                           <div className="min-w-0 flex-1 text-sm font-medium leading-6">
                             {item.title || "Хөтөлбөр"}
@@ -2181,18 +2316,25 @@ export default function PublicInvitationPage() {
 
               {/* GALLERY */}
               {galleryUrls.length > 0 && (
-                <section className="bg-white/35 px-5 pb-12 pt-4 backdrop-blur-[1px] sm:px-8">
+                <section
+                  className="border-t px-5 pb-12 pt-4 backdrop-blur-[10px] sm:px-8"
+                  style={{
+                    backgroundColor: sectionSurface,
+                    borderColor: panelBorder,
+                    color: contentTextColor,
+                  }}
+                >
                   <div className="mb-6 text-center">
                     <p
                       className="text-sm font-semibold uppercase tracking-[0.22em]"
-                      style={{ color: style.accent }}
+                      style={{ color: contentTextColor }}
                     >
                       Дурсамж
                     </p>
 
                     <div
                       className="mx-auto mt-3 h-px w-10"
-                      style={{ backgroundColor: style.accent }}
+                      style={{ backgroundColor: contrastAccent }}
                     />
                   </div>
 
@@ -2204,7 +2346,11 @@ export default function PublicInvitationPage() {
                       return (
                         <div
                           key={`${url}-${index}`}
-                          className="rounded-2xl bg-white/80 p-1.5 shadow-lg backdrop-blur-sm"
+                          className="rounded-2xl border p-1.5 shadow-lg backdrop-blur-sm"
+                          style={{
+                            backgroundColor: panelSurface,
+                            borderColor: panelBorder,
+                          }}
                         >
                           <div className="overflow-hidden rounded-[14px]">
                             <img
@@ -2218,7 +2364,10 @@ export default function PublicInvitationPage() {
                           </div>
 
                           {caption && (
-                            <p className="px-1 pb-1 pt-2 text-center text-xs leading-5 text-black/55">
+                            <p
+                              className="px-1 pb-1 pt-2 text-center text-xs leading-5"
+                              style={{ color: mutedTextColor }}
+                            >
                               {caption}
                             </p>
                           )}
@@ -2231,8 +2380,21 @@ export default function PublicInvitationPage() {
 
               {/* MAP */}
               {hasMapInfo && (
-                <section className="bg-white/60 px-6 py-10 backdrop-blur-[10px] sm:px-12">
-                  <div className="rounded-[28px] bg-white/80 p-5 shadow-sm backdrop-blur-md sm:p-7">
+                <section
+                  className="border-t px-6 py-10 backdrop-blur-[10px] sm:px-12"
+                  style={{
+                    backgroundColor: sectionSurface,
+                    borderColor: panelBorder,
+                    color: contentTextColor,
+                  }}
+                >
+                  <div
+                    className="rounded-[28px] border p-5 shadow-sm backdrop-blur-md sm:p-7"
+                    style={{
+                      backgroundColor: panelSurface,
+                      borderColor: panelBorder,
+                    }}
+                  >
                     <div className="text-center">
                       {hasVenue && (
                         <h2 className="text-xl font-semibold">
@@ -2241,13 +2403,16 @@ export default function PublicInvitationPage() {
                       )}
 
                       {hasAddress && (
-                        <p className="mx-auto mt-3 max-w-lg text-sm leading-6 opacity-75">
+                        <p className="mx-auto mt-3 max-w-lg text-sm leading-6" style={{ color: mutedTextColor }}>
                           {invitation.address}
                         </p>
                       )}
 
                       {hasCoordinates && (
-                        <div className="mt-6 overflow-hidden rounded-[24px] border border-black/10 bg-white shadow-lg">
+                        <div
+                          className="mt-6 overflow-hidden rounded-[24px] border shadow-lg"
+                          style={{ borderColor: panelBorder }}
+                        >
                           <iframe
                             title="Урилгын байршлын газрын зураг"
                             src={mapEmbedUrl}
@@ -2264,6 +2429,10 @@ export default function PublicInvitationPage() {
                           target="_blank"
                           rel="noreferrer"
                           className={`inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold shadow-sm ${style.button}`}
+                          style={{
+                            backgroundColor: style.accent,
+                            color: buttonTextColor,
+                          }}
                         >
                           📍 Чиглэл харах
                         </a>
@@ -2273,7 +2442,12 @@ export default function PublicInvitationPage() {
                             href={invitation.extras?.mapUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center justify-center rounded-full border border-black/10 bg-white px-6 py-3 text-sm font-semibold shadow-sm"
+                            className="inline-flex items-center justify-center rounded-full border px-6 py-3 text-sm font-semibold shadow-sm"
+                            style={{
+                              backgroundColor: panelSurface,
+                              borderColor: panelBorder,
+                              color: contentTextColor,
+                            }}
                           >
                             🗺️ Газрын зураг
                           </a>
@@ -2285,23 +2459,45 @@ export default function PublicInvitationPage() {
               )}
 
               {/* RSVP */}
-              <section className="bg-white/45 px-4 py-10 backdrop-blur-[10px] sm:px-8">
-                <div className="rounded-[28px] bg-white/80 p-4 shadow-sm backdrop-blur-md sm:p-6">
+              <section
+                className="border-t px-4 py-10 backdrop-blur-[10px] sm:px-8"
+                style={{
+                  backgroundColor: sectionSurface,
+                  borderColor: panelBorder,
+                  color: contentTextColor,
+                }}
+              >
+                <div
+                  className="rounded-[28px] border p-4 shadow-sm backdrop-blur-md sm:p-6"
+                  style={{
+                    backgroundColor: panelSurface,
+                    borderColor: panelBorder,
+                  }}
+                >
                   <RsvpSection
                     slug={slug}
                     accent={style.accent}
                     buttonClass={style.button}
                     buttonTextColor={buttonTextColor}
-                    textColor={style.textColor}
+                    textColor={contentTextColor}
+                    surfaceColor={panelSurface}
+                    surfaceBorderColor={panelBorder}
                   />
                 </div>
               </section>
 
               {/* FOOTER */}
-              <footer className="bg-white/50 px-6 py-10 text-center backdrop-blur-[10px]">
+              <footer
+                className="border-t px-6 py-10 text-center backdrop-blur-[10px]"
+                style={{
+                  backgroundColor: sectionSurface,
+                  borderColor: panelBorder,
+                  color: contentTextColor,
+                }}
+              >
                 <div
                   className="mx-auto h-px w-12"
-                  style={{ backgroundColor: style.accent }}
+                  style={{ backgroundColor: contrastAccent }}
                 />
 
                 <p className="mt-5 text-xs opacity-50">

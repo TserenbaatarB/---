@@ -11,6 +11,8 @@ type Props = {
   buttonClass: string;
   buttonTextColor: string;
   textColor: string;
+  surfaceColor: string;
+  surfaceBorderColor: string;
 };
 
 const WEEKDAYS = ["Да", "Мя", "Лх", "Пү", "Ба", "Бя", "Ня"];
@@ -61,6 +63,8 @@ export default function EventCalendar({
   buttonClass,
   buttonTextColor,
   textColor,
+  surfaceColor,
+  surfaceBorderColor,
 }: Props) {
   const [now, setNow] = useState(() => Date.now());
 
@@ -138,7 +142,7 @@ export default function EventCalendar({
     >
       <p
         className="text-xs font-semibold uppercase tracking-[0.25em]"
-        style={{ color: accent }}
+        style={{ color: textColor }}
       >
         Хэзээ
       </p>
@@ -186,7 +190,11 @@ export default function EventCalendar({
           {countdown.map((item) => (
             <div
               key={item.label}
-              className="rounded-2xl bg-white/70 py-3"
+              className="rounded-2xl border py-3"
+              style={{
+                backgroundColor: surfaceColor,
+                borderColor: surfaceBorderColor,
+              }}
             >
               <p className="text-xl font-semibold tabular-nums">
                 {pad(item.value)}

@@ -41,12 +41,16 @@ export default function RsvpSection({
   buttonClass,
   buttonTextColor,
   textColor,
+  surfaceColor,
+  surfaceBorderColor,
 }: {
   slug: string;
   accent: string;
   buttonClass: string;
   buttonTextColor: string;
   textColor: string;
+  surfaceColor: string;
+  surfaceBorderColor: string;
 }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -173,7 +177,7 @@ export default function RsvpSection({
     >
       <p
         className="text-xs font-semibold uppercase tracking-[0.25em]"
-        style={{ color: accent }}
+        style={{ color: textColor }}
       >
         Оролцох эсэх
       </p>
@@ -229,7 +233,7 @@ export default function RsvpSection({
                 className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
                   status === id
                     ? "border-transparent text-white"
-                    : "border-black/10 bg-white"
+                    : ""
                 }`}
                 style={
                   status === id
@@ -237,7 +241,11 @@ export default function RsvpSection({
                         backgroundColor: accent,
                         color: buttonTextColor,
                       }
-                    : { color: textColor }
+                    : {
+                        backgroundColor: surfaceColor,
+                        borderColor: surfaceBorderColor,
+                        color: textColor,
+                      }
                 }
               >
                 {label}
@@ -246,7 +254,14 @@ export default function RsvpSection({
           </div>
 
           {settings.askGuests && status === "yes" && (
-            <label className="flex items-center justify-between rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm">
+            <label
+              className="flex items-center justify-between rounded-2xl border px-4 py-3 text-sm"
+              style={{
+                backgroundColor: surfaceColor,
+                borderColor: surfaceBorderColor,
+                color: textColor,
+              }}
+            >
               <span>Хамт ирэх хүн</span>
 
               <select
@@ -305,7 +320,11 @@ export default function RsvpSection({
                 {summary.list.map((item, index) => (
                   <li
                     key={index}
-                    className="flex justify-between rounded-xl bg-white/60 px-3 py-2"
+                    className="flex justify-between rounded-xl border px-3 py-2"
+                    style={{
+                      backgroundColor: surfaceColor,
+                      borderColor: surfaceBorderColor,
+                    }}
                   >
                     <span>
                       {item.name}
