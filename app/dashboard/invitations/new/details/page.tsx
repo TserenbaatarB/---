@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense } from "react";
-
 import {
   ChangeEvent,
   useEffect,
@@ -56,10 +55,7 @@ const STORE_NAME = "images";
    EXAMPLE DATA
 ========================================================= */
 
-const exampleDataByEvent: Record<
-  string,
-  Record<string, ExampleData>
-> = {
+const exampleDataByEvent: Record<string, Record<string, ExampleData>> = {
   wedding: {
     classic: {
       title: "Бидний хурим",
@@ -90,8 +86,7 @@ const exampleDataByEvent: Record<
       names: "Бат & Номин",
       venue: "Blue Sky Hotel",
       address: "Улаанбаатар",
-      message:
-        "Энэ онцгой өдрийг бидэнтэй хамт өнгөрүүлээрэй.",
+      message: "Энэ онцгой өдрийг бидэнтэй хамт өнгөрүүлээрэй.",
     },
     garden: {
       title: "Хайрын баяр",
@@ -305,8 +300,7 @@ const exampleDataByEvent: Record<
       names: "Бат & Номин",
       venue: "The Terrace",
       address: "Улаанбаатар",
-      message:
-        "Бидний шинэ эхлэлийг хамтдаа тэмдэглээрэй.",
+      message: "Бидний шинэ эхлэлийг хамтдаа тэмдэглээрэй.",
     },
     garden: {
       title: "Хайрын шинэ эхлэл",
@@ -348,8 +342,7 @@ const exampleDataByEvent: Record<
       names: "Бат & Номин",
       venue: "Манай шинэ гэр",
       address: "Улаанбаатар",
-      message:
-        "Шинэ гэрийнхээ баярыг хамтдаа тэмдэглэцгээе.",
+      message: "Шинэ гэрийнхээ баярыг хамтдаа тэмдэглэцгээе.",
     },
     garden: {
       title: "Шинэ гэрийн баяр",
@@ -391,8 +384,7 @@ const exampleDataByEvent: Record<
       names: "Бат & Номин",
       venue: "Event Space",
       address: "Улаанбаатар",
-      message:
-        "Энэ өдрийг хамтдаа өнгөрүүлээрэй.",
+      message: "Энэ өдрийг хамтдаа өнгөрүүлээрэй.",
     },
     garden: {
       title: "Онцгой баяр",
@@ -413,25 +405,18 @@ function getEventIcon(eventType: string): string {
   switch (eventType) {
     case "wedding":
       return "💍";
-
     case "birthday":
       return "🎂";
-
     case "baby":
       return "👶";
-
     case "anniversary":
       return "🥂";
-
     case "graduation":
       return "🎓";
-
     case "engagement":
       return "💐";
-
     case "housewarming":
       return "🏡";
-
     default:
       return "🎉";
   }
@@ -443,10 +428,19 @@ function getEventIcon(eventType: string): string {
 
 function openImageDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(
-      DB_NAME,
-      DB_VERSION
-    );
+    if (typeof window === "undefined" || !("indexedDB" in window)) {
+      reject(new Error("Энэ browser IndexedDB хадгалалтыг дэмжихгүй байна."));
+      return;
+    }
+
+    let request: IDBOpenDBRequest;
+
+    try {
+      request = indexedDB.open(DB_NAME, DB_VERSION);
+    } catch (error) {
+      reject(error);
+      return;
+    }
 
     request.onerror = () => {
       reject(
@@ -455,8 +449,20 @@ function openImageDatabase(): Promise<IDBDatabase> {
       );
     };
 
+    request.onblocked = () => {
+      console.warn(
+        "IndexedDB нээх хүсэлт өөр нээлттэй холболтоор хүлээгдэж байна."
+      );
+    };
+
     request.onsuccess = () => {
-      resolve(request.result);
+      const db = request.result;
+
+      db.onversionchange = () => {
+        db.close();
+      };
+
+      resolve(db);
     };
 
     request.onupgradeneeded = () => {
@@ -470,65 +476,233 @@ function openImageDatabase(): Promise<IDBDatabase> {
 }
 
 /* =========================================================
-   SAVE FILE / BLOB
+   IMAGE COMPRESSION
+   Том зурагны хэмжээг багасгаж iPhone-ийн storage quota
+   хэтрэх эрсдэлийг бууруулна.
 ========================================================= */
 
-async function saveImage(
-  id: string,
-  file: File
-): Promise<void> {
-  const db = await openImageDatabase();
+function getFileStorageType(file: File): string {
+  const fileName = file.name.toLowerCase();
 
-  return new Promise((resolve, reject) => {
-    try {
-      const transaction = db.transaction(
-        STORE_NAME,
-        "readwrite"
-      );
+  if (fileName.endsWith(".mp3")) return "audio/mpeg";
+  if (file.type) return file.type;
 
-      const store =
-        transaction.objectStore(STORE_NAME);
+  if (/\.(jpe?g|heic|heif)$/i.test(fileName)) return "image/jpeg";
+  if (fileName.endsWith(".png")) return "image/png";
+  if (fileName.endsWith(".webp")) return "image/webp";
+  if (fileName.endsWith(".gif")) return "image/gif";
+  if (fileName.endsWith(".mp4")) return "video/mp4";
+  if (fileName.endsWith(".mov")) return "video/quicktime";
+  if (fileName.endsWith(".webm")) return "video/webm";
 
-      const blob = new Blob(
-        [file],
-        {
-          type:
-            file.type ||
-            "application/octet-stream",
+  return "application/octet-stream";
+}
+
+async function compressImageForStorage(file: File): Promise<Blob> {
+  const fileType = file.type.toLowerCase();
+  const fileName = file.name.toLowerCase();
+  const isImage =
+    fileType.startsWith("image/") ||
+    /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(fileName);
+
+  if (!isImage) {
+    return new Blob([file], {
+      type: getFileStorageType(file),
+    });
+  }
+
+  const needsJpegConversion =
+    fileType === "image/heic" ||
+    fileType === "image/heif" ||
+    /\.(heic|heif)$/i.test(fileName);
+  const maxDimension = 1800;
+  const quality = 0.78;
+  let objectUrl: string | null = null;
+
+  try {
+    let source: CanvasImageSource;
+    let sourceWidth: number;
+    let sourceHeight: number;
+    let bitmap: ImageBitmap | null = null;
+
+    if (typeof createImageBitmap === "function") {
+      try {
+        bitmap = await createImageBitmap(file);
+      } catch {
+        bitmap = null;
+      }
+    }
+
+    if (bitmap) {
+      source = bitmap;
+      sourceWidth = bitmap.width;
+      sourceHeight = bitmap.height;
+    } else {
+      objectUrl = URL.createObjectURL(file);
+
+      const image = await new Promise<HTMLImageElement>(
+        (resolve, reject) => {
+          const element = new Image();
+
+          element.onload = () => resolve(element);
+          element.onerror = () =>
+            reject(new Error("Зургийг уншиж чадсангүй."));
+
+          element.src = objectUrl!;
         }
       );
 
-      store.put(blob, id);
+      source = image;
+      sourceWidth = image.naturalWidth;
+      sourceHeight = image.naturalHeight;
+    }
 
-      transaction.oncomplete = () => {
-        db.close();
+    if (!sourceWidth || !sourceHeight) {
+      bitmap?.close();
+
+      if (needsJpegConversion) {
+        throw new Error(
+          "iPhone-ийн HEIC зургийг уншиж чадсангүй. Зургаа JPEG хэлбэрээр дахин сонгоно уу."
+        );
+      }
+
+      return new Blob([file], {
+        type: getFileStorageType(file),
+      });
+    }
+
+    const scale = Math.min(
+      1,
+      maxDimension / Math.max(sourceWidth, sourceHeight)
+    );
+
+    const width = Math.max(1, Math.round(sourceWidth * scale));
+    const height = Math.max(1, Math.round(sourceHeight * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      bitmap?.close();
+
+      if (needsJpegConversion) {
+        throw new Error(
+          "iPhone-ийн зургийг хөрвүүлж чадсангүй. Зургаа JPEG хэлбэрээр дахин сонгоно уу."
+        );
+      }
+
+      return new Blob([file], {
+        type: getFileStorageType(file),
+      });
+    }
+
+    context.drawImage(source, 0, 0, width, height);
+
+    bitmap?.close();
+
+    const compressed = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, "image/jpeg", quality);
+    });
+
+    // Compression амжилтгүй бол эх файлыг ашиглана.
+    if (!compressed || compressed.size === 0) {
+      if (needsJpegConversion) {
+        throw new Error(
+          "iPhone-ийн зургийг JPEG хэлбэрт хөрвүүлж чадсангүй. Зургаа JPEG хэлбэрээр дахин сонгоно уу."
+        );
+      }
+
+      return new Blob([file], {
+        type: getFileStorageType(file),
+      });
+    }
+
+    // HEIC must be stored as JPEG so public browsers can display it consistently.
+    if (!needsJpegConversion && compressed.size >= file.size) {
+      return new Blob([file], {
+        type: getFileStorageType(file),
+      });
+    }
+
+    return compressed;
+  } catch (error) {
+    if (needsJpegConversion) {
+      throw error instanceof Error
+        ? error
+        : new Error(
+            "iPhone-ийн зургийг хөрвүүлж чадсангүй. Зургаа JPEG хэлбэрээр дахин сонгоно уу."
+          );
+    }
+
+    console.warn(
+      "Зургийг шахаж чадсангүй. Эх файлыг хадгалахыг оролдоно:",
+      error
+    );
+
+    return new Blob([file], {
+      type: getFileStorageType(file),
+    });
+  } finally {
+    if (objectUrl) {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+}
+
+/* =========================================================
+   SAVE FILE / BLOB
+========================================================= */
+
+async function saveImage(id: string, file: File): Promise<void> {
+  const blob = await compressImageForStorage(file);
+  const db = await openImageDatabase();
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+
+    const finish = (error?: Error | DOMException | null) => {
+      if (settled) return;
+      settled = true;
+
+      db.close();
+
+      if (error) {
+        reject(error);
+      } else {
         resolve();
-      };
+      }
+    };
+
+    try {
+      const transaction = db.transaction(STORE_NAME, "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+
+      transaction.oncomplete = () => finish();
 
       transaction.onerror = () => {
-        db.close();
-
-        reject(
+        finish(
           transaction.error ??
-            new Error(
-              "Файл IndexedDB-д хадгалахад алдаа гарлаа."
-            )
+            new Error("Файлыг хадгалахад алдаа гарлаа.")
         );
       };
 
       transaction.onabort = () => {
-        db.close();
-
-        reject(
+        finish(
           transaction.error ??
-            new Error(
-              "Файл хадгалах transaction зогслоо."
-            )
+            new Error("Файл хадгалах transaction цуцлагдлаа.")
         );
       };
+
+      store.put(blob, id);
     } catch (error) {
-      db.close();
-      reject(error);
+      finish(
+        error instanceof Error
+          ? error
+          : new Error("Файл хадгалах үед тодорхойгүй алдаа гарлаа.")
+      );
     }
   });
 }
@@ -557,92 +731,65 @@ async function downloadStorageBlob(
   return error || !data ? null : data;
 }
 
-async function getStoredBlob(
-  id: string
-): Promise<Blob | null> {
+async function getStoredBlob(id: string): Promise<Blob | null> {
   const db = await openImageDatabase();
 
   return new Promise((resolve, reject) => {
-    const request = db
-      .transaction(STORE_NAME, "readonly")
-      .objectStore(STORE_NAME)
-      .get(id);
+    let settled = false;
 
-    request.onsuccess = () => {
+    const finish = (
+      error?: Error | DOMException | null,
+      result?: Blob | null
+    ) => {
+      if (settled) return;
+      settled = true;
+
       db.close();
 
-      resolve(
-        request.result instanceof Blob
-          ? request.result
-          : null
-      );
+      if (error) {
+        reject(error);
+      } else {
+        resolve(result ?? null);
+      }
     };
 
-    request.onerror = () => {
-      db.close();
-      reject(request.error);
-    };
-  });
-}
-
-function blobToFile(
-  blob: Blob,
-  name: string
-): File {
-  return new File([blob], name, {
-    type: blob.type,
-  });
-}
-
-/* =========================================================
-   CLEAR OLD IMAGES + MUSIC
-========================================================= */
-
-async function clearStoredInvitationImages(): Promise<void> {
-  const db = await openImageDatabase();
-
-  return new Promise((resolve, reject) => {
     try {
-      const transaction = db.transaction(
-        STORE_NAME,
-        "readwrite"
-      );
+      const transaction = db.transaction(STORE_NAME, "readonly");
+      const request = transaction.objectStore(STORE_NAME).get(id);
 
-      const store =
-        transaction.objectStore(STORE_NAME);
-
-      store.clear();
-
-      transaction.oncomplete = () => {
-        db.close();
-        resolve();
+      request.onsuccess = () => {
+        finish(
+          null,
+          request.result instanceof Blob ? request.result : null
+        );
       };
 
-      transaction.onerror = () => {
-        db.close();
-
-        reject(
-          transaction.error ??
-            new Error(
-              "Хуучин зураг болон дуу цэвэрлэхэд алдаа гарлаа."
-            )
+      request.onerror = () => {
+        finish(
+          request.error ??
+            new Error("Хадгалсан файлыг уншихад алдаа гарлаа.")
         );
       };
 
       transaction.onabort = () => {
-        db.close();
-
-        reject(
+        finish(
           transaction.error ??
-            new Error(
-              "Зураг болон дуу хадгалах transaction зогслоо."
-            )
+            new Error("Файл унших transaction цуцлагдлаа.")
         );
       };
     } catch (error) {
-      db.close();
-      reject(error);
+      finish(
+        error instanceof Error
+          ? error
+          : new Error("Файл унших үед тодорхойгүй алдаа гарлаа.")
+      );
     }
+  });
+}
+
+function blobToFile(blob: Blob, name: string): File {
+  return new File([blob], name, {
+    type: blob.type,
   });
 }
 
@@ -654,13 +801,8 @@ function InvitationDetailsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const eventType =
-    searchParams.get("event") ?? "wedding";
-
-  const template =
-    searchParams.get("template") ??
-    "classic-gold";
-
+  const eventType = searchParams.get("event") ?? "wedding";
+  const template = searchParams.get("template") ?? "classic-gold";
   const returnStep = searchParams.get("step");
 
   /* =======================================================
@@ -669,8 +811,7 @@ function InvitationDetailsPageContent() {
 
   const exampleData = useMemo<ExampleData>(() => {
     const eventData =
-      exampleDataByEvent[eventType] ??
-      exampleDataByEvent.other;
+      exampleDataByEvent[eventType] ?? exampleDataByEvent.other;
 
     return (
       eventData[template] ??
@@ -701,46 +842,25 @@ function InvitationDetailsPageContent() {
      BACKGROUND
   ======================================================= */
 
-  const [
-    backgroundImage,
-    setBackgroundImage,
-  ] = useState("");
-
-  const [
-    backgroundFile,
-    setBackgroundFile,
-  ] = useState<File | null>(null);
+  const [backgroundImage, setBackgroundImage] = useState("");
+  const [backgroundFile, setBackgroundFile] = useState<File | null>(null);
 
   /* =======================================================
      GALLERY
   ======================================================= */
 
-  const [gallery, setGallery] = useState<
-    GalleryPhoto[]
-  >([]);
+  const [gallery, setGallery] = useState<GalleryPhoto[]>([]);
 
   /* =======================================================
      MUSIC
   ======================================================= */
 
-  const [
-    musicFile,
-    setMusicFile,
-  ] = useState<File | null>(null);
+  const [musicFile, setMusicFile] = useState<File | null>(null);
+  const [musicUrl, setMusicUrl] = useState("");
 
-  const [
-    musicUrl,
-    setMusicUrl,
-  ] = useState("");
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
 
-  const [dragIndex, setDragIndex] = useState<
-    number | null
-  >(null);
-
-  function moveGalleryPhoto(
-    from: number,
-    to: number
-  ) {
+  function moveGalleryPhoto(from: number, to: number) {
     setGallery((current) => {
       if (
         from === to ||
@@ -764,17 +884,10 @@ function InvitationDetailsPageContent() {
      EXTRAS + COVER VIDEO
   ======================================================= */
 
-  const [extras, setExtras] =
-    useState<InvitationExtras>(
-      defaultExtras
-    );
+  const [extras, setExtras] = useState<InvitationExtras>(defaultExtras);
+  const [coverVideo, setCoverVideo] = useState<File | null>(null);
 
-  const [coverVideo, setCoverVideo] =
-    useState<File | null>(null);
-
-  function patchExtras(
-    patch: Partial<InvitationExtras>
-  ) {
+  function patchExtras(patch: Partial<InvitationExtras>) {
     setExtras((current) => ({
       ...current,
       ...patch,
@@ -785,10 +898,7 @@ function InvitationDetailsPageContent() {
      SAVING
   ======================================================= */
 
-  const [
-    savingImages,
-    setSavingImages,
-  ] = useState(false);
+  const [savingImages, setSavingImages] = useState(false);
 
   /* =======================================================
      CLEANUP OBJECT URLS
@@ -797,21 +907,19 @@ function InvitationDetailsPageContent() {
   useEffect(() => {
     return () => {
       if (backgroundImage) {
-        URL.revokeObjectURL(
-          backgroundImage
-        );
+        URL.revokeObjectURL(backgroundImage);
       }
 
       if (musicUrl) {
-        URL.revokeObjectURL(
-          musicUrl
-        );
+        URL.revokeObjectURL(musicUrl);
       }
 
       gallery.forEach((photo) => {
         URL.revokeObjectURL(photo.url);
       });
     };
+    // Object URLs are cleaned when this page unmounts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* =======================================================
@@ -825,8 +933,7 @@ function InvitationDetailsPageContent() {
 
     async function restore() {
       try {
-        const rawDetails =
-          sessionStorage.getItem("invitation-details");
+        const rawDetails = sessionStorage.getItem("invitation-details");
 
         if (rawDetails) {
           const saved = JSON.parse(rawDetails);
@@ -842,19 +949,21 @@ function InvitationDetailsPageContent() {
         }
 
         const savedExtras = readExtras();
-
         setExtras(savedExtras);
 
-        const rawImages =
-          sessionStorage.getItem("invitation-images");
+        const rawImages = sessionStorage.getItem("invitation-images");
 
         if (rawImages) {
-          const images: StoredInvitationImages =
-            JSON.parse(rawImages);
+          const images: StoredInvitationImages = JSON.parse(rawImages);
 
           if (images.backgroundId) {
             const blob =
-              (await getStoredBlob(images.backgroundId)) ??
+              (await getStoredBlob(images.backgroundId).catch(
+                (error) => {
+                  console.warn("Background IndexedDB уншилт:", error);
+                  return null;
+                }
+              )) ??
               (isStoragePath(images.backgroundId)
                 ? await downloadStorageBlob(
                     "invitation-images",
@@ -863,63 +972,53 @@ function InvitationDetailsPageContent() {
                 : null);
 
             if (blob && !cancelled) {
-              setBackgroundFile(
-                blobToFile(blob, "background")
-              );
-              setBackgroundImage(
-                URL.createObjectURL(blob)
-              );
+              setBackgroundFile(blobToFile(blob, "background"));
+              setBackgroundImage(URL.createObjectURL(blob));
             }
           }
 
           const photos: GalleryPhoto[] = [];
 
-          for (const [
-            index,
-            id,
-          ] of (images.galleryIds ?? []).entries()) {
+          for (const [index, id] of (
+            images.galleryIds ?? []
+          ).entries()) {
             const blob =
-              (await getStoredBlob(id)) ??
+              (await getStoredBlob(id).catch((error) => {
+                console.warn(`Gallery зураг ${index + 1} уншилт:`, error);
+                return null;
+              })) ??
               (isStoragePath(id)
-                ? await downloadStorageBlob(
-                    "invitation-images",
-                    id
-                  )
+                ? await downloadStorageBlob("invitation-images", id)
                 : null);
 
             if (blob) {
               photos.push({
                 id: Date.now() + index,
                 url: URL.createObjectURL(blob),
-                file: blobToFile(
-                  blob,
-                  `gallery-${index + 1}`
-                ),
-                caption:
-                  images.galleryCaptions?.[index] ??
-                  "",
+                file: blobToFile(blob, `gallery-${index + 1}`),
+                caption: images.galleryCaptions?.[index] ?? "",
               });
             }
           }
 
           if (!cancelled) {
             setGallery(photos);
+          } else {
+            photos.forEach((photo) => URL.revokeObjectURL(photo.url));
           }
         }
 
-        const rawMusic =
-          sessionStorage.getItem("invitation-music");
+        const rawMusic = sessionStorage.getItem("invitation-music");
 
         if (rawMusic) {
-          const music: StoredInvitationMusic =
-            JSON.parse(rawMusic);
+          const music: StoredInvitationMusic = JSON.parse(rawMusic);
 
-          if (
-            music.musicType === "custom" &&
-            music.musicId
-          ) {
+          if (music.musicType === "custom" && music.musicId) {
             const blob =
-              (await getStoredBlob(music.musicId)) ??
+              (await getStoredBlob(music.musicId).catch((error) => {
+                console.warn("Music IndexedDB уншилт:", error);
+                return null;
+              })) ??
               (isStoragePath(music.musicId)
                 ? await downloadStorageBlob(
                     "invitation-music",
@@ -929,10 +1028,7 @@ function InvitationDetailsPageContent() {
 
             if (blob && !cancelled) {
               setMusicFile(
-                blobToFile(
-                  blob,
-                  music.musicName ?? "music.mp3"
-                )
+                blobToFile(blob, music.musicName ?? "music.mp3")
               );
               setMusicUrl(URL.createObjectURL(blob));
             }
@@ -940,12 +1036,16 @@ function InvitationDetailsPageContent() {
         }
 
         let videoBlob: Blob | null = savedExtras.coverVideoId
-          ? await getStoredBlob(savedExtras.coverVideoId)
+          ? await getStoredBlob(savedExtras.coverVideoId).catch(
+              (error) => {
+                console.warn("Cover video IndexedDB уншилт:", error);
+                return null;
+              }
+            )
           : null;
-        let videoName =
-          savedExtras.coverVideoName ?? "cover-video";
 
-        // Published video lives next to the music file in storage.
+        let videoName = savedExtras.coverVideoName ?? "cover-video";
+
         const invitationId =
           searchParams.get("invitationId") ??
           sessionStorage.getItem("invitation-id");
@@ -957,9 +1057,11 @@ function InvitationDetailsPageContent() {
 
           if (user) {
             const folder = `${user.id}/${invitationId}`;
+
             const { data: files } = await supabase.storage
               .from("invitation-music")
               .list(folder);
+
             const video = (files ?? []).find((file) =>
               file.name.startsWith("video.")
             );
@@ -987,7 +1089,7 @@ function InvitationDetailsPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [returnStep]);
+  }, [returnStep, searchParams]);
 
   /* =======================================================
      FORMATTED DATE
@@ -996,48 +1098,33 @@ function InvitationDetailsPageContent() {
   const formattedDate = useMemo(() => {
     if (!date) return "";
 
-    const selectedDate = new Date(
-      `${date}T00:00:00`
-    );
+    const selectedDate = new Date(`${date}T00:00:00`);
 
-    if (
-      Number.isNaN(
-        selectedDate.getTime()
-      )
-    ) {
+    if (Number.isNaN(selectedDate.getTime())) {
       return date;
     }
 
-    return selectedDate.toLocaleDateString(
-      "mn-MN",
-      {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      }
-    );
+    return selectedDate.toLocaleDateString("mn-MN", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
   }, [date]);
 
   /* =======================================================
      BACKGROUND UPLOAD
   ======================================================= */
 
-  function handleBackgroundUpload(
-    event: ChangeEvent<HTMLInputElement>
-  ) {
-    const file =
-      event.target.files?.[0];
+  function handleBackgroundUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
 
     if (!file) return;
 
     if (backgroundImage) {
-      URL.revokeObjectURL(
-        backgroundImage
-      );
+      URL.revokeObjectURL(backgroundImage);
     }
 
-    const url =
-      URL.createObjectURL(file);
+    const url = URL.createObjectURL(file);
 
     setBackgroundFile(file);
     setBackgroundImage(url);
@@ -1049,37 +1136,19 @@ function InvitationDetailsPageContent() {
      GALLERY UPLOAD
   ======================================================= */
 
-  function handleGalleryUpload(
-    event: ChangeEvent<HTMLInputElement>
-  ) {
-    const files = Array.from(
-      event.target.files ?? []
-    );
+  function handleGalleryUpload(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
 
     if (!files.length) return;
 
-    const newPhotos: GalleryPhoto[] =
-      files.map(
-        (file, index) => ({
-          id:
-            Date.now() +
-            index +
-            Math.floor(
-              Math.random() * 100000
-            ),
-          file,
-          url:
-            URL.createObjectURL(
-              file
-            ),
-          caption: "",
-        })
-      );
+    const newPhotos: GalleryPhoto[] = files.map((file, index) => ({
+      id: Date.now() + index + Math.floor(Math.random() * 100000),
+      file,
+      url: URL.createObjectURL(file),
+      caption: "",
+    }));
 
-    setGallery((current) => [
-      ...current,
-      ...newPhotos,
-    ]);
+    setGallery((current) => [...current, ...newPhotos]);
 
     event.target.value = "";
   }
@@ -1088,50 +1157,35 @@ function InvitationDetailsPageContent() {
      MUSIC UPLOAD
   ======================================================= */
 
-  function handleMusicUpload(
-    event: ChangeEvent<HTMLInputElement>
-  ) {
-    const file =
-      event.target.files?.[0];
+  function handleMusicUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
 
     if (!file) return;
 
     const isAudio =
       file.type === "audio/mpeg" ||
       file.type === "audio/mp3" ||
-      file.name
-        .toLowerCase()
-        .endsWith(".mp3");
+      file.name.toLowerCase().endsWith(".mp3");
 
     if (!isAudio) {
-      alert(
-        "Зөвхөн MP3 файл оруулна уу."
-      );
-
+      alert("Зөвхөн MP3 файл оруулна уу.");
       event.target.value = "";
       return;
     }
 
-    const maxSize =
-      20 * 1024 * 1024;
+    const maxSize = 20 * 1024 * 1024;
 
     if (file.size > maxSize) {
-      alert(
-        "Дууны хэмжээ 20MB-аас ихгүй байна уу."
-      );
-
+      alert("Дууны хэмжээ 20MB-аас ихгүй байна уу.");
       event.target.value = "";
       return;
     }
 
     if (musicUrl) {
-      URL.revokeObjectURL(
-        musicUrl
-      );
+      URL.revokeObjectURL(musicUrl);
     }
 
-    const url =
-      URL.createObjectURL(file);
+    const url = URL.createObjectURL(file);
 
     setMusicFile(file);
     setMusicUrl(url);
@@ -1145,9 +1199,7 @@ function InvitationDetailsPageContent() {
 
   function removeMusic() {
     if (musicUrl) {
-      URL.revokeObjectURL(
-        musicUrl
-      );
+      URL.revokeObjectURL(musicUrl);
     }
 
     setMusicUrl("");
@@ -1158,26 +1210,15 @@ function InvitationDetailsPageContent() {
      REMOVE GALLERY PHOTO
   ======================================================= */
 
-  function removeGalleryPhoto(
-    id: number
-  ) {
+  function removeGalleryPhoto(id: number) {
     setGallery((current) => {
-      const photo =
-        current.find(
-          (item) =>
-            item.id === id
-        );
+      const photo = current.find((item) => item.id === id);
 
       if (photo) {
-        URL.revokeObjectURL(
-          photo.url
-        );
+        URL.revokeObjectURL(photo.url);
       }
 
-      return current.filter(
-        (item) =>
-          item.id !== id
-      );
+      return current.filter((item) => item.id !== id);
     });
   }
 
@@ -1187,9 +1228,7 @@ function InvitationDetailsPageContent() {
 
   function removeBackground() {
     if (backgroundImage) {
-      URL.revokeObjectURL(
-        backgroundImage
-      );
+      URL.revokeObjectURL(backgroundImage);
     }
 
     setBackgroundImage("");
@@ -1205,95 +1244,68 @@ function InvitationDetailsPageContent() {
 
     setSavingImages(true);
 
+    let currentFileLabel = "хадгалалт эхлүүлэх";
+
     try {
-      await clearStoredInvitationImages();
+      /*
+       * ЭНД IndexedDB-ийн store.clear() ДУУДАХГҮЙ.
+       * Өмнөх урилга, нооргийн файлуудыг устгахгүй.
+       * Шинэ файлууд өвөрмөц ID-тай тул тус тусдаа хадгалагдана.
+       */
 
       /* BACKGROUND */
 
-      let backgroundId:
-        | string
-        | null = null;
+      let backgroundId: string | null = null;
 
       if (backgroundFile) {
-        backgroundId =
-          `background-${Date.now()}-${Math.random()
-            .toString(36)
-            .slice(2, 12)}`;
+        currentFileLabel = "background зураг";
 
-        await saveImage(
-          backgroundId,
-          backgroundFile
-        );
+        backgroundId = `background-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 12)}`;
+
+        await saveImage(backgroundId, backgroundFile);
       }
 
       /* GALLERY */
 
-      const galleryIds: string[] =
-        [];
+      const galleryIds: string[] = [];
+      const galleryCaptions: string[] = [];
 
-      const galleryCaptions: string[] =
-        [];
+      for (let index = 0; index < gallery.length; index++) {
+        const photo = gallery[index];
 
-      for (
-        let index = 0;
-        index < gallery.length;
-        index++
-      ) {
-        const photo =
-          gallery[index];
+        if (!photo.file) continue;
 
-        if (!photo.file) {
-          continue;
-        }
+        currentFileLabel = `gallery зураг ${index + 1}`;
 
-        const galleryId =
-          `gallery-${Date.now()}-${index}-${Math.random()
-            .toString(36)
-            .slice(2, 12)}`;
+        const galleryId = `gallery-${Date.now()}-${index}-${Math.random()
+          .toString(36)
+          .slice(2, 12)}`;
 
-        await saveImage(
-          galleryId,
-          photo.file
-        );
+        await saveImage(galleryId, photo.file);
 
-        galleryIds.push(
-          galleryId
-        );
-
-        galleryCaptions.push(
-          photo.caption ?? ""
-        );
+        galleryIds.push(galleryId);
+        galleryCaptions.push(photo.caption ?? "");
       }
 
       /* MUSIC */
 
-      let musicId:
-        | string
-        | null = null;
-
-      let musicName:
-        | string
-        | null = null;
-
-      let musicType:
-        | "none"
-        | "custom" = "none";
+      let musicId: string | null = null;
+      let musicName: string | null = null;
+      let musicType: "none" | "custom" = "none";
 
       if (musicFile) {
-        musicId =
-          `music-${Date.now()}-${Math.random()
-            .toString(36)
-            .slice(2, 12)}`;
+        currentFileLabel = "урилгын MP3 дуу";
 
-        musicName =
-          musicFile.name;
+        musicId = `music-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 12)}`;
 
+        musicName = musicFile.name;
         musicType = "custom";
 
-        await saveImage(
-          musicId,
-          musicFile
-        );
+        await saveImage(musicId, musicFile);
       }
 
       /* COVER VIDEO */
@@ -1301,15 +1313,16 @@ function InvitationDetailsPageContent() {
       let coverVideoId: string | null = null;
 
       if (coverVideo) {
+        currentFileLabel = "cover video";
+
         coverVideoId = `video-${Date.now()}-${Math.random()
           .toString(36)
           .slice(2, 12)}`;
 
-        await saveImage(
-          coverVideoId,
-          coverVideo
-        );
+        await saveImage(coverVideoId, coverVideo);
       }
+
+      currentFileLabel = "нэмэлт мэдээлэл";
 
       writeExtras({
         ...extras,
@@ -1320,34 +1333,28 @@ function InvitationDetailsPageContent() {
 
       /* IMAGE REFERENCES */
 
-      const imageData: StoredInvitationImages =
-        {
-          backgroundId,
-          galleryIds,
-          galleryCaptions,
-        };
+      const imageData: StoredInvitationImages = {
+        backgroundId,
+        galleryIds,
+        galleryCaptions,
+      };
 
       sessionStorage.setItem(
         "invitation-images",
-        JSON.stringify(
-          imageData
-        )
+        JSON.stringify(imageData)
       );
 
       /* MUSIC REFERENCE */
 
-      const musicData: StoredInvitationMusic =
-        {
-          musicId,
-          musicName,
-          musicType,
-        };
+      const musicData: StoredInvitationMusic = {
+        musicId,
+        musicName,
+        musicType,
+      };
 
       sessionStorage.setItem(
         "invitation-music",
-        JSON.stringify(
-          musicData
-        )
+        JSON.stringify(musicData)
       );
 
       /* TEXT DATA */
@@ -1372,16 +1379,26 @@ function InvitationDetailsPageContent() {
       /* BUILDER */
 
       router.push(
-        `/dashboard/invitations/new/builder?event=${eventType}&template=${template}`
+        `/dashboard/invitations/new/builder?event=${encodeURIComponent(
+          eventType
+        )}&template=${encodeURIComponent(template)}`
       );
     } catch (error) {
       console.error(
-        "Invitation image/music save error:",
+        `Урилгын файл хадгалах алдаа (${currentFileLabel}):`,
         error
       );
 
+      const detail =
+        error instanceof DOMException &&
+        error.name === "QuotaExceededError"
+          ? "iPhone-ийн browser storage дүүрсэн байна. Зургийн тоо эсвэл файлын хэмжээг багасгаад дахин оролдоно уу."
+          : error instanceof Error
+            ? error.message
+            : String(error);
+
       alert(
-        "Зураг эсвэл дуу хадгалахад алдаа гарлаа. Дахин оролдоно уу."
+        `Файл хадгалахад алдаа гарлаа (${currentFileLabel}). Дахин оролдоно уу.\n\n${detail}`
       );
     } finally {
       setSavingImages(false);
@@ -1413,9 +1430,7 @@ function InvitationDetailsPageContent() {
           <WizardStepper
             step={step}
             onStepClick={(target) =>
-              target === 1
-                ? setStep(1)
-                : undefined
+              target === 1 ? setStep(1) : undefined
             }
           />
         </div>
@@ -1439,8 +1454,6 @@ function InvitationDetailsPageContent() {
                 </div>
 
                 <div className="mt-6 grid gap-5 sm:grid-cols-2">
-                  {/* TITLE */}
-
                   <div className="sm:col-span-2">
                     <label className="mb-2 block text-sm font-medium">
                       Урилгын гарчиг
@@ -1448,17 +1461,11 @@ function InvitationDetailsPageContent() {
 
                     <input
                       value={title}
-                      onChange={(e) =>
-                        setTitle(
-                          e.target.value
-                        )
-                      }
+                      onChange={(e) => setTitle(e.target.value)}
                       placeholder={`Жишээ: ${exampleData.title}`}
                       className="w-full rounded-2xl border border-black/10 bg-[#F8F5F0] px-4 py-3.5 text-sm text-black outline-none placeholder:text-black/35 transition focus:border-black/25 focus:bg-white"
                     />
                   </div>
-
-                  {/* NAMES */}
 
                   <div className="sm:col-span-2">
                     <label className="mb-2 block text-sm font-medium">
@@ -1467,17 +1474,11 @@ function InvitationDetailsPageContent() {
 
                     <input
                       value={names}
-                      onChange={(e) =>
-                        setNames(
-                          e.target.value
-                        )
-                      }
+                      onChange={(e) => setNames(e.target.value)}
                       placeholder={`Жишээ: ${exampleData.names}`}
                       className="w-full rounded-2xl border border-black/10 bg-[#F8F5F0] px-4 py-3.5 text-sm text-black outline-none placeholder:text-black/35 transition focus:border-black/25 focus:bg-white"
                     />
                   </div>
-
-                  {/* DATE */}
 
                   <div>
                     <label className="mb-2 block text-sm font-medium">
@@ -1487,16 +1488,10 @@ function InvitationDetailsPageContent() {
                     <input
                       type="date"
                       value={date}
-                      onChange={(e) =>
-                        setDate(
-                          e.target.value
-                        )
-                      }
+                      onChange={(e) => setDate(e.target.value)}
                       className="w-full rounded-2xl border border-black/10 bg-[#F8F5F0] px-4 py-3.5 text-sm text-black outline-none focus:border-black/25 focus:bg-white"
                     />
                   </div>
-
-                  {/* TIME */}
 
                   <div>
                     <label className="mb-2 block text-sm font-medium">
@@ -1506,16 +1501,10 @@ function InvitationDetailsPageContent() {
                     <input
                       type="time"
                       value={time}
-                      onChange={(e) =>
-                        setTime(
-                          e.target.value
-                        )
-                      }
+                      onChange={(e) => setTime(e.target.value)}
                       className="w-full rounded-2xl border border-black/10 bg-[#F8F5F0] px-4 py-3.5 text-sm text-black outline-none focus:border-black/25 focus:bg-white"
                     />
                   </div>
-
-                  {/* VENUE */}
 
                   <div>
                     <label className="mb-2 block text-sm font-medium">
@@ -1524,17 +1513,11 @@ function InvitationDetailsPageContent() {
 
                     <input
                       value={venue}
-                      onChange={(e) =>
-                        setVenue(
-                          e.target.value
-                        )
-                      }
+                      onChange={(e) => setVenue(e.target.value)}
                       placeholder={`Жишээ: ${exampleData.venue}`}
                       className="w-full rounded-2xl border border-black/10 bg-[#F8F5F0] px-4 py-3.5 text-sm text-black outline-none placeholder:text-black/35 transition focus:border-black/25 focus:bg-white"
                     />
                   </div>
-
-                  {/* ADDRESS */}
 
                   <div>
                     <label className="mb-2 block text-sm font-medium">
@@ -1543,17 +1526,11 @@ function InvitationDetailsPageContent() {
 
                     <input
                       value={address}
-                      onChange={(e) =>
-                        setAddress(
-                          e.target.value
-                        )
-                      }
+                      onChange={(e) => setAddress(e.target.value)}
                       placeholder={`Жишээ: ${exampleData.address}`}
                       className="w-full rounded-2xl border border-black/10 bg-[#F8F5F0] px-4 py-3.5 text-sm text-black outline-none placeholder:text-black/35 transition focus:border-black/25 focus:bg-white"
                     />
                   </div>
-
-                  {/* MESSAGE */}
 
                   <div className="sm:col-span-2">
                     <label className="mb-2 block text-sm font-medium">
@@ -1562,18 +1539,12 @@ function InvitationDetailsPageContent() {
 
                     <textarea
                       value={message}
-                      onChange={(e) =>
-                        setMessage(
-                          e.target.value
-                        )
-                      }
+                      onChange={(e) => setMessage(e.target.value)}
                       rows={4}
                       placeholder={`Жишээ: ${exampleData.message}`}
                       className="w-full resize-none rounded-2xl border border-black/10 bg-[#F8F5F0] px-4 py-3.5 text-sm leading-6 text-black outline-none placeholder:text-black/35 focus:border-black/25 focus:bg-white"
                     />
                   </div>
-
-                  {/* PHONE */}
 
                   <div className="sm:col-span-2">
                     <label className="mb-2 block text-sm font-medium">
@@ -1582,11 +1553,7 @@ function InvitationDetailsPageContent() {
 
                     <input
                       value={phone}
-                      onChange={(e) =>
-                        setPhone(
-                          e.target.value
-                        )
-                      }
+                      onChange={(e) => setPhone(e.target.value)}
                       placeholder="Жишээ: 99112233"
                       className="w-full rounded-2xl border border-black/10 bg-[#F8F5F0] px-4 py-3.5 text-sm text-black outline-none placeholder:text-black/35 transition focus:border-black/25 focus:bg-white"
                     />
@@ -1596,10 +1563,7 @@ function InvitationDetailsPageContent() {
             )}
 
             {step === 2 && (
-              <ExtrasEditor
-                extras={extras}
-                onChange={patchExtras}
-              />
+              <ExtrasEditor extras={extras} onChange={patchExtras} />
             )}
 
             {step === 1 && (
@@ -1627,9 +1591,7 @@ function InvitationDetailsPageContent() {
 
                       <button
                         type="button"
-                        onClick={
-                          removeBackground
-                        }
+                        onClick={removeBackground}
                         className="absolute right-3 top-3 rounded-full bg-black/75 px-4 py-2 text-xs font-medium text-white backdrop-blur transition hover:bg-black"
                       >
                         Зураг устгах
@@ -1637,25 +1599,21 @@ function InvitationDetailsPageContent() {
                     </div>
                   ) : (
                     <label className="mt-6 flex cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-black/15 bg-[#F8F5F0] px-6 py-12 text-center transition hover:border-black/30 hover:bg-[#F4EFE8]">
-                      <div className="text-3xl">
-                        🖼️
-                      </div>
+                      <div className="text-3xl">🖼️</div>
 
                       <div className="mt-4 text-sm font-semibold">
                         Background зураг сонгох
                       </div>
 
                       <div className="mt-2 text-xs text-black/40">
-                        JPG, PNG, WEBP
+                        JPG, PNG, WEBP, HEIC
                       </div>
 
                       <input
                         type="file"
-                        accept="image/jpeg,image/png,image/webp"
+                        accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
                         data-role="background-image"
-                        onChange={
-                          handleBackgroundUpload
-                        }
+                        onChange={handleBackgroundUpload}
                         className="hidden"
                       />
                     </label>
@@ -1667,11 +1625,9 @@ function InvitationDetailsPageContent() {
 
                       <input
                         type="file"
-                        accept="image/jpeg,image/png,image/webp"
+                        accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
                         data-role="background-image"
-                        onChange={
-                          handleBackgroundUpload
-                        }
+                        onChange={handleBackgroundUpload}
                         className="hidden"
                       />
                     </label>
@@ -1697,23 +1653,18 @@ function InvitationDetailsPageContent() {
 
                       <input
                         type="file"
-                        accept="image/jpeg,image/png,image/webp"
+                        accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
                         multiple
                         data-role="gallery-images"
-                        onChange={
-                          handleGalleryUpload
-                        }
+                        onChange={handleGalleryUpload}
                         className="hidden"
                       />
                     </label>
                   </div>
 
-                  {gallery.length ===
-                  0 ? (
+                  {gallery.length === 0 ? (
                     <div className="mt-6 rounded-3xl border border-dashed border-black/15 bg-[#F8F5F0] px-6 py-10 text-center">
-                      <div className="text-3xl">
-                        📸
-                      </div>
+                      <div className="text-3xl">📸</div>
 
                       <div className="mt-3 text-sm font-medium">
                         Одоогоор зураг алга
@@ -1725,145 +1676,98 @@ function InvitationDetailsPageContent() {
                     </div>
                   ) : (
                     <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                      {gallery.map(
-                        (photo, index) => (
-                          <div
-                            key={
-                              photo.id
+                      {gallery.map((photo, index) => (
+                        <div
+                          key={photo.id}
+                          draggable
+                          onDragStart={() => setDragIndex(index)}
+                          onDragOver={(event) => event.preventDefault()}
+                          onDrop={() => {
+                            if (dragIndex !== null) {
+                              moveGalleryPhoto(dragIndex, index);
                             }
-                            draggable
-                            onDragStart={() =>
-                              setDragIndex(index)
-                            }
-                            onDragOver={(event) =>
-                              event.preventDefault()
-                            }
-                            onDrop={() => {
-                              if (dragIndex !== null) {
-                                moveGalleryPhoto(
-                                  dragIndex,
-                                  index
-                                );
-                              }
 
-                              setDragIndex(null);
-                            }}
-                            onDragEnd={() =>
-                              setDragIndex(null)
-                            }
-                            className={`group cursor-grab rounded-2xl bg-[#F8F5F0] ${
-                              dragIndex === index
-                                ? "opacity-40"
-                                : ""
-                            }`}
-                          >
-                            {/* IMAGE */}
+                            setDragIndex(null);
+                          }}
+                          onDragEnd={() => setDragIndex(null)}
+                          className={`group cursor-grab rounded-2xl bg-[#F8F5F0] ${
+                            dragIndex === index ? "opacity-40" : ""
+                          }`}
+                        >
+                          <div className="relative aspect-square overflow-hidden rounded-2xl">
+                            <img
+                              src={photo.url}
+                              alt={photo.caption || "Gallery"}
+                              draggable={false}
+                              className="h-full w-full object-cover"
+                            />
 
-                            <div className="relative aspect-square overflow-hidden rounded-2xl">
-                              <img
-                                src={
-                                  photo.url
+                            {index === 0 && (
+                              <span className="absolute left-2 top-2 rounded-full bg-black/75 px-2.5 py-1 text-[10px] font-semibold text-white">
+                                Нүүр
+                              </span>
+                            )}
+
+                            <div className="absolute inset-x-2 bottom-2 flex justify-between opacity-100 sm:opacity-0 sm:transition sm:group-hover:opacity-100">
+                              <button
+                                type="button"
+                                aria-label="Өмнө нь зөөх"
+                                disabled={index === 0}
+                                onClick={() =>
+                                  moveGalleryPhoto(index, index - 1)
                                 }
-                                alt={
-                                  photo.caption ||
-                                  "Gallery"
-                                }
-                                draggable={false}
-                                className="h-full w-full object-cover"
-                              />
-
-                              {index === 0 && (
-                                <span className="absolute left-2 top-2 rounded-full bg-black/75 px-2.5 py-1 text-[10px] font-semibold text-white">
-                                  Нүүр
-                                </span>
-                              )}
-
-                              <div className="absolute inset-x-2 bottom-2 flex justify-between opacity-100 sm:opacity-0 sm:transition sm:group-hover:opacity-100">
-                                <button
-                                  type="button"
-                                  aria-label="Өмнө нь зөөх"
-                                  disabled={index === 0}
-                                  onClick={() =>
-                                    moveGalleryPhoto(
-                                      index,
-                                      index - 1
-                                    )
-                                  }
-                                  className="rounded-full bg-black/75 px-2.5 py-1 text-xs text-white disabled:opacity-30"
-                                >
-                                  ←
-                                </button>
-
-                                <button
-                                  type="button"
-                                  aria-label="Хойно нь зөөх"
-                                  disabled={
-                                    index ===
-                                    gallery.length - 1
-                                  }
-                                  onClick={() =>
-                                    moveGalleryPhoto(
-                                      index,
-                                      index + 1
-                                    )
-                                  }
-                                  className="rounded-full bg-black/75 px-2.5 py-1 text-xs text-white disabled:opacity-30"
-                                >
-                                  →
-                                </button>
-                              </div>
+                                className="rounded-full bg-black/75 px-2.5 py-1 text-xs text-white disabled:opacity-30"
+                              >
+                                ←
+                              </button>
 
                               <button
                                 type="button"
+                                aria-label="Хойно нь зөөх"
+                                disabled={index === gallery.length - 1}
                                 onClick={() =>
-                                  removeGalleryPhoto(
-                                    photo.id
-                                  )
+                                  moveGalleryPhoto(index, index + 1)
                                 }
-                                className="absolute right-2 top-2 rounded-full bg-black/75 px-2.5 py-1.5 text-xs text-white opacity-100 backdrop-blur transition sm:opacity-0 sm:group-hover:opacity-100"
+                                className="rounded-full bg-black/75 px-2.5 py-1 text-xs text-white disabled:opacity-30"
                               >
-                                ✕
+                                →
                               </button>
                             </div>
 
-                            {/* CAPTION */}
-
-                            <div className="pt-2">
-                              <label className="mb-1.5 block text-xs font-semibold text-black/55">
-                                Зургийн тайлбар
-                              </label>
-
-                              <input
-                                type="text"
-                                value={
-                                  photo.caption
-                                }
-                                onChange={(event) => {
-                                  const value =
-                                    event.target.value;
-
-                                  setGallery(
-                                    (current) =>
-                                      current.map(
-                                        (item) =>
-                                          item.id ===
-                                          photo.id
-                                            ? {
-                                                ...item,
-                                                caption:
-                                                  value,
-                                              }
-                                            : item
-                                      )
-                                  );
-                                }}
-                                placeholder="Жишээ: Бидний анхны аялал 🤍"
-                                className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-xs text-black outline-none placeholder:text-black/30 focus:border-black/25"
-                              />
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeGalleryPhoto(photo.id)}
+                              className="absolute right-2 top-2 rounded-full bg-black/75 px-2.5 py-1.5 text-xs text-white opacity-100 backdrop-blur transition sm:opacity-0 sm:group-hover:opacity-100"
+                            >
+                              ✕
+                            </button>
                           </div>
-                        )
-                      )}
+
+                          <div className="pt-2">
+                            <label className="mb-1.5 block text-xs font-semibold text-black/55">
+                              Зургийн тайлбар
+                            </label>
+
+                            <input
+                              type="text"
+                              value={photo.caption}
+                              onChange={(event) => {
+                                const value = event.target.value;
+
+                                setGallery((current) =>
+                                  current.map((item) =>
+                                    item.id === photo.id
+                                      ? { ...item, caption: value }
+                                      : item
+                                  )
+                                );
+                              }}
+                              placeholder="Жишээ: Бидний анхны аялал 🤍"
+                              className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-xs text-black outline-none placeholder:text-black/30 focus:border-black/25"
+                            />
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -1891,9 +1795,7 @@ function InvitationDetailsPageContent() {
 
                     {!musicFile ? (
                       <label className="mt-6 flex cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-black/15 bg-[#F8F5F0] px-6 py-10 text-center transition hover:border-black/30 hover:bg-[#F4EFE8]">
-                        <div className="text-3xl">
-                          🎵
-                        </div>
+                        <div className="text-3xl">🎵</div>
 
                         <div className="mt-4 text-sm font-semibold">
                           MP3 дуу сонгох
@@ -1907,9 +1809,7 @@ function InvitationDetailsPageContent() {
                           type="file"
                           accept="audio/mpeg,audio/mp3,.mp3"
                           data-role="invitation-music"
-                          onChange={
-                            handleMusicUpload
-                          }
+                          onChange={handleMusicUpload}
                           className="hidden"
                         />
                       </label>
@@ -1929,12 +1829,8 @@ function InvitationDetailsPageContent() {
 
                                 <div className="mt-1 text-xs text-black/40">
                                   MP3 ·{" "}
-                                  {(
-                                    musicFile.size /
-                                    1024 /
-                                    1024
-                                  ).toFixed(1)}
-                                  {" "}MB
+                                  {(musicFile.size / 1024 / 1024).toFixed(1)}{" "}
+                                  MB
                                 </div>
                               </div>
                             </div>
@@ -1942,9 +1838,7 @@ function InvitationDetailsPageContent() {
 
                           <button
                             type="button"
-                            onClick={
-                              removeMusic
-                            }
+                            onClick={removeMusic}
                             className="shrink-0 rounded-full bg-black/10 px-3 py-2 text-xs font-semibold transition hover:bg-black/15"
                           >
                             Устгах
@@ -1966,9 +1860,7 @@ function InvitationDetailsPageContent() {
                             type="file"
                             accept="audio/mpeg,audio/mp3,.mp3"
                             data-role="invitation-music"
-                            onChange={
-                              handleMusicUpload
-                            }
+                            onChange={handleMusicUpload}
                             className="hidden"
                           />
                         </label>
@@ -1991,9 +1883,7 @@ function InvitationDetailsPageContent() {
               <button
                 type="button"
                 onClick={() =>
-                  step === 2
-                    ? setStep(1)
-                    : window.history.back()
+                  step === 2 ? setStep(1) : window.history.back()
                 }
                 className="rounded-full border border-black/10 bg-white px-6 py-3.5 text-sm font-semibold transition hover:bg-black/5"
               >
@@ -2003,13 +1893,9 @@ function InvitationDetailsPageContent() {
               <button
                 type="button"
                 onClick={
-                  step === 1
-                    ? () => setStep(2)
-                    : handleContinue
+                  step === 1 ? () => setStep(2) : handleContinue
                 }
-                disabled={
-                  savingImages
-                }
+                disabled={savingImages}
                 className="rounded-full bg-black px-7 py-3.5 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {savingImages
@@ -2040,8 +1926,6 @@ function InvitationDetailsPageContent() {
 
             <div className="mx-auto w-full max-w-[390px] rounded-[38px] border-[8px] border-[#171717] bg-[#171717] p-1.5 shadow-2xl shadow-black/20">
               <div className="relative aspect-[9/18] overflow-hidden rounded-[30px] bg-[#EEE6DA]">
-                {/* BACKGROUND */}
-
                 {backgroundImage && (
                   <img
                     src={backgroundImage}
@@ -2058,35 +1942,26 @@ function InvitationDetailsPageContent() {
                   }`}
                 />
 
-                {/* PREVIEW CONTENT */}
-
                 <div className="relative z-10 flex h-full flex-col items-center justify-between px-7 py-12 text-center text-white">
                   <div className="text-[9px] font-medium tracking-[0.35em] text-white/80">
-                    {title ||
-                      exampleData.title}
+                    {title || exampleData.title}
                   </div>
 
                   <div>
                     <div className="font-serif text-4xl italic drop-shadow-sm">
-                      {names ||
-                        exampleData.names}
+                      {names || exampleData.names}
                     </div>
 
                     <div className="mt-4 text-[10px] tracking-[0.2em] text-white/75">
-                      {formattedDate ||
-                        "2027 оны 6 сарын 20"}{" "}
-                      {time
-                        ? `· ${time}`
-                        : ""}
+                      {formattedDate || "2027 оны 6 сарын 20"}{" "}
+                      {time ? `· ${time}` : ""}
                     </div>
                   </div>
 
                   <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border-4 border-white/70 bg-white/20 shadow-xl backdrop-blur-sm">
                     {gallery[0] ? (
                       <img
-                        src={
-                          gallery[0].url
-                        }
+                        src={gallery[0].url}
                         alt=""
                         className="h-full w-full object-cover"
                       />
@@ -2099,56 +1974,34 @@ function InvitationDetailsPageContent() {
 
                   <div className="max-w-[250px]">
                     <p className="text-xs leading-5 text-white/85">
-                      {message ||
-                        exampleData.message}
+                      {message || exampleData.message}
                     </p>
 
                     <div className="mt-5 text-xs font-medium">
-                      📍{" "}
-                      {venue ||
-                        exampleData.venue}
+                      📍 {venue || exampleData.venue}
                     </div>
 
                     <div className="mt-1 text-[10px] text-white/65">
-                      {address ||
-                        exampleData.address}
+                      {address || exampleData.address}
                     </div>
                   </div>
 
-                  {gallery.length >
-                    1 && (
+                  {gallery.length > 1 && (
                     <div className="flex gap-1.5">
-                      {gallery
-                        .slice(
-                          0,
-                          4
-                        )
-                        .map(
-                          (
-                            photo
-                          ) => (
-                            <img
-                              key={
-                                photo.id
-                              }
-                              src={
-                                photo.url
-                              }
-                              alt=""
-                              className="h-8 w-8 rounded-full border border-white/50 object-cover"
-                            />
-                          )
-                        )}
+                      {gallery.slice(0, 4).map((photo) => (
+                        <img
+                          key={photo.id}
+                          src={photo.url}
+                          alt=""
+                          className="h-8 w-8 rounded-full border border-white/50 object-cover"
+                        />
+                      ))}
                     </div>
                   )}
 
-                  {/* MUSIC INDICATOR */}
-
                   {musicFile && (
                     <div className="flex items-center gap-2 rounded-full bg-black/30 px-3 py-1.5 text-[9px] text-white/90 backdrop-blur-sm">
-                      <span className="animate-pulse">
-                        ♪
-                      </span>
+                      <span className="animate-pulse">♪</span>
 
                       <span className="max-w-[150px] truncate">
                         {musicFile.name}
