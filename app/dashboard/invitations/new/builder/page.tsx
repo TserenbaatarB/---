@@ -3531,7 +3531,23 @@ function InvitationBuilderPageContent() {
                 </div>
 
                 {backgroundImage && (
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex h-12 items-center justify-center border-t border-white/30 bg-white/25 text-[8px] font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-xl">
+                  <div
+                    className={`pointer-events-none absolute inset-x-0 bottom-0 z-20 flex h-12 items-center justify-center border-t text-[8px] font-semibold uppercase tracking-[0.18em] backdrop-blur-xl ${
+                      appearance.tone === "dark"
+                        ? "text-white"
+                        : "text-[#24211E]"
+                    }`}
+                    style={{
+                      backgroundColor:
+                        appearance.tone === "dark"
+                          ? `rgba(20, 18, 22, ${(0.42 + (appearance.darkness / 80) * 0.34).toFixed(2)})`
+                          : "rgba(255, 255, 255, 0.48)",
+                      borderColor:
+                        appearance.tone === "dark"
+                          ? "rgba(255, 255, 255, 0.22)"
+                          : `${appearance.accent}55`,
+                    }}
+                  >
                     Бусад хэсэг · blur
                   </div>
                 )}

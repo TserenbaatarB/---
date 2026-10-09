@@ -1303,11 +1303,11 @@ export default function PublicInvitationPage() {
       : "rgba(44, 36, 27, 0.72)";
   const sectionSurface =
     customTone === "dark"
-      ? "rgba(20, 18, 22, 0.58)"
+      ? `rgba(20, 18, 22, ${(0.18 + (photoDarkness / 80) * 0.32).toFixed(2)})`
       : "rgba(255, 255, 255, 0.48)";
   const panelSurface =
     customTone === "dark"
-      ? "rgba(20, 18, 22, 0.82)"
+      ? `rgba(20, 18, 22, ${(0.42 + (photoDarkness / 80) * 0.34).toFixed(2)})`
       : "rgba(255, 255, 255, 0.84)";
   const softSurface =
     customTone === "dark"
@@ -1319,7 +1319,7 @@ export default function PublicInvitationPage() {
       : `${contrastAccent}55`;
   const coverSurface =
     customTone === "dark"
-      ? "rgba(12, 10, 14, 0.18)"
+      ? `rgba(12, 10, 14, ${(0.08 + (photoDarkness / 80) * 0.24).toFixed(2)})`
       : "rgba(255, 255, 255, 0.24)";
 
   const hasTitle = hasText(invitation.title);

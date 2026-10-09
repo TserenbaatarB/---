@@ -344,6 +344,9 @@ export default function AppearanceControls({
         </label>
         <label className="block text-xs font-semibold text-black/55">
           Бараан давхарга: {appearance.darkness}%
+          <span className="mt-1 block font-normal text-black/40">
+            Зураг болон бараан загварын хэсгүүдэд нөлөөлнө.
+          </span>
           <input
             type="range"
             min="0"
