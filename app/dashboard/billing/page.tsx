@@ -1,7 +1,12 @@
-
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -16,25 +21,24 @@ type Membership = {
   expires_at: string;
 };
 
+type PaymentStatus = "pending" | "approved" | "rejected";
+
 type PaymentRequest = {
   id: string;
-  status: "pending" | "approved" | "rejected";
+  status: PaymentStatus;
   created_at: string;
   rejection_reason: string | null;
 };
 
-type MembershipNotification = {
+type StatusSnapshot = {
   id: string;
-  type:
-    | "payment_pending"
-    | "payment_approved"
-    | "payment_rejected"
-    | "payment_cancelled";
-  title: string;
-  message: string;
-  is_read: boolean;
-  created_at: string;
+  status: PaymentStatus;
 };
+
+type StatusNotice =
+  | { type: "pending" }
+  | { type: "rejected"; reason: string }
+  | null;
 
 function isMembershipActive(expiresAt: string | null | undefined) {
   return Boolean(expiresAt && new Date(expiresAt).getTime() > Date.now());
@@ -66,9 +70,6 @@ export default function BillingPage() {
   const [membership, setMembership] = useState<Membership | null>(null);
   const [paymentRequest, setPaymentRequest] =
     useState<PaymentRequest | null>(null);
-  const [notifications, setNotifications] = useState<
-    MembershipNotification[]
-  >([]);
 
   const [payerName, setPayerName] = useState("");
   const [payerPhone, setPayerPhone] = useState("");
@@ -76,12 +77,20 @@ export default function BillingPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [message, setMessage] = useState("");
+
+  // Зөвхөн одоогийн хуудасны session-д хадгалагдана.
+  // Refresh хийхэд null утгаараа дахин эхэлнэ.
+  const [statusNotice, setStatusNotice] = useState<StatusNotice>(null);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const refreshBilling = useCallback(async (currentUserId: string) => {
-    const [membershipResult, requestResult, notificationResult] =
-      await Promise.all([
+  // Өмнөх төлөвийг санаж, хуудас нээлттэй үед гарсан өөрчлөлтийг илрүүлнэ.
+  // Энэ ref нь refresh хийхэд дахин эхэлдэг.
+  const previousRequestRef = useRef<StatusSnapshot | null>(null);
+  const initialSnapshotLoadedRef = useRef(false);
+
+  const refreshBilling = useCallback(
+    async (currentUserId: string, detectChanges = true) => {
+      const [membershipResult, requestResult] = await Promise.all([
         supabase
           .from("user_memberships")
           .select("expires_at")
@@ -95,25 +104,58 @@ export default function BillingPage() {
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle(),
-
-        supabase
-          .from("membership_notifications")
-          .select("id, type, title, message, is_read, created_at")
-          .eq("user_id", currentUserId)
-          .order("created_at", { ascending: false })
-          .limit(10),
       ]);
 
-    if (membershipResult.error) throw membershipResult.error;
-    if (requestResult.error) throw requestResult.error;
-    if (notificationResult.error) throw notificationResult.error;
+      if (membershipResult.error) throw membershipResult.error;
+      if (requestResult.error) throw requestResult.error;
 
-    setMembership(membershipResult.data);
-    setPaymentRequest(requestResult.data as PaymentRequest | null);
-    setNotifications(
-      (notificationResult.data ?? []) as MembershipNotification[]
-    );
-  }, []);
+      const nextRequest = requestResult.data as PaymentRequest | null;
+      const previousRequest = previousRequestRef.current;
+
+      // Эхний ачаалал дээр DB-д байсан төлөвийг baseline болгоно.
+      // Ингэснээр refresh-ийн дараа хуучин мэдэгдэл дахин гарахгүй.
+      if (!initialSnapshotLoadedRef.current) {
+        initialSnapshotLoadedRef.current = true;
+      } else if (detectChanges && nextRequest) {
+        // Админ өмнөх pending хүсэлтийг буцаасан.
+        if (
+          previousRequest &&
+          previousRequest.id === nextRequest.id &&
+          previousRequest.status === "pending" &&
+          nextRequest.status === "rejected"
+        ) {
+          setStatusNotice({
+            type: "rejected",
+            reason:
+              nextRequest.rejection_reason?.trim() ||
+              "Төлбөр баталгаажаагүй байна. Гүйлгээний мэдээллээ шалгана уу.",
+          });
+        }
+
+        // Админ баталсан бол түр мэдэгдлийг арилгаж,
+        // гишүүнчлэлийн бодит төлөвийг харуулна.
+        if (
+          previousRequest &&
+          previousRequest.id === nextRequest.id &&
+          previousRequest.status === "pending" &&
+          nextRequest.status === "approved"
+        ) {
+          setStatusNotice(null);
+        }
+      }
+
+      previousRequestRef.current = nextRequest
+        ? {
+            id: nextRequest.id,
+            status: nextRequest.status,
+          }
+        : null;
+
+      setMembership(membershipResult.data);
+      setPaymentRequest(nextRequest);
+    },
+    []
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -136,13 +178,15 @@ export default function BillingPage() {
         if (cancelled) return;
 
         setUserId(user.id);
-        await refreshBilling(user.id);
+
+        // Эхний ачаалал дээр хуучин төлөвийг мэдэгдэл болгон харуулахгүй.
+        await refreshBilling(user.id, false);
 
         if (cancelled) return;
 
-        // Шийдвэр гарсан эсэхийг хуудас нээлттэй үед автоматаар шалгана.
+        // Хуудас нээлттэй байх хугацаанд админы шийдвэрийг шалгана.
         intervalId = setInterval(() => {
-          void refreshBilling(user.id).catch((error: unknown) => {
+          void refreshBilling(user.id, true).catch((error: unknown) => {
             console.error("BILLING REFRESH ERROR:", error);
           });
         }, 5000);
@@ -172,9 +216,7 @@ export default function BillingPage() {
   async function copyAccountNumber() {
     try {
       await navigator.clipboard.writeText(ACCOUNT_NUMBER);
-
       setCopied(true);
-      setMessage("");
       setErrorMessage("");
 
       window.setTimeout(() => setCopied(false), 2000);
@@ -184,39 +226,34 @@ export default function BillingPage() {
     }
   }
 
-  async function markNotificationRead(notificationId: string) {
-    const { error } = await supabase
-      .from("membership_notifications")
-      .update({ is_read: true })
-      .eq("id", notificationId);
-
-    if (error) {
-      console.error("MARK NOTIFICATION READ ERROR:", error);
-      setErrorMessage("Мэдэгдлийг уншсан гэж тэмдэглэж чадсангүй.");
-      return;
-    }
-
-    setNotifications((previous) =>
-      previous.map((notification) =>
-        notification.id === notificationId
-          ? { ...notification, is_read: true }
-          : notification
-      )
-    );
-  }
-
-  async function submitPaymentRequest(
-    event: FormEvent<HTMLFormElement>
-  ) {
+  async function submitPaymentRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!userId || submitting) return;
 
     setSubmitting(true);
-    setMessage("");
     setErrorMessage("");
+    setStatusNotice(null);
 
     try {
+      // Давхар pending хүсэлт үүсгэхээс сэргийлнэ.
+      // Өмнөх хүсэлт pending хэвээр бол админ шийдвэрээ гаргах ёстой.
+      const { data: existingPending, error: pendingCheckError } =
+        await supabase
+          .from("membership_payment_requests")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("status", "pending")
+          .limit(1)
+          .maybeSingle();
+
+      if (pendingCheckError) throw pendingCheckError;
+
+      if (existingPending) {
+        setStatusNotice({ type: "pending" });
+        return;
+      }
+
       const { error } = await supabase
         .from("membership_payment_requests")
         .insert({
@@ -229,23 +266,39 @@ export default function BillingPage() {
 
       if (error) throw error;
 
-      await refreshBilling(userId);
+      // Шинэ хүсэлтийн төлөвийг baseline болгож, мэдэгдлийг гараар гаргана.
+      await refreshBilling(userId, false);
 
       setPayerName("");
       setPayerPhone("");
       setPaymentReference("");
 
-      setMessage(
-        "Төлбөрийн хүсэлт амжилттай илгээгдлээ. Банкны дансны орлогыг шалгасны дараа сарын эрхийн төлөв шинэчлэгдэнэ."
-      );
+      setStatusNotice({ type: "pending" });
     } catch (error) {
       console.error("MEMBERSHIP PAYMENT REQUEST ERROR:", error);
 
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Хүсэлт илгээх үед алдаа гарлаа."
-      );
+      const message =
+        error instanceof Error ? error.message : "";
+
+      if (
+        message.toLowerCase().includes("duplicate") ||
+        message.toLowerCase().includes("unique")
+      ) {
+        setErrorMessage(
+          "Танд шалгагдаж буй төлбөрийн хүсэлт байна. Админы шийдвэрийг хүлээнэ үү."
+        );
+      } else {
+        setErrorMessage(
+          message || "Хүсэлт илгээх үед алдаа гарлаа. Дахин оролдоно уу."
+        );
+      }
+
+      // Алдаа гарсан үед DB-ийн хамгийн сүүлийн төлөвийг дахин шалгана.
+      try {
+        await refreshBilling(userId, false);
+      } catch (refreshError) {
+        console.error("BILLING RECOVERY ERROR:", refreshError);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -262,8 +315,6 @@ export default function BillingPage() {
   }
 
   const membershipActive = isMembershipActive(membership?.expires_at);
-  const pendingRequest = paymentRequest?.status === "pending";
-  const unreadCount = notifications.filter((item) => !item.is_read).length;
 
   return (
     <main className="min-h-screen bg-[#F8F5F0] px-5 py-8 text-[#171717] sm:px-8 sm:py-10">
@@ -308,82 +359,6 @@ export default function BillingPage() {
             </div>
           </div>
 
-          {/* Notifications */}
-          <div className="px-6 pt-7 sm:px-9">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold">Төлбөрийн мэдэгдэл</h2>
-                <p className="mt-1 text-xs text-black/45">
-                  Админы шийдвэр болон төлбөрийн төлөв
-                </p>
-              </div>
-
-              {unreadCount > 0 && (
-                <span className="rounded-full bg-black px-3 py-1 text-xs font-semibold text-white">
-                  {unreadCount} уншаагүй
-                </span>
-              )}
-            </div>
-
-            {notifications.length === 0 ? (
-              <p className="mt-4 rounded-2xl bg-[#F8F5F0] p-4 text-sm text-black/50">
-                Одоогоор мэдэгдэл алга.
-              </p>
-            ) : (
-              <div className="mt-4 space-y-3">
-                {notifications.map((notification) => {
-                  const isApproved =
-                    notification.type === "payment_approved";
-                  const isRejected =
-                    notification.type === "payment_rejected";
-                  const isCancelled =
-                    notification.type === "payment_cancelled";
-
-                  const tone = isApproved
-                    ? "border-green-200 bg-green-50 text-green-900"
-                    : isRejected || isCancelled
-                      ? "border-red-200 bg-red-50 text-red-900"
-                      : "border-amber-200 bg-amber-50 text-amber-900";
-
-                  return (
-                    <article
-                      key={notification.id}
-                      className={`rounded-2xl border p-4 ${tone} ${
-                        !notification.is_read ? "ring-1 ring-black/5" : ""
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="font-semibold">
-                            {notification.title}
-                          </p>
-                          <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6">
-                            {notification.message}
-                          </p>
-                          <p className="mt-3 text-xs opacity-70">
-                            {formatDateTime(notification.created_at)}
-                          </p>
-                        </div>
-
-                        {!notification.is_read && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void markNotificationRead(notification.id)
-                            }
-                            className="shrink-0 rounded-full border border-current/20 px-3 py-2 text-xs font-medium"
-                          >
-                            Уншсан
-                          </button>
-                        )}
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
           <div className="px-6 py-7 sm:px-9">
             {membershipActive && membership && (
               <div className="mb-6 rounded-2xl border border-green-200 bg-green-50 p-5">
@@ -396,36 +371,34 @@ export default function BillingPage() {
               </div>
             )}
 
-            {pendingRequest && paymentRequest && (
-              <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+            {/* Нэг л түр мэдэгдэл харуулна. */}
+            {statusNotice?.type === "pending" && (
+              <div
+                role="status"
+                className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5"
+              >
                 <p className="font-semibold text-amber-900">
-                  ⏳ Төлбөр баталгаажихыг хүлээж байна
+                  ⏳ Төлбөр шалгаж байна
                 </p>
                 <p className="mt-2 text-sm leading-6 text-amber-800">
-                  Таны хүсэлт бүртгэгдсэн. Банкны дансанд мөнгө орсныг
-                  админ шалгасны дараа шийдвэр гаргана.
-                </p>
-                <p className="mt-3 text-xs text-amber-700/80">
-                  Хүсэлт илгээсэн:{" "}
-                  {formatDateTime(paymentRequest.created_at)}
+                  Таны хүсэлт бүртгэгдсэн. Админ банкны орлогыг шалгасны
+                  дараа шийдвэр гаргана.
                 </p>
               </div>
             )}
 
-            {paymentRequest?.status === "rejected" && (
-              <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-5">
+            {statusNotice?.type === "rejected" && (
+              <div
+                role="alert"
+                className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-5"
+              >
                 <p className="font-semibold text-red-900">
-                  Төлбөр баталгаажаагүй
+                  Төлбөр буцаасан
                 </p>
                 <p className="mt-2 text-sm leading-6 text-red-800">
-                  {paymentRequest.rejection_reason ||
-                    notifications.find(
-                      (item) =>
-                        item.type === "payment_rejected"
-                    )?.message ||
-                    "Төлбөр баталгаажаагүй байна. Гүйлгээний мэдээллээ шалгана уу."}
+                  {statusNotice.reason}
                 </p>
-                <p className="mt-3 text-xs text-red-700/80">
+                <p className="mt-3 text-xs leading-5 text-red-700/80">
                   Та мэдээллээ шалгаад дахин төлбөрийн хүсэлт илгээж болно.
                 </p>
               </div>
@@ -439,8 +412,7 @@ export default function BillingPage() {
                 Банкны шилжүүлэг
               </h2>
               <p className="mt-2 text-sm leading-6 text-black/50">
-                Доорх данс руу яг ₮
-                {MONTHLY_PRICE.toLocaleString("mn-MN")} шилжүүлнэ үү.
+                Доорх данс руу яг ₮{MONTHLY_PRICE.toLocaleString("mn-MN")} шилжүүлнэ үү.
               </p>
             </div>
 
@@ -499,9 +471,8 @@ export default function BillingPage() {
             </div>
 
             <div className="mt-7">
-              <p className="text-sm font-semibold">
-                Төлбөр хийх дараалал
-              </p>
+              <p className="text-sm font-semibold">Төлбөр хийх дараалал</p>
+
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 <div className="rounded-2xl border border-black/7 p-4">
                   <div className="text-lg font-bold">01</div>
@@ -510,6 +481,7 @@ export default function BillingPage() {
                     Дээрх данс руу ₮19,900 шилжүүлнэ.
                   </p>
                 </div>
+
                 <div className="rounded-2xl border border-black/7 p-4">
                   <div className="text-lg font-bold">02</div>
                   <p className="mt-2 text-sm font-medium">Хүсэлт илгээх</p>
@@ -517,6 +489,7 @@ export default function BillingPage() {
                     Доорх мэдээллийг бөглөнө.
                   </p>
                 </div>
+
                 <div className="rounded-2xl border border-black/7 p-4">
                   <div className="text-lg font-bold">03</div>
                   <p className="mt-2 text-sm font-medium">Эрх идэвхжих</p>
@@ -527,86 +500,75 @@ export default function BillingPage() {
               </div>
             </div>
 
-            {!pendingRequest && (
-              <form onSubmit={submitPaymentRequest} className="mt-7">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-black/35">
-                    Шилжүүлгийн мэдээлэл
-                  </p>
-                  <h2 className="mt-2 text-xl font-semibold">
-                    Төлбөр хийсний дараа хүсэлт илгээнэ үү
-                  </h2>
-                  <p className="mt-2 text-sm leading-6 text-black/50">
-                    Мөнгө шилжүүлснийхээ дараа доорх мэдээллийг бөглөнө.
-                  </p>
-                </div>
-
-                <div className="mt-6 space-y-4">
-                  <label className="block text-sm">
-                    <span className="font-medium">
-                      Шилжүүлэг хийсэн хүний нэр
-                    </span>
-                    <input
-                      required
-                      maxLength={120}
-                      value={payerName}
-                      onChange={(event) => setPayerName(event.target.value)}
-                      placeholder="Жишээ: Болдбаатар Цэрэнбаатар"
-                      className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3.5 outline-none transition placeholder:text-black/25 focus:border-black/40"
-                    />
-                  </label>
-
-                  <label className="block text-sm">
-                    <span className="font-medium">Утасны дугаар</span>
-                    <input
-                      required
-                      maxLength={30}
-                      type="tel"
-                      value={payerPhone}
-                      onChange={(event) => setPayerPhone(event.target.value)}
-                      placeholder="Жишээ: 99112233"
-                      className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3.5 outline-none transition placeholder:text-black/25 focus:border-black/40"
-                    />
-                  </label>
-
-                  <label className="block text-sm">
-                    <span className="font-medium">Гүйлгээний утга</span>
-                    <input
-                      required
-                      maxLength={120}
-                      value={paymentReference}
-                      onChange={(event) =>
-                        setPaymentReference(event.target.value)
-                      }
-                      placeholder="Банканд бичсэн гүйлгээний утга"
-                      className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3.5 outline-none transition placeholder:text-black/25 focus:border-black/40"
-                    />
-                    <span className="mt-2 block text-xs leading-5 text-black/40">
-                      Банкны шилжүүлэг дээр бичсэн утгаа яг адилхан оруулна уу.
-                    </span>
-                  </label>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="mt-6 w-full rounded-full bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {submitting
-                    ? "Хүсэлт илгээж байна..."
-                    : "Төлбөрийн хүсэлт илгээх"}
-                </button>
-              </form>
-            )}
-
-            {message && (
-              <div
-                role="status"
-                className="mt-5 rounded-2xl bg-green-50 p-4 text-sm leading-6 text-green-800"
-              >
-                ✓ {message}
+            {/* Refresh хийсэн ч төлбөрийн хэсэг болон форм харагдана.
+                Харин DB-д pending хүсэлт байвал давхар хүсэлт үүсгэхгүй. */}
+            <form onSubmit={submitPaymentRequest} className="mt-7">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-black/35">
+                  Шилжүүлгийн мэдээлэл
+                </p>
+                <h2 className="mt-2 text-xl font-semibold">
+                  Төлбөр хийсний дараа хүсэлт илгээнэ үү
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-black/50">
+                  Мөнгө шилжүүлснийхээ дараа доорх мэдээллийг бөглөнө.
+                </p>
               </div>
-            )}
+
+              <div className="mt-6 space-y-4">
+                <label className="block text-sm">
+                  <span className="font-medium">
+                    Шилжүүлэг хийсэн хүний нэр
+                  </span>
+                  <input
+                    required
+                    maxLength={120}
+                    value={payerName}
+                    onChange={(event) => setPayerName(event.target.value)}
+                    placeholder="Жишээ: Болдбаатар Цэрэнбаатар"
+                    className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3.5 outline-none transition placeholder:text-black/25 focus:border-black/40"
+                  />
+                </label>
+
+                <label className="block text-sm">
+                  <span className="font-medium">Утасны дугаар</span>
+                  <input
+                    required
+                    maxLength={30}
+                    type="tel"
+                    value={payerPhone}
+                    onChange={(event) => setPayerPhone(event.target.value)}
+                    placeholder="Жишээ: 99112233"
+                    className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3.5 outline-none transition placeholder:text-black/25 focus:border-black/40"
+                  />
+                </label>
+
+                <label className="block text-sm">
+                  <span className="font-medium">Гүйлгээний утга</span>
+                  <input
+                    required
+                    maxLength={120}
+                    value={paymentReference}
+                    onChange={(event) => setPaymentReference(event.target.value)}
+                    placeholder="Банканд бичсэн гүйлгээний утга"
+                    className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3.5 outline-none transition placeholder:text-black/25 focus:border-black/40"
+                  />
+                  <span className="mt-2 block text-xs leading-5 text-black/40">
+                    Банкны шилжүүлэг дээр бичсэн утгаа яг адилхан оруулна уу.
+                  </span>
+                </label>
+              </div>
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="mt-6 w-full rounded-full bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {submitting
+                  ? "Хүсэлт илгээж байна..."
+                  : "Төлбөрийн хүсэлт илгээх"}
+              </button>
+            </form>
 
             {errorMessage && (
               <div
