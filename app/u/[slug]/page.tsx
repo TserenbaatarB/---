@@ -160,6 +160,7 @@ function getStyle(style: string) {
     case "luxury":
       return {
         page: "bg-[#f4efe5] text-[#2c241b]",
+        textColor: "#2c241b",
         card: "bg-[#fffdf8]",
         accent: "#b08d57",
         accentSoft: "#f3ead9",
@@ -170,6 +171,7 @@ function getStyle(style: string) {
     case "minimal":
       return {
         page: "bg-[#f5f5f3] text-[#202020]",
+        textColor: "#202020",
         card: "bg-white",
         accent: "#555555",
         accentSoft: "#eeeeec",
@@ -180,6 +182,7 @@ function getStyle(style: string) {
     case "garden":
       return {
         page: "bg-[#eef4eb] text-[#263326]",
+        textColor: "#263326",
         card: "bg-[#fffef9]",
         accent: "#6d8b63",
         accentSoft: "#e4eee0",
@@ -191,6 +194,7 @@ function getStyle(style: string) {
     default:
       return {
         page: "bg-[#f9f1f1] text-[#392a2d]",
+        textColor: "#392a2d",
         card: "bg-[#fffafa]",
         accent: "#a66a78",
         accentSoft: "#f5e5e8",
@@ -1250,11 +1254,9 @@ export default function PublicInvitationPage() {
       customTone === "dark"
         ? "#242124"
         : baseStyle.accentSoft,
-    button:
-      customAccent !== baseStyle.accent
-        ? "text-white"
-        : baseStyle.button,
+    button: baseStyle.button,
   };
+  const buttonTextColor = readableTextOn(style.accent);
 
   const hasTitle = hasText(invitation.title);
   const hasNames = hasText(invitation.names);
@@ -2123,6 +2125,8 @@ export default function PublicInvitationPage() {
                         .join(", ")}
                       accent={style.accent}
                       buttonClass={style.button}
+                      buttonTextColor={buttonTextColor}
+                      textColor={style.textColor}
                     />
                   </div>
                 </section>
@@ -2287,6 +2291,8 @@ export default function PublicInvitationPage() {
                     slug={slug}
                     accent={style.accent}
                     buttonClass={style.button}
+                    buttonTextColor={buttonTextColor}
+                    textColor={style.textColor}
                   />
                 </div>
               </section>

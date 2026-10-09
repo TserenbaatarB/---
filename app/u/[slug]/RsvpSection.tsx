@@ -39,10 +39,14 @@ export default function RsvpSection({
   slug,
   accent,
   buttonClass,
+  buttonTextColor,
+  textColor,
 }: {
   slug: string;
   accent: string;
   buttonClass: string;
+  buttonTextColor: string;
+  textColor: string;
 }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -163,7 +167,10 @@ export default function RsvpSection({
   }
 
   return (
-    <section className="px-6 py-12 text-center sm:px-12">
+    <section
+      className="px-6 py-12 text-center sm:px-12"
+      style={{ color: textColor }}
+    >
       <p
         className="text-xs font-semibold uppercase tracking-[0.25em]"
         style={{ color: accent }}
@@ -226,8 +233,11 @@ export default function RsvpSection({
                 }`}
                 style={
                   status === id
-                    ? { backgroundColor: accent }
-                    : undefined
+                    ? {
+                        backgroundColor: accent,
+                        color: buttonTextColor,
+                      }
+                    : { color: textColor }
                 }
               >
                 {label}
@@ -272,6 +282,10 @@ export default function RsvpSection({
             type="submit"
             disabled={sending}
             className={`w-full rounded-full px-7 py-3 text-sm font-semibold shadow-sm disabled:opacity-60 ${buttonClass}`}
+            style={{
+              backgroundColor: accent,
+              color: buttonTextColor,
+            }}
           >
             {sending ? "Илгээж байна..." : "Хариу илгээх"}
           </button>

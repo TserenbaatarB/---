@@ -1608,12 +1608,20 @@ function InvitationPreviewPageContent() {
    */
 
   function goBackToBuilder() {
+    const invitationId =
+      searchParams.get("invitationId") ||
+      draft?.id;
+
     router.push(
       `/dashboard/invitations/new/builder?event=${encodeURIComponent(
         eventType
       )}&template=${encodeURIComponent(
         template
-      )}`
+      )}${
+        invitationId
+          ? `&invitationId=${encodeURIComponent(invitationId)}`
+          : ""
+      }`
     );
   }
 
@@ -2412,12 +2420,20 @@ function InvitationPreviewPageContent() {
             } else if (
               target < 3
             ) {
+              const invitationId =
+                searchParams.get("invitationId") ||
+                draft?.id;
+
               router.push(
                 `/dashboard/invitations/new/details?event=${encodeURIComponent(
                   eventType
                 )}&template=${encodeURIComponent(
                   template
-                )}&step=${target}`
+                )}${
+                  invitationId
+                    ? `&invitationId=${encodeURIComponent(invitationId)}`
+                    : ""
+                }&step=${target}`
               );
             }
           }}

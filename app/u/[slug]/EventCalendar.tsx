@@ -9,6 +9,8 @@ type Props = {
   location: string;
   accent: string;
   buttonClass: string;
+  buttonTextColor: string;
+  textColor: string;
 };
 
 const WEEKDAYS = ["Да", "Мя", "Лх", "Пү", "Ба", "Бя", "Ня"];
@@ -57,6 +59,8 @@ export default function EventCalendar({
   location,
   accent,
   buttonClass,
+  buttonTextColor,
+  textColor,
 }: Props) {
   const [now, setNow] = useState(() => Date.now());
 
@@ -128,7 +132,10 @@ export default function EventCalendar({
   }
 
   return (
-    <div className="mx-auto max-w-sm text-center">
+    <div
+      className="mx-auto max-w-sm text-center"
+      style={{ color: textColor }}
+    >
       <p
         className="text-xs font-semibold uppercase tracking-[0.25em]"
         style={{ color: accent }}
@@ -160,7 +167,14 @@ export default function EventCalendar({
             className={`mx-auto flex h-8 w-8 items-center justify-center rounded-full ${
               cell === day ? "font-semibold text-white" : ""
             }`}
-            style={cell === day ? { backgroundColor: accent } : undefined}
+            style={
+              cell === day
+                ? {
+                    backgroundColor: accent,
+                    color: buttonTextColor,
+                  }
+                : undefined
+            }
           >
             {cell}
           </span>
@@ -187,6 +201,10 @@ export default function EventCalendar({
         type="button"
         onClick={downloadIcs}
         className={`mt-6 inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold shadow-sm ${buttonClass}`}
+        style={{
+          backgroundColor: accent,
+          color: buttonTextColor,
+        }}
       >
         📅 Календарт нэмэх
       </button>
