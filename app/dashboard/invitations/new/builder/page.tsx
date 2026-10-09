@@ -19,6 +19,8 @@ import {
   OPEN_STYLES,
   parseExtras,
   subscribeExtras,
+  fontFamilyFor,
+  writeExtras,
 } from "@/lib/invitationExtras";
 import {
   FrameBox,
@@ -145,6 +147,28 @@ async function getStoredImage(id: string): Promise<Blob | null> {
   });
 }
 
+async function storeImage(id: string, blob: Blob): Promise<void> {
+  const db = await openImageDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, "readwrite");
+    transaction.objectStore(STORE_NAME).put(blob, id);
+
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error);
+    };
+    transaction.onabort = () => {
+      db.close();
+      reject(transaction.error);
+    };
+  });
+}
+
 function formatDate(date: string) {
   if (!date) return "";
 
@@ -240,6 +264,87 @@ function InvitationBuilderPageContent() {
 
   const [savedMessage, setSavedMessage] =
     useState("");
+
+  async function handleBackgroundChange(file: File) {
+    if (!file.type.startsWith("image/")) {
+      setSavedMessage("Зөвхөн зургийн файл сонгоно уу.");
+      return;
+    }
+
+    try {
+      const backgroundId = `background-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 12)}`;
+      await storeImage(backgroundId, file);
+
+      if (backgroundImage?.startsWith("blob:")) {
+        URL.revokeObjectURL(backgroundImage);
+      }
+
+      setBackgroundImage(URL.createObjectURL(file));
+
+      const rawImages = sessionStorage.getItem("invitation-images");
+      let imageData: StoredInvitationImages = {
+        backgroundId: null,
+        galleryIds: [],
+      };
+
+      if (rawImages) {
+        try {
+          imageData = {
+            ...imageData,
+            ...JSON.parse(rawImages),
+          };
+        } catch (error) {
+          console.error("Invitation image data parse error:", error);
+        }
+      }
+
+      sessionStorage.setItem(
+        "invitation-images",
+        JSON.stringify({ ...imageData, backgroundId })
+      );
+      setSavedMessage("");
+    } catch (error) {
+      console.error("Background image save error:", error);
+      setSavedMessage(
+        error instanceof Error
+          ? `Зураг хадгалж чадсангүй: ${error.message}`
+          : "Зураг хадгалж чадсангүй."
+      );
+    }
+  }
+
+  function handleBackgroundRemove() {
+    if (backgroundImage?.startsWith("blob:")) {
+      URL.revokeObjectURL(backgroundImage);
+    }
+
+    setBackgroundImage(null);
+
+    const rawImages = sessionStorage.getItem("invitation-images");
+    let imageData: StoredInvitationImages = {
+      backgroundId: null,
+      galleryIds: [],
+    };
+
+    if (rawImages) {
+      try {
+        imageData = {
+          ...imageData,
+          ...JSON.parse(rawImages),
+        };
+      } catch (error) {
+        console.error("Invitation image data parse error:", error);
+      }
+    }
+
+    sessionStorage.setItem(
+      "invitation-images",
+      JSON.stringify({ ...imageData, backgroundId: null })
+    );
+    setSavedMessage("");
+  }
 
   const [buildingDesign, setBuildingDesign] =
     useState(false);
@@ -746,10 +851,55 @@ function InvitationBuilderPageContent() {
             ? data.gallery_ids
             : [];
 
-        const dbGalleryUrls =
-          Array.isArray(data.gallery_urls)
-            ? data.gallery_urls
-            : [];
+        /*
+         * Published invitations keep images as private storage
+         * paths, so sign them to display them in the builder.
+         */
+        const isStoragePath = (value: unknown): value is string =>
+          typeof value === "string" &&
+          value.length > 0 &&
+          !value.startsWith("http") &&
+          !value.startsWith("blob:") &&
+          value.includes("/");
+
+        const storagePaths = [
+          data.background_id,
+          ...dbGalleryIds,
+        ].filter(isStoragePath);
+
+        const signedByPath = new Map<string, string>();
+
+        if (storagePaths.length > 0) {
+          const { data: signedImages } = await supabase.storage
+            .from("invitation-images")
+            .createSignedUrls(storagePaths, 60 * 60 * 24);
+
+          for (const item of signedImages ?? []) {
+            if (item.path && item.signedUrl) {
+              signedByPath.set(item.path, item.signedUrl);
+            }
+          }
+        }
+
+        if (cancelled) return;
+
+        const remoteGalleryUrls: unknown[] = Array.isArray(
+          data.gallery_urls
+        )
+          ? data.gallery_urls
+          : [];
+
+        const dbGalleryUrls: string[] = dbGalleryIds.map(
+          (id: unknown, index: number): string =>
+            (typeof id === "string" && signedByPath.get(id)) ||
+            (typeof remoteGalleryUrls[index] === "string"
+              ? (remoteGalleryUrls[index] as string)
+              : "")
+        );
+
+        const signedBackground = isStoragePath(data.background_id)
+          ? signedByPath.get(data.background_id)
+          : undefined;
 
         const dbGalleryCaptions =
           Array.isArray(data.gallery_captions)
@@ -853,20 +1003,25 @@ function InvitationBuilderPageContent() {
           })
         );
 
+        const restoredMusicPath: string | null =
+          typeof data.music_path === "string" &&
+          data.music_path &&
+          !/\/video\.[^/]+$/.test(data.music_path)
+            ? data.music_path
+            : null;
+
         sessionStorage.setItem(
           "invitation-music",
           JSON.stringify({
-            musicId:
-              data.music_path ??
-              null,
+            musicId: restoredMusicPath,
             musicName:
               data.music_name ??
-              null,
-            musicType:
-              data.music_type ===
-              "custom"
-                ? "custom"
-                : "none",
+              (restoredMusicPath
+                ? restoredMusicPath.split("/").pop()
+                : null),
+            musicType: restoredMusicPath
+              ? "custom"
+              : "none",
           })
         );
 
@@ -939,6 +1094,8 @@ function InvitationBuilderPageContent() {
           setBackgroundImage(
             data.background_id
           );
+        } else if (signedBackground) {
+          setBackgroundImage(signedBackground);
         }
 
         /*
@@ -952,10 +1109,12 @@ function InvitationBuilderPageContent() {
           typeof data.extras ===
             "object"
         ) {
-          sessionStorage.setItem(
-            "invitation-extras",
-            JSON.stringify(
-              data.extras
+          sessionStorage.removeItem(
+            "invitation-extras"
+          );
+          writeExtras(
+            parseExtras(
+              JSON.stringify(data.extras)
             )
           );
         }
@@ -1415,6 +1574,29 @@ function InvitationBuilderPageContent() {
           return;
         }
 
+        // Published invitations keep the MP3 as a private storage path.
+        if (musicData.musicId.includes("/")) {
+          const { data: signed } = await supabase.storage
+            .from("invitation-music")
+            .createSignedUrl(musicData.musicId, 60 * 60 * 24);
+
+          if (!cancelled) {
+            if (signed?.signedUrl) {
+              setMusicUrl(signed.signedUrl);
+              setMusicName(
+                musicData.musicName ?? "Таны сонгосон дуу"
+              );
+              setMusicType("custom");
+            } else {
+              setMusicUrl(null);
+              setMusicName(null);
+              setMusicType("none");
+            }
+          }
+
+          return;
+        }
+
         const musicBlob =
           await getStoredImage(
             musicData.musicId
@@ -1771,6 +1953,13 @@ function InvitationBuilderPageContent() {
         appearance.tone,
       ]
     );
+
+  const appearanceTextShadow =
+    appearance.textShadow === "strong"
+      ? "0 2px 4px rgba(0, 0, 0, 0.75)"
+      : appearance.textShadow === "soft"
+        ? "0 2px 12px rgba(0, 0, 0, 0.35)"
+        : "none";
 
   /*
    * =========================================================
@@ -2454,6 +2643,8 @@ function InvitationBuilderPageContent() {
                 backgroundImage ??
                 undefined
               }
+              onBackgroundChange={handleBackgroundChange}
+              onBackgroundRemove={handleBackgroundRemove}
             />
 
             <div className="mb-6 rounded-[28px] border border-black/10 bg-white p-5 shadow-sm sm:p-6">
@@ -2540,7 +2731,12 @@ function InvitationBuilderPageContent() {
               </div>
             </div>
 
-            <div className="rounded-[28px] border border-black/10 bg-white p-5 shadow-sm sm:p-6">
+            <div className="relative overflow-hidden rounded-[28px] border border-black/10 bg-white p-5 shadow-sm sm:p-6">
+              <div className="absolute inset-0 z-10 flex cursor-not-allowed items-center justify-center bg-white/70 backdrop-blur-[2px]">
+                <span className="rounded-full bg-black px-5 py-2 text-xs font-semibold text-white shadow-lg">
+                  Тун удахгүй
+                </span>
+              </div>
               <div className="flex items-start gap-4">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-black text-lg text-white">
                   ✦
@@ -3147,6 +3343,9 @@ function InvitationBuilderPageContent() {
                     }
                     alt=""
                     className="absolute inset-0 h-full w-full object-cover"
+                    style={{
+                      filter: `brightness(${appearance.brightness}%)`,
+                    }}
                   />
                 )}
 
@@ -3168,21 +3367,26 @@ function InvitationBuilderPageContent() {
                   }}
                 />
 
-                <div
-                  className={`absolute inset-0 ${
-                    backgroundImage
-                      ? "bg-black/20"
-                      : "bg-black/0"
-                  }`}
-                />
+                {backgroundImage && (
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      backgroundColor: `rgba(0, 0, 0, ${appearance.darkness / 100})`,
+                    }}
+                  />
+                )}
 
                 <div
-                  className={`relative z-10 flex h-full flex-col items-center justify-between px-6 py-10 text-center ${
+                  className={`relative z-10 flex h-full flex-col items-center justify-between px-6 pb-16 pt-10 text-center ${
                     appearance.tone ===
                     "dark"
                       ? "text-white"
                       : "text-[#24211E]"
                   }`}
+                  style={{
+                    fontFamily: fontFamilyFor(appearance.font),
+                    textShadow: appearanceTextShadow,
+                  }}
                 >
                   <div>
                     <div
@@ -3192,6 +3396,7 @@ function InvitationBuilderPageContent() {
                           ? "text-white/75"
                           : "text-black/55"
                       }`}
+                      style={{ color: appearance.primary }}
                     >
                       {title ||
                         "OUR SPECIAL DAY"}
@@ -3199,7 +3404,13 @@ function InvitationBuilderPageContent() {
                   </div>
 
                   <div>
-                    <div className="font-serif text-3xl italic leading-tight drop-shadow-sm">
+                    <div
+                      className="text-3xl italic leading-tight"
+                      style={{
+                        color: appearance.primary,
+                        textShadow: appearanceTextShadow,
+                      }}
+                    >
                       {names ||
                         "Бат & Номин"}
                     </div>
@@ -3318,6 +3529,12 @@ function InvitationBuilderPageContent() {
                     </div>
                   )}
                 </div>
+
+                {backgroundImage && (
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex h-12 items-center justify-center border-t border-white/30 bg-white/25 text-[8px] font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-xl">
+                    Бусад хэсэг · blur
+                  </div>
+                )}
 
                 <FxOverlay
                   animation={

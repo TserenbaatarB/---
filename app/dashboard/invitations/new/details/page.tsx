@@ -13,6 +13,7 @@ import BrandLogo from "@/components/BrandLogo";
 import WizardStepper from "@/components/WizardStepper";
 import VideoAndMusic from "@/components/VideoAndMusic";
 import ExtrasEditor from "@/components/ExtrasEditor";
+import { supabase } from "@/lib/supabase";
 import {
   InvitationExtras,
   defaultExtras,
@@ -536,6 +537,26 @@ async function saveImage(
    READ FILE / BLOB
 ========================================================= */
 
+function isStoragePath(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.includes("/") &&
+    !value.startsWith("http") &&
+    !value.startsWith("blob:")
+  );
+}
+
+async function downloadStorageBlob(
+  bucket: string,
+  path: string
+): Promise<Blob | null> {
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .download(path);
+
+  return error || !data ? null : data;
+}
+
 async function getStoredBlob(
   id: string
 ): Promise<Blob | null> {
@@ -832,9 +853,14 @@ function InvitationDetailsPageContent() {
             JSON.parse(rawImages);
 
           if (images.backgroundId) {
-            const blob = await getStoredBlob(
-              images.backgroundId
-            );
+            const blob =
+              (await getStoredBlob(images.backgroundId)) ??
+              (isStoragePath(images.backgroundId)
+                ? await downloadStorageBlob(
+                    "invitation-images",
+                    images.backgroundId
+                  )
+                : null);
 
             if (blob && !cancelled) {
               setBackgroundFile(
@@ -852,7 +878,14 @@ function InvitationDetailsPageContent() {
             index,
             id,
           ] of (images.galleryIds ?? []).entries()) {
-            const blob = await getStoredBlob(id);
+            const blob =
+              (await getStoredBlob(id)) ??
+              (isStoragePath(id)
+                ? await downloadStorageBlob(
+                    "invitation-images",
+                    id
+                  )
+                : null);
 
             if (blob) {
               photos.push({
@@ -885,9 +918,14 @@ function InvitationDetailsPageContent() {
             music.musicType === "custom" &&
             music.musicId
           ) {
-            const blob = await getStoredBlob(
-              music.musicId
-            );
+            const blob =
+              (await getStoredBlob(music.musicId)) ??
+              (isStoragePath(music.musicId)
+                ? await downloadStorageBlob(
+                    "invitation-music",
+                    music.musicId
+                  )
+                : null);
 
             if (blob && !cancelled) {
               setMusicFile(
@@ -901,19 +939,43 @@ function InvitationDetailsPageContent() {
           }
         }
 
-        if (savedExtras.coverVideoId) {
-          const blob = await getStoredBlob(
-            savedExtras.coverVideoId
-          );
+        let videoBlob: Blob | null = savedExtras.coverVideoId
+          ? await getStoredBlob(savedExtras.coverVideoId)
+          : null;
+        let videoName =
+          savedExtras.coverVideoName ?? "cover-video";
 
-          if (blob && !cancelled) {
-            setCoverVideo(
-              blobToFile(
-                blob,
-                savedExtras.coverVideoName ?? "cover-video"
-              )
+        // Published video lives next to the music file in storage.
+        const invitationId =
+          searchParams.get("invitationId") ??
+          sessionStorage.getItem("invitation-id");
+
+        if (!videoBlob && !savedExtras.coverVideoId && invitationId) {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+
+          if (user) {
+            const folder = `${user.id}/${invitationId}`;
+            const { data: files } = await supabase.storage
+              .from("invitation-music")
+              .list(folder);
+            const video = (files ?? []).find((file) =>
+              file.name.startsWith("video.")
             );
+
+            if (video) {
+              videoBlob = await downloadStorageBlob(
+                "invitation-music",
+                `${folder}/${video.name}`
+              );
+              videoName = video.name;
+            }
           }
+        }
+
+        if (videoBlob && !cancelled) {
+          setCoverVideo(blobToFile(videoBlob, videoName));
         }
       } catch (error) {
         console.error("Details restore error:", error);

@@ -46,6 +46,12 @@ h2 {
   --heading-font: inherit;
 }
 
+[data-invitation][data-font-selected] h1,
+[data-invitation][data-font-selected] h2,
+[data-invitation][data-font-selected] h3 {
+  font-family: inherit;
+}
+
 ::selection {
   background: #dcc7aa;
   color: #171717;
@@ -180,4 +186,3 @@ select {
 @media (prefers-reduced-motion: reduce) {
   .fx-layer * { animation: none !important; }
 }
-

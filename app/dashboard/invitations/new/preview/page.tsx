@@ -311,6 +311,20 @@ async function uploadInvitationImages(
     }
   }
 
+  const isStoragePath = (value: unknown): value is string =>
+    typeof value === "string" &&
+    value.includes("/") &&
+    !value.startsWith("http") &&
+    !value.startsWith("blob:");
+
+  // Re-publishing an edited invitation: keep images already in storage.
+  if (
+    !backgroundPath &&
+    isStoragePath(imageData.backgroundId)
+  ) {
+    backgroundPath = imageData.backgroundId;
+  }
+
   /*
    * GALLERY
    */
@@ -331,6 +345,9 @@ async function uploadInvitationImages(
       );
 
     if (!galleryBlob) {
+      if (isStoragePath(galleryId)) {
+        galleryPaths.push(galleryId);
+      }
       continue;
     }
 
@@ -521,6 +538,14 @@ async function uploadInvitationMusic(
     );
 
   if (!musicBlob) {
+    // Builder → preview without re-selecting: the file is already in storage.
+    if (
+      musicData.musicId.includes("/") &&
+      !musicData.musicId.startsWith("blob:")
+    ) {
+      return musicData.musicId;
+    }
+
     throw new Error(
       "Сонгосон MP3 файл олдсонгүй. Builder дээр хөгжмөө дахин сонгоно уу."
     );
@@ -1673,7 +1698,11 @@ function InvitationPreviewPageContent() {
        */
 
       const existingId =
+        searchParams.get("invitationId") ||
         draft.id ||
+        sessionStorage.getItem(
+          "invitation-id"
+        ) ||
         sessionStorage.getItem(
           "published-invitation-id"
         ) ||
@@ -1682,12 +1711,30 @@ function InvitationPreviewPageContent() {
       let invitationId: string =
         existingId;
 
-      let publicSlug =
-        publishedSlug ||
-        sessionStorage.getItem(
-          "published-invitation-slug"
-        ) ||
-        "";
+      let publicSlug = "";
+
+      // Re-publishing keeps the same public link.
+      if (existingId) {
+        const { data: existingRow } =
+          await supabase
+            .from("invitations")
+            .select("public_slug")
+            .eq("id", existingId)
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+        publicSlug =
+          existingRow?.public_slug ?? "";
+      }
+
+      if (!publicSlug && !existingId) {
+        publicSlug =
+          publishedSlug ||
+          sessionStorage.getItem(
+            "published-invitation-slug"
+          ) ||
+          "";
+      }
 
       if (!publicSlug) {
         publicSlug =
@@ -2780,6 +2827,26 @@ function InvitationPreviewPageContent() {
                       ⬇️ QR код татах
                     </button>
                   </div>
+                </div>
+              )}
+
+              {publishedSlug && (
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => router.push("/dashboard")}
+                    className="rounded-2xl border border-black/10 bg-white px-4 py-3.5 text-sm font-semibold text-black/70 hover:bg-black/5"
+                  >
+                    📋 Миний урилгууд
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => router.push("/")}
+                    className="rounded-2xl border border-black/10 bg-white px-4 py-3.5 text-sm font-semibold text-black/70 hover:bg-black/5"
+                  >
+                    🏠 Нүүр хуудас
+                  </button>
                 </div>
               )}
 

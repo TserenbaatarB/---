@@ -218,6 +218,27 @@ export async function GET(
       rawExtras.program
     );
 
+    const rawAppearance =
+      rawExtras.appearance &&
+      typeof rawExtras.appearance === "object"
+        ? (rawExtras.appearance as Record<string, unknown>)
+        : null;
+    const appearance = rawAppearance
+      ? {
+          frame: rawAppearance.frame,
+          primary: rawAppearance.primary,
+          accent: rawAppearance.accent,
+          tone: rawAppearance.tone,
+          font: rawAppearance.font,
+          brightness: rawAppearance.brightness,
+          darkness: rawAppearance.darkness,
+          textShadow: rawAppearance.textShadow,
+          pattern: rawAppearance.pattern,
+          animation: rawAppearance.animation,
+          open: rawAppearance.open,
+        }
+      : undefined;
+
     // --------------------------------------------------
     // IMAGE STORAGE PATHS
     // --------------------------------------------------
@@ -429,6 +450,7 @@ export async function GET(
           lng,
           mapUrl,
           program,
+          appearance,
         },
 
         backgroundUrl,

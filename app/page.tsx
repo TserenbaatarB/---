@@ -566,7 +566,12 @@ export default function Home() {
               <div className="absolute -inset-5 rounded-[40px] bg-[#C5A77F]/5 blur-2xl" />
 
               <div className="relative rounded-[32px] border border-white/10 bg-[#211F1C] p-3 shadow-[0_35px_100px_rgba(0,0,0,0.45)]">
-                <div className="rounded-[24px] border border-white/[0.05] bg-[#191816] p-5 sm:p-7">
+                <div className="relative overflow-hidden rounded-[24px] border border-white/[0.05] bg-[#191816] p-5 sm:p-7">
+                  <div className="absolute inset-0 z-10 flex cursor-not-allowed items-center justify-center bg-[#191816]/70 backdrop-blur-[2px]">
+                    <span className="rounded-full border border-white/15 bg-white px-5 py-2 text-xs font-semibold text-[#171513] shadow-lg">
+                      {isMN ? "Тун удахгүй" : "Coming soon"}
+                    </span>
+                  </div>
 
                   <div className="flex items-center justify-between border-b border-white/[0.07] pb-5">
                     <div className="flex items-center gap-2">

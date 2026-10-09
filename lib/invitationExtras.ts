@@ -6,11 +6,17 @@ export type ProgramItem = {
 export type RsvpVisibility = "open" | "anonymous" | "hidden";
 
 export type MusicSource = "mp3" | "youtube" | "video" | "none";
+export type FontFamilyId = "serif" | "sans" | "system";
 
 export type Appearance = {
   frame: string;
+  primary: string;
   accent: string;
   tone: "dark" | "light";
+  font: FontFamilyId;
+  brightness: number;
+  darkness: number;
+  textShadow: "none" | "soft" | "strong";
   pattern: string;
   animation: string;
   open: string;
@@ -108,6 +114,27 @@ export const ACCENT_COLORS = [
   "#2c241b",
 ];
 
+export const FONT_FAMILIES: {
+  id: FontFamilyId;
+  label: string;
+}[] = [
+  { id: "serif", label: "Сериф" },
+  { id: "sans", label: "Санс" },
+  { id: "system", label: "Систем" },
+];
+
+export function fontFamilyFor(font: FontFamilyId): string {
+  switch (font) {
+    case "sans":
+      return "var(--font-inter), Arial, sans-serif";
+    case "system":
+      return "system-ui, sans-serif";
+    case "serif":
+    default:
+      return "var(--font-cormorant), Georgia, serif";
+  }
+}
+
 export function defaultExtras(): InvitationExtras {
   return {
     coverVideoId: null,
@@ -128,8 +155,13 @@ export function defaultExtras(): InvitationExtras {
     rsvpVisibility: "open",
     appearance: {
       frame: "evereguls",
+      primary: "#b08d57",
       accent: "#b08d57",
       tone: "light",
+      font: "serif",
+      brightness: 100,
+      darkness: 15,
+      textShadow: "soft",
       pattern: "olzii",
       animation: "none",
       open: "envelope",
@@ -147,6 +179,23 @@ export function mergeExtras(
   }
 
   const input = value as Partial<InvitationExtras>;
+  const appearanceInput: Partial<Appearance> =
+    input.appearance &&
+    typeof input.appearance === "object"
+      ? input.appearance
+      : {};
+  const isHexColor = (color: unknown): color is string =>
+    typeof color === "string" &&
+    /^#[\da-f]{6}$/i.test(color);
+  const clampSetting = (
+    setting: unknown,
+    fallback: number,
+    min: number,
+    max: number
+  ) =>
+    typeof setting === "number" && Number.isFinite(setting)
+      ? Math.min(max, Math.max(min, setting))
+      : fallback;
 
   return {
     ...base,
@@ -165,7 +214,38 @@ export function mergeExtras(
       : base.program,
     appearance: {
       ...base.appearance,
-      ...(input.appearance ?? {}),
+      ...appearanceInput,
+      primary: isHexColor(appearanceInput.primary)
+        ? appearanceInput.primary
+        : isHexColor(appearanceInput.accent)
+          ? appearanceInput.accent
+          : base.appearance.primary,
+      accent: isHexColor(appearanceInput.accent)
+        ? appearanceInput.accent
+        : base.appearance.accent,
+      tone: appearanceInput.tone === "dark" ? "dark" : "light",
+      font:
+        appearanceInput.font === "sans" ||
+        appearanceInput.font === "system"
+          ? appearanceInput.font
+          : "serif",
+      brightness: clampSetting(
+        appearanceInput.brightness,
+        base.appearance.brightness,
+        50,
+        150
+      ),
+      darkness: clampSetting(
+        appearanceInput.darkness,
+        base.appearance.darkness,
+        0,
+        80
+      ),
+      textShadow:
+        appearanceInput.textShadow === "none" ||
+        appearanceInput.textShadow === "strong"
+          ? appearanceInput.textShadow
+          : "soft",
     },
   };
 }
