@@ -1,6 +1,7 @@
+
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -18,6 +19,20 @@ type Membership = {
 type PaymentRequest = {
   id: string;
   status: "pending" | "approved" | "rejected";
+  created_at: string;
+  rejection_reason: string | null;
+};
+
+type MembershipNotification = {
+  id: string;
+  type:
+    | "payment_pending"
+    | "payment_approved"
+    | "payment_rejected"
+    | "payment_cancelled";
+  title: string;
+  message: string;
+  is_read: boolean;
   created_at: string;
 };
 
@@ -51,6 +66,9 @@ export default function BillingPage() {
   const [membership, setMembership] = useState<Membership | null>(null);
   const [paymentRequest, setPaymentRequest] =
     useState<PaymentRequest | null>(null);
+  const [notifications, setNotifications] = useState<
+    MembershipNotification[]
+  >([]);
 
   const [payerName, setPayerName] = useState("");
   const [payerPhone, setPayerPhone] = useState("");
@@ -61,10 +79,47 @@ export default function BillingPage() {
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
+  const refreshBilling = useCallback(async (currentUserId: string) => {
+    const [membershipResult, requestResult, notificationResult] =
+      await Promise.all([
+        supabase
+          .from("user_memberships")
+          .select("expires_at")
+          .eq("user_id", currentUserId)
+          .maybeSingle(),
+
+        supabase
+          .from("membership_payment_requests")
+          .select("id, status, created_at, rejection_reason")
+          .eq("user_id", currentUserId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+
+        supabase
+          .from("membership_notifications")
+          .select("id, type, title, message, is_read, created_at")
+          .eq("user_id", currentUserId)
+          .order("created_at", { ascending: false })
+          .limit(10),
+      ]);
+
+    if (membershipResult.error) throw membershipResult.error;
+    if (requestResult.error) throw requestResult.error;
+    if (notificationResult.error) throw notificationResult.error;
+
+    setMembership(membershipResult.data);
+    setPaymentRequest(requestResult.data as PaymentRequest | null);
+    setNotifications(
+      (notificationResult.data ?? []) as MembershipNotification[]
+    );
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
+    let intervalId: ReturnType<typeof setInterval> | undefined;
 
-    async function loadBilling() {
+    async function initialize() {
       try {
         const {
           data: { user },
@@ -78,34 +133,19 @@ export default function BillingPage() {
           return;
         }
 
-        const [membershipResult, requestResult] = await Promise.all([
-          supabase
-            .from("user_memberships")
-            .select("expires_at")
-            .eq("user_id", user.id)
-            .maybeSingle(),
+        if (cancelled) return;
 
-          supabase
-            .from("membership_payment_requests")
-            .select("id, status, created_at")
-            .eq("user_id", user.id)
-            .eq("status", "pending")
-            .maybeSingle(),
-        ]);
+        setUserId(user.id);
+        await refreshBilling(user.id);
 
-        if (membershipResult.error) {
-          throw membershipResult.error;
-        }
+        if (cancelled) return;
 
-        if (requestResult.error) {
-          throw requestResult.error;
-        }
-
-        if (!cancelled) {
-          setUserId(user.id);
-          setMembership(membershipResult.data);
-          setPaymentRequest(requestResult.data);
-        }
+        // Шийдвэр гарсан эсэхийг хуудас нээлттэй үед автоматаар шалгана.
+        intervalId = setInterval(() => {
+          void refreshBilling(user.id).catch((error: unknown) => {
+            console.error("BILLING REFRESH ERROR:", error);
+          });
+        }, 5000);
       } catch (error) {
         console.error("BILLING LOAD ERROR:", error);
 
@@ -117,18 +157,17 @@ export default function BillingPage() {
           );
         }
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       }
     }
 
-    void loadBilling();
+    void initialize();
 
     return () => {
       cancelled = true;
+      if (intervalId) clearInterval(intervalId);
     };
-  }, [router]);
+  }, [refreshBilling, router]);
 
   async function copyAccountNumber() {
     try {
@@ -138,13 +177,32 @@ export default function BillingPage() {
       setMessage("");
       setErrorMessage("");
 
-      window.setTimeout(() => {
-        setCopied(false);
-      }, 2000);
+      window.setTimeout(() => setCopied(false), 2000);
     } catch (error) {
       console.error("COPY BANK ACCOUNT ERROR:", error);
       setErrorMessage("Дансны дугаар хуулах боломжгүй байна.");
     }
+  }
+
+  async function markNotificationRead(notificationId: string) {
+    const { error } = await supabase
+      .from("membership_notifications")
+      .update({ is_read: true })
+      .eq("id", notificationId);
+
+    if (error) {
+      console.error("MARK NOTIFICATION READ ERROR:", error);
+      setErrorMessage("Мэдэгдлийг уншсан гэж тэмдэглэж чадсангүй.");
+      return;
+    }
+
+    setNotifications((previous) =>
+      previous.map((notification) =>
+        notification.id === notificationId
+          ? { ...notification, is_read: true }
+          : notification
+      )
+    );
   }
 
   async function submitPaymentRequest(
@@ -159,7 +217,7 @@ export default function BillingPage() {
     setErrorMessage("");
 
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("membership_payment_requests")
         .insert({
           user_id: userId,
@@ -167,18 +225,18 @@ export default function BillingPage() {
           payer_name: payerName.trim(),
           payer_phone: payerPhone.trim(),
           payment_reference: paymentReference.trim(),
-        })
-        .select("id, status, created_at")
-        .single();
+        });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
-      setPaymentRequest(data);
+      await refreshBilling(userId);
+
+      setPayerName("");
+      setPayerPhone("");
+      setPaymentReference("");
 
       setMessage(
-        "Төлбөрийн хүсэлт амжилттай илгээгдлээ. Мөнгө орсныг шалгасны дараа таны эрхийг идэвхжүүлнэ."
+        "Төлбөрийн хүсэлт амжилттай илгээгдлээ. Банкны дансны орлогыг шалгасны дараа сарын эрхийн төлөв шинэчлэгдэнэ."
       );
     } catch (error) {
       console.error("MEMBERSHIP PAYMENT REQUEST ERROR:", error);
@@ -203,9 +261,9 @@ export default function BillingPage() {
     );
   }
 
-  const membershipActive = isMembershipActive(
-    membership?.expires_at
-  );
+  const membershipActive = isMembershipActive(membership?.expires_at);
+  const pendingRequest = paymentRequest?.status === "pending";
+  const unreadCount = notifications.filter((item) => !item.is_read).length;
 
   return (
     <main className="min-h-screen bg-[#F8F5F0] px-5 py-8 text-[#171717] sm:px-8 sm:py-10">
@@ -219,7 +277,6 @@ export default function BillingPage() {
         </button>
 
         <section className="overflow-hidden rounded-[30px] bg-white shadow-sm">
-          {/* HEADER */}
           <div className="border-b border-black/5 px-6 py-7 sm:px-9 sm:py-8">
             <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-black/35">
               ЦАХИМ УРИЛГА · САРЫН ЭРХ
@@ -251,68 +308,153 @@ export default function BillingPage() {
             </div>
           </div>
 
-          {/* ACTIVE MEMBERSHIP */}
-          {membershipActive && membership && (
-            <div className="mx-6 mt-6 rounded-2xl border border-green-200 bg-green-50 p-5 sm:mx-9">
-              <div className="flex gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-100 text-green-700">
-                  ✓
-                </div>
-
-                <div>
-                  <p className="font-semibold text-green-900">
-                    Таны сарын эрх идэвхтэй байна
-                  </p>
-
-                  <p className="mt-1 text-sm leading-6 text-green-800">
-                    {formatDate(membership.expires_at)} хүртэл
-                    идэвхтэй.
-                  </p>
-
-                  <p className="mt-2 text-xs leading-5 text-green-700/80">
-                    Хэрэв эрхээ сунгах гэж байгаа бол төлбөрөө
-                    шилжүүлээд доорх хүсэлтийг илгээнэ үү.
-                  </p>
-                </div>
+          {/* Notifications */}
+          <div className="px-6 pt-7 sm:px-9">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">Төлбөрийн мэдэгдэл</h2>
+                <p className="mt-1 text-xs text-black/45">
+                  Админы шийдвэр болон төлбөрийн төлөв
+                </p>
               </div>
-            </div>
-          )}
 
-          {/* PAYMENT METHOD */}
+              {unreadCount > 0 && (
+                <span className="rounded-full bg-black px-3 py-1 text-xs font-semibold text-white">
+                  {unreadCount} уншаагүй
+                </span>
+              )}
+            </div>
+
+            {notifications.length === 0 ? (
+              <p className="mt-4 rounded-2xl bg-[#F8F5F0] p-4 text-sm text-black/50">
+                Одоогоор мэдэгдэл алга.
+              </p>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {notifications.map((notification) => {
+                  const isApproved =
+                    notification.type === "payment_approved";
+                  const isRejected =
+                    notification.type === "payment_rejected";
+                  const isCancelled =
+                    notification.type === "payment_cancelled";
+
+                  const tone = isApproved
+                    ? "border-green-200 bg-green-50 text-green-900"
+                    : isRejected || isCancelled
+                      ? "border-red-200 bg-red-50 text-red-900"
+                      : "border-amber-200 bg-amber-50 text-amber-900";
+
+                  return (
+                    <article
+                      key={notification.id}
+                      className={`rounded-2xl border p-4 ${tone} ${
+                        !notification.is_read ? "ring-1 ring-black/5" : ""
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold">
+                            {notification.title}
+                          </p>
+                          <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6">
+                            {notification.message}
+                          </p>
+                          <p className="mt-3 text-xs opacity-70">
+                            {formatDateTime(notification.created_at)}
+                          </p>
+                        </div>
+
+                        {!notification.is_read && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void markNotificationRead(notification.id)
+                            }
+                            className="shrink-0 rounded-full border border-current/20 px-3 py-2 text-xs font-medium"
+                          >
+                            Уншсан
+                          </button>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           <div className="px-6 py-7 sm:px-9">
+            {membershipActive && membership && (
+              <div className="mb-6 rounded-2xl border border-green-200 bg-green-50 p-5">
+                <p className="font-semibold text-green-900">
+                  ✓ Таны сарын эрх идэвхтэй байна
+                </p>
+                <p className="mt-2 text-sm leading-6 text-green-800">
+                  {formatDate(membership.expires_at)} хүртэл идэвхтэй.
+                </p>
+              </div>
+            )}
+
+            {pendingRequest && paymentRequest && (
+              <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                <p className="font-semibold text-amber-900">
+                  ⏳ Төлбөр баталгаажихыг хүлээж байна
+                </p>
+                <p className="mt-2 text-sm leading-6 text-amber-800">
+                  Таны хүсэлт бүртгэгдсэн. Банкны дансанд мөнгө орсныг
+                  админ шалгасны дараа шийдвэр гаргана.
+                </p>
+                <p className="mt-3 text-xs text-amber-700/80">
+                  Хүсэлт илгээсэн:{" "}
+                  {formatDateTime(paymentRequest.created_at)}
+                </p>
+              </div>
+            )}
+
+            {paymentRequest?.status === "rejected" && (
+              <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-5">
+                <p className="font-semibold text-red-900">
+                  Төлбөр баталгаажаагүй
+                </p>
+                <p className="mt-2 text-sm leading-6 text-red-800">
+                  {paymentRequest.rejection_reason ||
+                    notifications.find(
+                      (item) =>
+                        item.type === "payment_rejected"
+                    )?.message ||
+                    "Төлбөр баталгаажаагүй байна. Гүйлгээний мэдээллээ шалгана уу."}
+                </p>
+                <p className="mt-3 text-xs text-red-700/80">
+                  Та мэдээллээ шалгаад дахин төлбөрийн хүсэлт илгээж болно.
+                </p>
+              </div>
+            )}
+
             <div className="mb-5">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-black/35">
                 Төлбөрийн арга
               </p>
-
               <h2 className="mt-2 text-xl font-semibold">
                 Банкны шилжүүлэг
               </h2>
-
               <p className="mt-2 text-sm leading-6 text-black/50">
                 Доорх данс руу яг ₮
                 {MONTHLY_PRICE.toLocaleString("mn-MN")} шилжүүлнэ үү.
               </p>
             </div>
 
-            {/* BANK INFO */}
             <div className="rounded-[24px] border border-black/8 bg-[#F8F5F0] p-5 sm:p-6">
               <div className="space-y-5">
                 <div className="flex items-start justify-between gap-5">
-                  <span className="text-sm text-black/45">
-                    Банк
-                  </span>
-
+                  <span className="text-sm text-black/45">Банк</span>
                   <span className="text-right text-sm font-semibold">
                     {BANK_NAME}
                   </span>
                 </div>
 
                 <div className="flex items-start justify-between gap-5">
-                  <span className="text-sm text-black/45">
-                    Дансны нэр
-                  </span>
-
+                  <span className="text-sm text-black/45">Дансны нэр</span>
                   <span className="text-right text-sm font-semibold">
                     {ACCOUNT_NAME}
                   </span>
@@ -322,12 +464,10 @@ export default function BillingPage() {
                   <span className="text-sm text-black/45">
                     Дансны дугаар
                   </span>
-
                   <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <span className="break-all text-base font-bold tracking-wide">
                       {ACCOUNT_NUMBER}
                     </span>
-
                     <button
                       type="button"
                       onClick={copyAccountNumber}
@@ -343,7 +483,6 @@ export default function BillingPage() {
                     <span className="text-sm text-black/45">
                       Шилжүүлэх дүн
                     </span>
-
                     <span className="text-xl font-bold">
                       ₮{MONTHLY_PRICE.toLocaleString("mn-MN")}
                     </span>
@@ -352,98 +491,53 @@ export default function BillingPage() {
               </div>
 
               <div className="mt-6 rounded-2xl bg-white p-4">
-                <p className="text-sm font-semibold">
-                  Гүйлгээний утга
-                </p>
-
+                <p className="text-sm font-semibold">Гүйлгээний утга</p>
                 <p className="mt-1 text-sm leading-6 text-black/50">
                   Өөрийн бүртгэлтэй нэрээ бичнэ үү.
                 </p>
               </div>
             </div>
 
-            {/* STEPS */}
             <div className="mt-7">
               <p className="text-sm font-semibold">
                 Төлбөр хийх дараалал
               </p>
-
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 <div className="rounded-2xl border border-black/7 p-4">
                   <div className="text-lg font-bold">01</div>
-                  <p className="mt-2 text-sm font-medium">
-                    Мөнгө шилжүүлэх
-                  </p>
+                  <p className="mt-2 text-sm font-medium">Мөнгө шилжүүлэх</p>
                   <p className="mt-1 text-xs leading-5 text-black/45">
                     Дээрх данс руу ₮19,900 шилжүүлнэ.
                   </p>
                 </div>
-
                 <div className="rounded-2xl border border-black/7 p-4">
                   <div className="text-lg font-bold">02</div>
-                  <p className="mt-2 text-sm font-medium">
-                    Хүсэлт илгээх
-                  </p>
+                  <p className="mt-2 text-sm font-medium">Хүсэлт илгээх</p>
                   <p className="mt-1 text-xs leading-5 text-black/45">
                     Доорх мэдээллийг бөглөнө.
                   </p>
                 </div>
-
                 <div className="rounded-2xl border border-black/7 p-4">
                   <div className="text-lg font-bold">03</div>
-                  <p className="mt-2 text-sm font-medium">
-                    Эрх идэвхжих
-                  </p>
+                  <p className="mt-2 text-sm font-medium">Эрх идэвхжих</p>
                   <p className="mt-1 text-xs leading-5 text-black/45">
-                    Төлбөр шалгасны дараа эрх нээгдэнэ.
+                    Админ төлбөрийг баталгаажуулсны дараа эрх нээгдэнэ.
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* PENDING */}
-            {paymentRequest ? (
-              <div className="mt-7 rounded-[24px] border border-amber-200 bg-amber-50 p-5 sm:p-6">
-                <div className="flex gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
-                    ⏳
-                  </div>
-
-                  <div>
-                    <p className="font-semibold text-amber-900">
-                      Төлбөр баталгаажихыг хүлээж байна
-                    </p>
-
-                    <p className="mt-2 text-sm leading-6 text-amber-800">
-                      Таны хүсэлт бүртгэгдсэн. Дансанд мөнгө орсныг
-                      шалгасны дараа сарын эрхийг идэвхжүүлнэ.
-                    </p>
-
-                    <p className="mt-3 text-xs text-amber-700/80">
-                      Хүсэлт илгээсэн:{" "}
-                      {formatDateTime(paymentRequest.created_at)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              /* PAYMENT REQUEST FORM */
-              <form
-                onSubmit={submitPaymentRequest}
-                className="mt-7"
-              >
+            {!pendingRequest && (
+              <form onSubmit={submitPaymentRequest} className="mt-7">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-black/35">
                     Шилжүүлгийн мэдээлэл
                   </p>
-
                   <h2 className="mt-2 text-xl font-semibold">
                     Төлбөр хийсний дараа хүсэлт илгээнэ үү
                   </h2>
-
                   <p className="mt-2 text-sm leading-6 text-black/50">
-                    Та мөнгө шилжүүлснийхээ дараа доорх мэдээллийг
-                    бөглөж илгээнэ.
+                    Мөнгө шилжүүлснийхээ дараа доорх мэдээллийг бөглөнө.
                   </p>
                 </div>
 
@@ -452,42 +546,31 @@ export default function BillingPage() {
                     <span className="font-medium">
                       Шилжүүлэг хийсэн хүний нэр
                     </span>
-
                     <input
                       required
                       maxLength={120}
                       value={payerName}
-                      onChange={(event) =>
-                        setPayerName(event.target.value)
-                      }
+                      onChange={(event) => setPayerName(event.target.value)}
                       placeholder="Жишээ: Болдбаатар Цэрэнбаатар"
                       className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3.5 outline-none transition placeholder:text-black/25 focus:border-black/40"
                     />
                   </label>
 
                   <label className="block text-sm">
-                    <span className="font-medium">
-                      Утасны дугаар
-                    </span>
-
+                    <span className="font-medium">Утасны дугаар</span>
                     <input
                       required
                       maxLength={30}
                       type="tel"
                       value={payerPhone}
-                      onChange={(event) =>
-                        setPayerPhone(event.target.value)
-                      }
+                      onChange={(event) => setPayerPhone(event.target.value)}
                       placeholder="Жишээ: 99112233"
                       className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3.5 outline-none transition placeholder:text-black/25 focus:border-black/40"
                     />
                   </label>
 
                   <label className="block text-sm">
-                    <span className="font-medium">
-                      Гүйлгээний утга
-                    </span>
-
+                    <span className="font-medium">Гүйлгээний утга</span>
                     <input
                       required
                       maxLength={120}
@@ -495,13 +578,11 @@ export default function BillingPage() {
                       onChange={(event) =>
                         setPaymentReference(event.target.value)
                       }
-                      placeholder="Жишээ: Болдбаатар Цэрэнбаатар"
+                      placeholder="Банканд бичсэн гүйлгээний утга"
                       className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3.5 outline-none transition placeholder:text-black/25 focus:border-black/40"
                     />
-
                     <span className="mt-2 block text-xs leading-5 text-black/40">
-                      Банкны шилжүүлэг дээр бичсэн гүйлгээний утгаа
-                      яг адилхан оруулна уу.
+                      Банкны шилжүүлэг дээр бичсэн утгаа яг адилхан оруулна уу.
                     </span>
                   </label>
                 </div>
@@ -518,7 +599,6 @@ export default function BillingPage() {
               </form>
             )}
 
-            {/* MESSAGES */}
             {message && (
               <div
                 role="status"
@@ -531,16 +611,15 @@ export default function BillingPage() {
             {errorMessage && (
               <div
                 role="alert"
-                className="mt-5 rounded-2xl bg-red-50 p-4 text-sm leading-6 text-red-800"
+                className="mt-5 break-words rounded-2xl bg-red-50 p-4 text-sm leading-6 text-red-800"
               >
                 {errorMessage}
               </div>
             )}
 
-            {/* FOOTER NOTE */}
             <p className="mt-7 text-center text-xs leading-5 text-black/35">
-              Төлбөрийг админ банкны хуулгаар шалгаж баталгаажуулсны
-              дараа таны сарын эрх идэвхжинэ.
+              Төлбөрийг админ банкны хуулгаар шалгаж баталгаажуулсны дараа
+              сарын эрх идэвхжинэ.
             </p>
           </div>
         </section>
