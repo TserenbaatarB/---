@@ -16,8 +16,14 @@ const eventTypes = [
   { icon: "🎉", mn: "Бусад арга хэмжээ", en: "Other Events", type: "other" },
 ];
 
-const demoInvitationUrl =
-  "/u/%D1%85%D0%B0%D0%BD%D0%B3%D0%B0%D0%B9-%D1%81%D0%B0%D1%80%D0%BD%D0%B0%D0%B9-c1ogp7";
+// Нүүр хуудсанд гаргах demo урилгын slug (/u/ дараах хэсэг)
+const demoSlug = "хангай-сарнай-c1ogp7";
+
+const demoInvitationUrl = `/u/${encodeURIComponent(demoSlug)}`;
+
+// Өгөгдлийн сангаас уншиж чадаагүй үед харагдах нөөц утгууд
+const demoFallbackNames = "Хангай & Сарнай";
+const demoFallbackBackground = "/demo-bg.jpg";
 
 export default function Home() {
   const router = useRouter();
@@ -34,6 +40,70 @@ export default function Home() {
   const [feedbackError, setFeedbackError] = useState("");
 
   const isMN = language === "mn";
+
+  const [demo, setDemo] = useState({
+    names: demoFallbackNames,
+    background: demoFallbackBackground,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadDemo() {
+      try {
+        const { data } = await supabase.rpc("get_public_invitation", {
+          p_slug: demoSlug,
+        });
+
+        const row = Array.isArray(data) ? data[0] : null;
+
+        let backgroundUrl: string | null = null;
+
+        try {
+          const res = await fetch(
+            `/api/ai/design/public-invitation/${encodeURIComponent(demoSlug)}`,
+            { cache: "no-store" }
+          );
+
+          if (res.ok) {
+            const json = await res.json();
+
+            if (typeof json?.backgroundUrl === "string") {
+              backgroundUrl = json.backgroundUrl;
+            } else if (
+              Array.isArray(json?.galleryUrls) &&
+              typeof json.galleryUrls[0] === "string"
+            ) {
+              backgroundUrl = json.galleryUrls[0];
+            }
+          }
+        } catch {
+          // нөөц зураг ашиглана
+        }
+
+        if (cancelled) return;
+
+        const names =
+          typeof row?.names === "string" && row.names.trim()
+            ? row.names.replace(/\s*\n\s*/g, " ").trim()
+            : null;
+
+        setDemo((current) => ({
+          names: names ?? current.names,
+          background:
+            backgroundUrl ?? row?.background_url ?? current.background,
+        }));
+      } catch (error) {
+        console.error("DEMO LOAD ERROR:", error);
+      }
+    }
+
+    void loadDemo();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     async function checkSession() {
@@ -303,58 +373,57 @@ export default function Home() {
 
             <a
               href={demoInvitationUrl}
-              aria-label="Хангай & Сарнай жишээ урилгыг үзэх"
+              aria-label={`${demo.names} жишээ урилгыг үзэх`}
               className="group relative block rotate-[2deg] transition duration-700 hover:rotate-0"
             >
-
               {/* Back card */}
               <div className="absolute -right-4 top-6 h-full w-full rotate-[5deg] rounded-[30px] border border-black/5 bg-[#E5DDD2] shadow-xl" />
 
               {/* Main card */}
               <div className="relative rounded-[30px] border border-white/70 bg-white/80 p-2.5 shadow-[0_25px_60px_rgba(50,40,30,0.14)] backdrop-blur-sm transition duration-500 group-hover:-translate-y-1 group-hover:shadow-[0_30px_75px_rgba(50,40,30,0.20)]">
-                <div className="overflow-hidden rounded-[24px] bg-[#E9E0D4]">
-                  <div className="relative flex min-h-[390px] flex-col items-center justify-between overflow-hidden px-6 py-6 text-center">
+                <div className="overflow-hidden rounded-[24px] bg-[#2A2420]">
+                  <div className="relative flex min-h-[460px] flex-col items-center justify-between overflow-hidden px-6 py-8 text-center text-white">
 
-                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.8),transparent_40%)]" />
+                    {/* Background photo */}
+                    <img
+                      src={demo.background}
+                      alt=""
+                      className="absolute inset-0 h-full w-full object-cover transition duration-1000 group-hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-black/25" />
+                    <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-black/55" />
 
+                    {/* Top */}
                     <div className="relative">
-                      <div className="text-[8px] font-medium uppercase tracking-[0.45em] text-black/40">
+                      <div className="text-[8px] font-medium uppercase tracking-[0.45em] text-white/80">
                         OUR WEDDING
                       </div>
 
-                      <div className="mx-auto mt-2 h-px w-10 bg-black/15" />
+                      <div className="mx-auto mt-2 h-px w-10 bg-white/40" />
                     </div>
 
+                    {/* Names */}
                     <div className="relative">
-                      <div className="font-serif text-[2.35rem] font-normal italic leading-none tracking-[-0.04em] text-black/80">
-                        Хангай & Сарнай
+                      <div className="font-serif text-[2.35rem] font-normal italic leading-none tracking-[-0.04em] drop-shadow-md">
+                        {demo.names}
                       </div>
 
-                      <div className="mt-4 text-[8px] font-medium tracking-[0.35em] text-black/40">
+                      <div className="mt-4 text-[8px] font-medium tracking-[0.35em] text-white/80">
                         WEDDING INVITATION
                       </div>
                     </div>
 
-                    <div className="relative flex h-28 w-28 items-center justify-center rounded-full border-[7px] border-white/70 bg-[#D5C1AA] shadow-xl">
-                      <div className="text-3xl drop-shadow-sm">
-                        💍
-                      </div>
-                    </div>
-
-                    <div className="relative">
-                      <div className="text-[9px] font-medium tracking-wide">
-                        Хангай & Сарнай
+                    {/* Bottom */}
+                    <div className="relative flex flex-col items-center">
+                      <div className="text-[7px] uppercase tracking-[0.2em] text-white/70">
+                        {isMN ? "Жишээ урилга" : "Example invitation"}
                       </div>
 
-                      <div className="mt-1.5 text-[7px] uppercase tracking-[0.2em] text-black/40">
-                        Жишээ урилга
+                      <div className="mt-3 rounded-full bg-white px-5 py-2.5 text-[9px] font-semibold text-[#171513] shadow-lg transition duration-300 group-hover:scale-105">
+                        {isMN
+                          ? "✨ Жишээ урилгыг үзэх →"
+                          : "✨ View example invitation →"}
                       </div>
-                    </div>
-
-                    <div className="relative mt-2 rounded-full bg-[#171513] px-5 py-2.5 text-[9px] font-semibold text-white shadow-lg transition duration-300 group-hover:bg-black">
-                      {isMN
-                        ? "✨ Жишээ урилгыг үзэх →"
-                        : "✨ View example invitation →"}
                     </div>
                   </div>
                 </div>
