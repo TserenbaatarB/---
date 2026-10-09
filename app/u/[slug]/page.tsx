@@ -679,11 +679,10 @@ export default function PublicInvitationPage() {
     };
   }, [slug]);
 
-  /*
-   * ============================================================
-   * LOAD MUSIC / VIDEO
-   * ============================================================
-   */
+    /* ============================ LOAD MUSIC / VIDEO ============================ */
+
+  const mediaReady =
+    !invitation?.music_path || musicUrl !== null || musicError;
 
   useEffect(() => {
     let cancelled = false;
@@ -700,7 +699,6 @@ export default function PublicInvitationPage() {
           setMusicNeedsInteraction(false);
           setMusicError(false);
         }
-
         return;
       }
 
@@ -722,326 +720,74 @@ export default function PublicInvitationPage() {
           setVideoDone(true);
         }
 
-        /*
-         * ========================================================
-         * NORMALIZE STORAGE PATH
-         * ========================================================
-         */
+        const musicPath = invitation.music_path
+          .trim()
+          .replace(/^\/+/, "")
+          .replace(/^invitation-music\//i, "");
 
-        const rawMusicPath =
-          invitation.music_path.trim();
+        const bucket = supabase.storage.from("invitation-music");
 
-        const musicPath =
-          rawMusicPath
-            .replace(/^\/+/, "")
-            .replace(
-              /^invitation-music\//i,
-              ""
-            );
+        const { data: pubData } = bucket.getPublicUrl(musicPath);
+        const mediaUrl = pubData.publicUrl;
 
-        console.log(
-          "================================================"
-        );
+        console.log("MUSIC URL:", mediaUrl);
 
-        console.log(
-          "CREATING MUSIC SIGNED URL"
-        );
+        if (cancelled) return;
 
-        console.log({
-          bucket: "invitation-music",
-          originalPath:
-            invitation.music_path,
-          normalizedPath: musicPath,
-          isVideo: musicIsVideo,
-        });
-
-        console.log(
-          "================================================"
-        );
-
-        /*
-         * ========================================================
-         * CREATE MUSIC SIGNED URL
-         *
-         * 1 hour is enough for invitation.
-         * ========================================================
-         */
-
-        const {
-          data,
-          error,
-        } =
-          await supabase.storage
-            .from("invitation-music")
-            .createSignedUrl(
-              musicPath,
-              60 * 60
-            );
-
-        if (
-          error ||
-          !data?.signedUrl
-        ) {
-          console.error(
-            "================================================"
-          );
-
-          console.error(
-            "MEDIA SIGNED URL FAILED"
-          );
-
-          console.error({
-            bucket:
-              "invitation-music",
-
-            originalPath:
-              invitation.music_path,
-
-            normalizedPath:
-              musicPath,
-
-            status:
-              (error as any)?.status ??
-              null,
-
-            statusCode:
-              (error as any)?.statusCode ??
-              null,
-
-            name:
-              (error as any)?.name ??
-              null,
-
-            message:
-              (error as any)?.message ??
-              null,
-
-            error:
-              error
-                ? JSON.stringify(
-                    error,
-                    Object.getOwnPropertyNames(
-                      error
-                    )
-                  )
-                : null,
-          });
-
-          console.error(
-            "================================================"
-          );
-
-          if (!cancelled) {
-            setMusicUrl(null);
-            setMusicError(true);
-            setVideoChecked(true);
-            setVideoDone(true);
-          }
-
+        if (!mediaUrl) {
+          setMusicUrl(null);
+          setMusicError(true);
+          setVideoChecked(true);
+          setVideoDone(true);
           return;
         }
 
-        if (cancelled) {
-          return;
-        }
-
-        const signedUrl =
-          data.signedUrl;
-
-        console.log(
-          "================================================"
-        );
-
-        console.log(
-          "MUSIC SIGNED URL CREATED SUCCESSFULLY"
-        );
-
-        console.log({
-          path: musicPath,
-          signedUrlCreated:
-            Boolean(signedUrl),
-        });
-
-        console.log(
-          "================================================"
-        );
-
-        setMusicUrl(signedUrl);
-
-        /*
-         * ========================================================
-         * IF FILE ITSELF IS VIDEO
-         * ========================================================
-         */
+        setMusicUrl(mediaUrl);
 
         if (musicIsVideo) {
-          setVideoUrl(signedUrl);
+          setVideoUrl(mediaUrl);
           setVideoChecked(true);
           setVideoDone(false);
-
           return;
         }
 
-        /*
-         * ========================================================
-         * FIND COVER VIDEO
-         * ========================================================
-         */
+        const folder = musicPath.split("/").slice(0, -1).join("/");
 
-        const folder =
-          musicPath
-            .split("/")
-            .slice(0, -1)
-            .join("/");
-
-        const bucket =
-          supabase.storage.from(
-            "invitation-music"
-          );
-
-        const {
-          data: files,
-          error: listError,
-        } = await bucket.list(folder);
+        const { data: files, error: listError } = await bucket.list(folder);
 
         if (listError) {
-          console.error(
-            "COVER VIDEO LIST ERROR:",
-            {
-              folder,
-              error: listError,
-              message:
-                (listError as any)
-                  ?.message ??
-                null,
-            }
-          );
-
+          console.warn("COVER VIDEO LIST ERROR:", listError.message);
           if (!cancelled) {
             setVideoUrl(null);
             setVideoChecked(true);
             setVideoDone(true);
           }
-
           return;
         }
 
-        const video =
-          files?.find((file) =>
-            /^video\.(mp4|webm|mov)$/i.test(
-              file.name
-            )
-          );
-
-        /*
-         * No cover video is completely normal.
-         */
-
-        if (!video) {
-          console.log(
-            "NO COVER VIDEO FOUND"
-          );
-
-          if (!cancelled) {
-            setVideoUrl(null);
-            setVideoChecked(true);
-            setVideoDone(true);
-          }
-
-          return;
-        }
-
-        const videoPath =
-          `${folder}/${video.name}`;
-
-        console.log(
-          "COVER VIDEO PATH:",
-          videoPath
+        const video = files?.find((file) =>
+          /^video\.(mp4|webm|mov)$/i.test(file.name)
         );
 
-        /*
-         * ========================================================
-         * CREATE COVER VIDEO SIGNED URL
-         * ========================================================
-         */
-
-        const {
-          data: videoData,
-          error: videoError,
-        } =
-          await bucket.createSignedUrl(
-            videoPath,
-            60 * 60
-          );
-
-        if (
-          videoError ||
-          !videoData?.signedUrl
-        ) {
-          console.error(
-            "COVER VIDEO SIGNED URL ERROR:",
-            {
-              path: videoPath,
-
-              status:
-                (videoError as any)
-                  ?.status ??
-                null,
-
-              statusCode:
-                (videoError as any)
-                  ?.statusCode ??
-                null,
-
-              message:
-                (videoError as any)
-                  ?.message ??
-                null,
-
-              error:
-                videoError
-                  ? JSON.stringify(
-                      videoError,
-                      Object.getOwnPropertyNames(
-                        videoError
-                      )
-                    )
-                  : null,
-            }
-          );
-
+        if (!video) {
           if (!cancelled) {
             setVideoUrl(null);
             setVideoChecked(true);
             setVideoDone(true);
           }
-
           return;
         }
 
-        if (!cancelled) {
-          setVideoUrl(
-            videoData.signedUrl
-          );
+        const videoPath = folder ? `${folder}/${video.name}` : video.name;
+        const { data: videoPub } = bucket.getPublicUrl(videoPath);
 
+        if (!cancelled) {
+          setVideoUrl(videoPub.publicUrl);
           setVideoChecked(true);
           setVideoDone(false);
         }
       } catch (error) {
-        console.error(
-          "================================================"
-        );
-
-        console.error(
-          "MEDIA LOAD ERROR"
-        );
-
-        console.error(error);
-
-        console.error(
-          "================================================"
-        );
-
+        console.error("MEDIA LOAD ERROR:", error);
         if (!cancelled) {
           setMusicUrl(null);
           setVideoUrl(null);
@@ -1057,51 +803,25 @@ export default function PublicInvitationPage() {
     return () => {
       cancelled = true;
     };
-  }, [
-    invitation?.music_path,
-    musicIsVideo,
-  ]);
+  }, [invitation?.music_path, musicIsVideo]);
 
-  /*
-   * ============================================================
-   * VIDEO AUTOPLAY
-   * ============================================================
-   */
+  /* ============================ VIDEO AUTOPLAY ============================ */
 
   useEffect(() => {
-    if (!videoUrl || videoDone) {
-      return;
-    }
+    if (!videoUrl || videoDone) return;
 
-    const video =
-      videoRef.current;
-
-    if (!video) {
-      return;
-    }
+    const video = videoRef.current;
+    if (!video) return;
 
     video.muted = true;
     video.playsInline = true;
 
-    const playVideo = async () => {
-      try {
-        await video.play();
-      } catch (error) {
-        console.warn(
-          "VIDEO AUTOPLAY BLOCKED:",
-          error
-        );
-      }
-    };
-
-    void playVideo();
+    void video.play().catch((error) => {
+      console.warn("VIDEO AUTOPLAY BLOCKED:", error);
+    });
   }, [videoUrl, videoDone]);
 
-  /*
-   * ============================================================
-   * GALLERY SLIDESHOW
-   * ============================================================
-   */
+  /* ============================ GALLERY SLIDESHOW ============================ */
 
   useEffect(() => {
     if (galleryUrls.length <= 1) {
@@ -1109,29 +829,19 @@ export default function PublicInvitationPage() {
       return;
     }
 
-    const timer =
-      window.setInterval(() => {
-        setCurrentSlide(
-          (current) =>
-            (current + 1) %
-            galleryUrls.length
-        );
-      }, 4000);
+    const timer = window.setInterval(() => {
+      setCurrentSlide((current) => (current + 1) % galleryUrls.length);
+    }, 4000);
 
     return () => {
       window.clearInterval(timer);
     };
   }, [galleryUrls.length]);
 
-  /*
-   * ============================================================
-   * PLAY MUSIC
-   * ============================================================
-   */
+  /* ============================ PLAY MUSIC ============================ */
 
   const playMusic = useCallback(async () => {
-    const media =
-      audioRef.current;
+    const media = audioRef.current;
 
     if (!media) {
       setMusicNeedsInteraction(true);
@@ -1141,15 +851,6 @@ export default function PublicInvitationPage() {
     try {
       media.volume = 1;
       media.muted = false;
-      media.setAttribute("playsinline", "true");
-      media.setAttribute(
-        "webkit-playsinline",
-        "true"
-      );
-
-      if (media.readyState === 0) {
-        media.load();
-      }
 
       await media.play();
 
@@ -1157,73 +858,28 @@ export default function PublicInvitationPage() {
       setMusicNeedsInteraction(false);
       setMusicError(false);
     } catch (error) {
-      console.warn(
-        "BACKGROUND MUSIC PLAY ERROR:",
-        error
-      );
-
+      console.warn("BACKGROUND MUSIC PLAY ERROR:", error);
       setMusicPlaying(false);
       setMusicNeedsInteraction(true);
-
-      /*
-       * Autoplay/playback block нь music loading error биш.
-       * Тиймээс энд musicError=true хийхгүй.
-       */
       setMusicError(false);
     }
   }, []);
 
-  /*
-   * ============================================================
-   * MUSIC AUTOPLAY
-   * ============================================================
-   */
+  /* ============================ MUSIC AUTOPLAY ============================ */
 
   useEffect(() => {
-    if (
-      !musicUrl ||
-      musicIsVideo ||
-      !showInvitation
-    ) {
-      return;
-    }
-
-    const media =
-      audioRef.current;
-
-    if (!media) {
-      return;
-    }
-
-    if (!audioReady) {
-      return;
-    }
+    if (!musicUrl || musicIsVideo || !showInvitation) return;
+    if (!audioRef.current || !audioReady) return;
 
     void playMusic();
-  }, [
-    musicUrl,
-    musicIsVideo,
-    showInvitation,
-    audioReady,
-    playMusic,
-  ]);
+  }, [musicUrl, musicIsVideo, showInvitation, audioReady, playMusic]);
 
-  /*
-   * ============================================================
-   * OPENING ANIMATION
-   * ============================================================
-   */
+  /* ============================ OPENING ANIMATION ============================ */
 
   async function handleOpenInvitation() {
-    if (openingStarted) {
+    if (openingStarted || !mediaReady) {
       return;
     }
-
-    /*
-     * ========================================================
-     * START MUSIC FROM USER GESTURE
-     * ========================================================
-     */
 
     if (musicUrl && !musicIsVideo) {
       void playMusic();
@@ -1231,38 +887,26 @@ export default function PublicInvitationPage() {
 
     setOpeningStarted(true);
 
-    await new Promise((resolve) =>
-      window.setTimeout(resolve, 120)
-    );
+    await new Promise((resolve) => window.setTimeout(resolve, 120));
 
     const duration =
-      openingStyle === "envelope" ||
-      openingStyle === "dugtui"
+      openingStyle === "envelope" || openingStyle === "dugtui"
         ? 1500
-        : openingStyle === "curtain" ||
-            openingStyle === "hoshig"
+        : openingStyle === "curtain" || openingStyle === "hoshig"
           ? 1300
-          : openingStyle === "light" ||
-              openingStyle === "gerel"
+          : openingStyle === "light" || openingStyle === "gerel"
             ? 1400
-            : openingStyle === "focus" ||
-                openingStyle === "fokus"
+            : openingStyle === "focus" || openingStyle === "fokus"
               ? 1300
-              : openingStyle === "pulse" ||
-                  openingStyle === "lugshih"
+              : openingStyle === "pulse" || openingStyle === "lugshih"
                 ? 1200
                 : 1300;
 
-    await new Promise((resolve) =>
-      window.setTimeout(resolve, duration)
-    );
+    await new Promise((resolve) => window.setTimeout(resolve, duration));
 
     setOpeningFinished(true);
 
-    window.scrollTo({
-      top: 0,
-      behavior: "auto",
-    });
+    window.scrollTo({ top: 0, behavior: "auto" });
   }
 
   /*
