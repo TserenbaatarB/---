@@ -144,26 +144,14 @@ async function getStoredImage(id: string): Promise<Blob | null> {
   });
 }
 
-async function storeImage(id: string, blob: Blob): Promise<void> {
-  const db = await openImageDatabase();
-
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, "readwrite");
-    transaction.objectStore(STORE_NAME).put(blob, id);
-
-    transaction.oncomplete = () => {
-      db.close();
-      resolve();
-    };
-    transaction.onerror = () => {
-      db.close();
-      reject(transaction.error);
-    };
-    transaction.onabort = () => {
-      db.close();
-      reject(transaction.error);
-    };
-  });
+function isStoragePath(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    !value.startsWith("http") &&
+    !value.startsWith("blob:") &&
+    value.includes("/")
+  );
 }
 
 function formatDate(date: string) {
@@ -263,22 +251,82 @@ function InvitationBuilderPageContent() {
     useState("");
 
   async function handleBackgroundChange(file: File) {
-    if (!file.type.startsWith("image/")) {
+    if (
+      !file.type.startsWith("image/") &&
+      !/\.(jpe?g|png|webp|gif|heic|heif)$/i.test(file.name)
+    ) {
       setSavedMessage("Зөвхөн зургийн файл сонгоно уу.");
       return;
     }
 
     try {
-      const backgroundId = `background-${Date.now()}-${Math.random()
-        .toString(36)
-        .slice(2, 12)}`;
-      await storeImage(backgroundId, file);
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!user) {
+        throw new Error("Зураг хадгалахын өмнө нэвтэрнэ үү.");
+      }
+
+      const invitationId =
+        currentInvitationId ??
+        searchParams.get("invitationId") ??
+        sessionStorage.getItem("invitation-id");
+      let draftFolderId = sessionStorage.getItem(
+        "invitation-media-draft-id"
+      );
+
+      if (!invitationId && !draftFolderId) {
+        draftFolderId =
+          typeof crypto !== "undefined" &&
+          typeof crypto.randomUUID === "function"
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+        sessionStorage.setItem(
+          "invitation-media-draft-id",
+          draftFolderId
+        );
+      }
+
+      const fileExtension =
+        file.type.toLowerCase() === "image/png" || /\.png$/i.test(file.name)
+          ? "png"
+          : file.type.toLowerCase() === "image/webp" || /\.webp$/i.test(file.name)
+            ? "webp"
+            : file.type.toLowerCase() === "image/gif" || /\.gif$/i.test(file.name)
+              ? "gif"
+              : file.type.toLowerCase() === "image/heic" ||
+                  file.type.toLowerCase() === "image/heif" ||
+                  /\.(heic|heif)$/i.test(file.name)
+                ? "heic"
+                : "jpg";
+      const backgroundId = `${user.id}/${
+        invitationId || `draft-${draftFolderId}`
+      }/background.${fileExtension}`;
+      const { error: uploadError } = await supabase.storage
+        .from("invitation-images")
+        .upload(backgroundId, file, {
+          cacheControl: "31536000",
+          upsert: true,
+          contentType: file.type || "image/jpeg",
+        });
+      if (uploadError) throw uploadError;
+
+      const { data: signedImage, error: signedUrlError } =
+        await supabase.storage
+          .from("invitation-images")
+          .createSignedUrl(backgroundId, 60 * 60);
+      if (signedUrlError) throw signedUrlError;
+      if (!signedImage?.signedUrl) {
+        throw new Error("Хадгалсан зургийн холбоос үүссэнгүй.");
+      }
 
       if (backgroundImage?.startsWith("blob:")) {
         URL.revokeObjectURL(backgroundImage);
       }
 
-      setBackgroundImage(URL.createObjectURL(file));
+      setBackgroundImage(signedImage.signedUrl);
 
       const rawImages = sessionStorage.getItem("invitation-images");
       let imageData: StoredInvitationImages = {
@@ -1303,9 +1351,20 @@ function InvitationBuilderPageContent() {
 
         if (
           imageData.backgroundId &&
-          !imageData.backgroundId.startsWith(
-            "http"
-          )
+          isStoragePath(imageData.backgroundId)
+        ) {
+          const { data: signedBackground, error } = await supabase.storage
+            .from("invitation-images")
+            .createSignedUrl(imageData.backgroundId, 60 * 60);
+
+          if (error) throw error;
+
+          if (signedBackground?.signedUrl && !cancelled) {
+            setBackgroundImage(signedBackground.signedUrl);
+          }
+        } else if (
+          imageData.backgroundId &&
+          !imageData.backgroundId.startsWith("http")
         ) {
           const backgroundBlob =
             await getStoredImage(
@@ -1441,28 +1500,44 @@ function InvitationBuilderPageContent() {
             continue;
           }
 
-          const galleryBlob =
-            await getStoredImage(
-              galleryId
-            );
+          if (isStoragePath(galleryId)) {
+            const { data: signedGallery, error } = await supabase.storage
+              .from("invitation-images")
+              .createSignedUrl(galleryId, 60 * 60);
 
-          if (
-            galleryBlob &&
-            !cancelled
-          ) {
-            const galleryUrl =
-              URL.createObjectURL(
-                galleryBlob
+            if (error) throw error;
+
+            if (signedGallery?.signedUrl && !cancelled) {
+              loadedPhotos.push({
+                id: galleryId,
+                url: signedGallery.signedUrl,
+                caption: galleryCaptions[index] ?? "",
+              });
+            }
+          } else {
+            const galleryBlob =
+              await getStoredImage(
+                galleryId
               );
 
-            loadedPhotos.push({
-              id: galleryId,
-              url: galleryUrl,
-              caption:
-                galleryCaptions[
-                  index
-                ] ?? "",
-            });
+            if (
+              galleryBlob &&
+              !cancelled
+            ) {
+              const galleryUrl =
+                URL.createObjectURL(
+                  galleryBlob
+                );
+
+              loadedPhotos.push({
+                id: galleryId,
+                url: galleryUrl,
+                caption:
+                  galleryCaptions[
+                    index
+                  ] ?? "",
+              });
+            }
           }
         }
 

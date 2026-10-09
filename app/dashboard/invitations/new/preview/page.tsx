@@ -143,6 +143,15 @@ async function getStoredImage(
   });
 }
 
+function isStoragePath(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.includes("/") &&
+    !value.startsWith("http") &&
+    !value.startsWith("blob:")
+  );
+}
+
 /*
  * =========================================================
  * IMAGE EXTENSION
@@ -265,10 +274,22 @@ async function uploadInvitationImages(
    */
 
   if (imageData.backgroundId) {
-    const backgroundBlob =
-      await getStoredImage(
-        imageData.backgroundId
-      );
+    const backgroundIsPath = isStoragePath(imageData.backgroundId);
+    const backgroundBlob = backgroundIsPath
+      ? await supabase.storage
+          .from("invitation-images")
+          .download(imageData.backgroundId)
+          .then(({ data, error }) => {
+            if (error) {
+              throw new Error(
+                `Background зургийг Storage-оос татахад алдаа гарлаа: ${error.message}`
+              );
+            }
+            return data;
+          })
+      : imageData.backgroundId.startsWith("http")
+        ? null
+        : await getStoredImage(imageData.backgroundId);
 
     if (backgroundBlob) {
       const contentType =
@@ -304,20 +325,14 @@ async function uploadInvitationImages(
         );
       }
     }
-  }
 
-  const isStoragePath = (value: unknown): value is string =>
-    typeof value === "string" &&
-    value.includes("/") &&
-    !value.startsWith("http") &&
-    !value.startsWith("blob:");
-
-  // Re-publishing an edited invitation: keep images already in storage.
-  if (
-    !backgroundPath &&
-    isStoragePath(imageData.backgroundId)
-  ) {
-    backgroundPath = imageData.backgroundId;
+    if (
+      !backgroundPath &&
+      (imageData.backgroundId.startsWith("http") ||
+        imageData.backgroundId.startsWith(`${basePath}/`))
+    ) {
+      backgroundPath = imageData.backgroundId;
+    }
   }
 
   /*
@@ -334,13 +349,26 @@ async function uploadInvitationImages(
     const galleryId =
       imageData.galleryIds[index];
 
-    const galleryBlob =
-      await getStoredImage(
-        galleryId
-      );
+    const galleryIsPath = isStoragePath(galleryId);
+    const galleryIsHttpUrl = galleryId.startsWith("http");
+    const galleryBlob = galleryIsPath
+      ? await supabase.storage
+          .from("invitation-images")
+          .download(galleryId)
+          .then(({ data, error }) => {
+            if (error) {
+              throw new Error(
+                `Gallery зураг ${index + 1}-ийг Storage-оос татахад алдаа гарлаа: ${error.message}`
+              );
+            }
+            return data;
+          })
+      : galleryIsHttpUrl
+        ? null
+        : await getStoredImage(galleryId);
 
     if (!galleryBlob) {
-      if (isStoragePath(galleryId)) {
+      if (galleryIsHttpUrl) {
         galleryPaths.push(galleryId);
       }
       continue;
@@ -524,23 +552,46 @@ async function uploadInvitationMusic(
   }
 
   /*
-   * LOAD MUSIC FROM INDEXEDDB
+   * Load from Storage for the mobile-first wizard flow, or IndexedDB
+   * for invitations saved by older versions of the builder.
    */
+  const musicIsStoragePath = isStoragePath(musicData.musicId);
+  const musicBlob = musicIsStoragePath
+    ? await supabase.storage
+        .from("invitation-music")
+        .download(musicData.musicId)
+        .then(({ data, error }) => {
+          if (error) {
+            throw new Error(
+              `Хөгжмийг Storage-оос татахад алдаа гарлаа: ${error.message}`
+            );
+          }
+          return data;
+        })
+    : musicData.musicId.startsWith("http")
+      ? null
+      : await getStoredImage(musicData.musicId);
 
-  const musicBlob =
-    await getStoredImage(
-      musicData.musicId
-    );
+  if (!musicBlob && musicData.musicId.startsWith("http")) {
+    const { error } = await supabase
+      .from("invitations")
+      .update({
+        music_path: musicData.musicId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", invitationId)
+      .eq("user_id", userId);
 
-  if (!musicBlob) {
-    // Builder → preview without re-selecting: the file is already in storage.
-    if (
-      musicData.musicId.includes("/") &&
-      !musicData.musicId.startsWith("blob:")
-    ) {
-      return musicData.musicId;
+    if (error) {
+      throw new Error(
+        `Хөгжмийн URL хадгалахад алдаа гарлаа: ${error.message}`
+      );
     }
 
+    return musicData.musicId;
+  }
+
+  if (!musicBlob) {
     throw new Error(
       "Сонгосон MP3 файл олдсонгүй. Builder дээр хөгжмөө дахин сонгоно уу."
     );
@@ -557,6 +608,28 @@ async function uploadInvitationMusic(
 
   const musicPath =
     `${userId}/${invitationId}/music.${extension}`;
+
+  if (
+    musicIsStoragePath &&
+    musicData.musicId.startsWith(`${userId}/${invitationId}/`)
+  ) {
+    const { error } = await supabase
+      .from("invitations")
+      .update({
+        music_path: musicData.musicId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", invitationId)
+      .eq("user_id", userId);
+
+    if (error) {
+      throw new Error(
+        `MP3 Storage path хадгалахад алдаа гарлаа: ${error.message}`
+      );
+    }
+
+    return musicData.musicId;
+  }
 
   const contentType =
     musicBlob.type ||
@@ -2006,6 +2079,9 @@ function InvitationPreviewPageContent() {
       sessionStorage.setItem(
         "published-invitation-slug",
         publicSlug
+      );
+      sessionStorage.removeItem(
+        "invitation-media-draft-id"
       );
 
       setPublishedSlug(

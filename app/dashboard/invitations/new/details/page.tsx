@@ -742,6 +742,41 @@ function isStoragePath(value: unknown): value is string {
   );
 }
 
+function getStorageExtension(blob: Blob, fallback: string): string {
+  const mimeSubtype = blob.type.split("/")[1]?.toLowerCase();
+
+  if (mimeSubtype === "jpeg" || mimeSubtype === "jpg") return "jpg";
+  if (mimeSubtype === "png") return "png";
+  if (mimeSubtype === "webp") return "webp";
+  if (mimeSubtype === "gif") return "gif";
+  if (mimeSubtype === "mpeg" || mimeSubtype === "mp3") return "mp3";
+  if (mimeSubtype === "wav" || mimeSubtype === "x-wav") return "wav";
+  if (mimeSubtype === "ogg") return "ogg";
+  if (mimeSubtype === "mp4" || mimeSubtype === "x-m4a") return "m4a";
+  if (mimeSubtype === "webm") return "webm";
+
+  return fallback;
+}
+
+async function uploadWizardMedia(
+  bucket: "invitation-images" | "invitation-music",
+  path: string,
+  blob: Blob,
+  fallbackType: string
+): Promise<void> {
+  const { error } = await supabase.storage
+    .from(bucket)
+    .upload(path, blob, {
+      cacheControl: "31536000",
+      upsert: true,
+      contentType: blob.type || fallbackType,
+    });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 async function downloadStorageBlob(
   bucket: string,
   path: string
@@ -980,19 +1015,17 @@ function InvitationDetailsPageContent() {
           const images: StoredInvitationImages = JSON.parse(rawImages);
 
           if (images.backgroundId) {
-            const blob =
-              (await getStoredBlob(images.backgroundId).catch(
-                (error) => {
-                  console.warn("Background IndexedDB уншилт:", error);
-                  return null;
-                }
-              )) ??
-              (isStoragePath(images.backgroundId)
-                ? await downloadStorageBlob(
-                    "invitation-images",
-                    images.backgroundId
-                  )
-                : null);
+            const blob = isStoragePath(images.backgroundId)
+              ? await downloadStorageBlob(
+                  "invitation-images",
+                  images.backgroundId
+                )
+              : await getStoredBlob(images.backgroundId).catch(
+                  (error) => {
+                    console.warn("Background IndexedDB уншилт:", error);
+                    return null;
+                  }
+                );
 
             if (blob && !cancelled) {
               setBackgroundFile(blobToFile(blob, "background"));
@@ -1005,14 +1038,12 @@ function InvitationDetailsPageContent() {
           for (const [index, id] of (
             images.galleryIds ?? []
           ).entries()) {
-            const blob =
-              (await getStoredBlob(id).catch((error) => {
-                console.warn(`Gallery зураг ${index + 1} уншилт:`, error);
-                return null;
-              })) ??
-              (isStoragePath(id)
-                ? await downloadStorageBlob("invitation-images", id)
-                : null);
+            const blob = isStoragePath(id)
+              ? await downloadStorageBlob("invitation-images", id)
+              : await getStoredBlob(id).catch((error) => {
+                  console.warn(`Gallery зураг ${index + 1} уншилт:`, error);
+                  return null;
+                });
 
             if (blob) {
               photos.push({
@@ -1037,17 +1068,15 @@ function InvitationDetailsPageContent() {
           const music: StoredInvitationMusic = JSON.parse(rawMusic);
 
           if (music.musicType === "custom" && music.musicId) {
-            const blob =
-              (await getStoredBlob(music.musicId).catch((error) => {
-                console.warn("Music IndexedDB уншилт:", error);
-                return null;
-              })) ??
-              (isStoragePath(music.musicId)
-                ? await downloadStorageBlob(
-                    "invitation-music",
-                    music.musicId
-                  )
-                : null);
+            const blob = isStoragePath(music.musicId)
+              ? await downloadStorageBlob(
+                  "invitation-music",
+                  music.musicId
+                )
+              : await getStoredBlob(music.musicId).catch((error) => {
+                  console.warn("Music IndexedDB уншилт:", error);
+                  return null;
+                });
 
             if (blob && !cancelled) {
               setMusicFile(
@@ -1270,11 +1299,38 @@ function InvitationDetailsPageContent() {
     let currentFileLabel = "хадгалалт эхлүүлэх";
 
     try {
-      /*
-       * ЭНД IndexedDB-ийн store.clear() ДУУДАХГҮЙ.
-       * Өмнөх урилга, нооргийн файлуудыг устгахгүй.
-       * Шинэ файлууд өвөрмөц ID-тай тул тус тусдаа хадгалагдана.
-       */
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) throw userError;
+      if (!user) {
+        throw new Error("Файл хадгалахын өмнө нэвтэрнэ үү.");
+      }
+
+      const invitationId =
+        searchParams.get("invitationId") ??
+        sessionStorage.getItem("invitation-id");
+      let draftFolderId = sessionStorage.getItem(
+        "invitation-media-draft-id"
+      );
+
+      if (!invitationId && !draftFolderId) {
+        draftFolderId =
+          typeof crypto !== "undefined" &&
+          typeof crypto.randomUUID === "function"
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+        sessionStorage.setItem(
+          "invitation-media-draft-id",
+          draftFolderId
+        );
+      }
+
+      const mediaFolder = `${user.id}/${
+        invitationId || `draft-${draftFolderId}`
+      }`;
 
       /* BACKGROUND */
 
@@ -1282,12 +1338,15 @@ function InvitationDetailsPageContent() {
 
       if (backgroundFile) {
         currentFileLabel = "background зураг";
-
-        backgroundId = `background-${Date.now()}-${Math.random()
-          .toString(36)
-          .slice(2, 12)}`;
-
-        await saveImage(backgroundId, backgroundFile);
+        const blob = await compressImageForStorage(backgroundFile);
+        const extension = getStorageExtension(blob, "jpg");
+        backgroundId = `${mediaFolder}/background.${extension}`;
+        await uploadWizardMedia(
+          "invitation-images",
+          backgroundId,
+          blob,
+          "image/jpeg"
+        );
       }
 
       /* GALLERY */
@@ -1301,12 +1360,15 @@ function InvitationDetailsPageContent() {
         if (!photo.file) continue;
 
         currentFileLabel = `gallery зураг ${index + 1}`;
-
-        const galleryId = `gallery-${Date.now()}-${index}-${Math.random()
-          .toString(36)
-          .slice(2, 12)}`;
-
-        await saveImage(galleryId, photo.file);
+        const blob = await compressImageForStorage(photo.file);
+        const extension = getStorageExtension(blob, "jpg");
+        const galleryId = `${mediaFolder}/gallery-${index + 1}.${extension}`;
+        await uploadWizardMedia(
+          "invitation-images",
+          galleryId,
+          blob,
+          "image/jpeg"
+        );
 
         galleryIds.push(galleryId);
         galleryCaptions.push(photo.caption ?? "");
@@ -1320,15 +1382,19 @@ function InvitationDetailsPageContent() {
 
       if (musicFile) {
         currentFileLabel = "урилгын MP3 дуу";
-
-        musicId = `music-${Date.now()}-${Math.random()
-          .toString(36)
-          .slice(2, 12)}`;
-
+        const blob = new Blob([musicFile], {
+          type: getFileStorageType(musicFile),
+        });
+        const extension = getStorageExtension(blob, "mp3");
+        musicId = `${mediaFolder}/music.${extension}`;
         musicName = musicFile.name;
         musicType = "custom";
-
-        await saveImage(musicId, musicFile);
+        await uploadWizardMedia(
+          "invitation-music",
+          musicId,
+          blob,
+          "audio/mpeg"
+        );
       }
 
       /* COVER VIDEO */
