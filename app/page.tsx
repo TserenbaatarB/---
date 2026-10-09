@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -16,11 +17,11 @@ const eventTypes = [
   { icon: "🎉", mn: "Бусад арга хэмжээ", en: "Other Events", type: "other" },
 ];
 
-// Нүүр хуудсанд гаргах жишээ урилгын slug
-const demoSlug = "хангай-сарнай-6epewk";
+// Нүүр хуудсанд гаргах жишээ урилга
+const demoSlug = "хангай-сарнай-skehsd";
 
 const demoInvitationUrl =
-  `https://smart-invitation-c0642wmg0-tseba-s-team.vercel.app/u/${encodeURIComponent(demoSlug)}`;
+  `https://smart-invitation-m0io4u881-tseba-s-team.vercel.app/u/${encodeURIComponent(demoSlug)}`;
 
 // Өгөгдлийн сангаас уншиж чадаагүй үед харагдах нөөц утгууд
 const demoFallbackNames = "Хангай & Сарнай";
@@ -242,24 +243,15 @@ export default function Home() {
           <BrandLogo />
 
           <div className="hidden items-center gap-9 text-[13px] font-medium tracking-wide text-black/50 md:flex">
-            <a
-              href="#events"
-              className="transition duration-300 hover:text-black"
-            >
+            <a href="#events" className="transition duration-300 hover:text-black">
               {isMN ? "Арга хэмжээ" : "Events"}
             </a>
 
-            <a
-              href="#ai"
-              className="transition duration-300 hover:text-black"
-            >
+            <a href="#ai" className="transition duration-300 hover:text-black">
               AI Designer
             </a>
 
-            <a
-              href="#how"
-              className="transition duration-300 hover:text-black"
-            >
+            <a href="#how" className="transition duration-300 hover:text-black">
               {isMN ? "Хэрхэн ажиллах вэ?" : "How it works"}
             </a>
           </div>
@@ -434,7 +426,6 @@ export default function Home() {
                       <div className="text-[8px] font-medium uppercase tracking-[0.45em] text-white/80">
                         OUR WEDDING
                       </div>
-
                       <div className="mx-auto mt-2 h-px w-10 bg-white/40" />
                     </div>
 
@@ -610,15 +601,12 @@ export default function Home() {
                   <div className="flex items-center justify-between border-b border-white/[0.07] pb-5">
                     <div className="flex items-center gap-2">
                       <div className="h-2 w-2 rounded-full bg-[#CBA77C]" />
-
                       <div className="text-[9px] font-medium uppercase tracking-[0.2em] text-white/35">
                         URILGA AI
                       </div>
                     </div>
 
-                    <div className="text-[9px] text-white/20">
-                      DESIGNER
-                    </div>
+                    <div className="text-[9px] text-white/20">DESIGNER</div>
                   </div>
 
                   <div className="mt-5 rounded-[20px] border border-white/[0.06] bg-white/[0.025] p-5">
