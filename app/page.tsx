@@ -16,10 +16,11 @@ const eventTypes = [
   { icon: "🎉", mn: "Бусад арга хэмжээ", en: "Other Events", type: "other" },
 ];
 
-// Нүүр хуудсанд гаргах demo урилгын slug (/u/ дараах хэсэг)
-const demoSlug = "хангай-сарнай-c1ogp7";
+// Нүүр хуудсанд гаргах жишээ урилгын slug
+const demoSlug = "хангай-сарнай-6epewk";
 
-const demoInvitationUrl = `/u/${encodeURIComponent(demoSlug)}`;
+const demoInvitationUrl =
+  `https://smart-invitation-c0642wmg0-tseba-s-team.vercel.app/u/${encodeURIComponent(demoSlug)}`;
 
 // Өгөгдлийн сангаас уншиж чадаагүй үед харагдах нөөц утгууд
 const demoFallbackNames = "Хангай & Сарнай";
@@ -46,14 +47,19 @@ export default function Home() {
     background: demoFallbackBackground,
   });
 
+  // Жишээ урилгын нэр болон background зургийг ачаалах
   useEffect(() => {
     let cancelled = false;
 
     async function loadDemo() {
       try {
-        const { data } = await supabase.rpc("get_public_invitation", {
+        const { data, error } = await supabase.rpc("get_public_invitation", {
           p_slug: demoSlug,
         });
+
+        if (error) {
+          console.error("DEMO SUPABASE ERROR:", error);
+        }
 
         const row = Array.isArray(data) ? data[0] : null;
 
@@ -68,7 +74,10 @@ export default function Home() {
           if (res.ok) {
             const json = await res.json();
 
-            if (typeof json?.backgroundUrl === "string") {
+            if (
+              typeof json?.backgroundUrl === "string" &&
+              json.backgroundUrl.trim()
+            ) {
               backgroundUrl = json.backgroundUrl;
             } else if (
               Array.isArray(json?.galleryUrls) &&
@@ -76,9 +85,11 @@ export default function Home() {
             ) {
               backgroundUrl = json.galleryUrls[0];
             }
+          } else {
+            console.error("DEMO IMAGE API ERROR:", res.status);
           }
-        } catch {
-          // нөөц зураг ашиглана
+        } catch (error) {
+          console.error("DEMO IMAGE LOAD ERROR:", error);
         }
 
         if (cancelled) return;
@@ -88,11 +99,17 @@ export default function Home() {
             ? row.names.replace(/\s*\n\s*/g, " ").trim()
             : null;
 
-        setDemo((current) => ({
-          names: names ?? current.names,
+        const rowBackground =
+          typeof row?.background_url === "string" &&
+          row.background_url.trim()
+            ? row.background_url
+            : null;
+
+        setDemo({
+          names: names ?? demoFallbackNames,
           background:
-            backgroundUrl ?? row?.background_url ?? current.background,
-        }));
+            backgroundUrl ?? rowBackground ?? demoFallbackBackground,
+        });
       } catch (error) {
         console.error("DEMO LOAD ERROR:", error);
       }
@@ -105,25 +122,33 @@ export default function Home() {
     };
   }, []);
 
+  // Хэрэглэгчийн нэвтрэх төлөв
   useEffect(() => {
+    let mounted = true;
+
     async function checkSession() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
-      setIsLoggedIn(!!session);
-      setCheckingSession(false);
+      if (mounted) {
+        setIsLoggedIn(!!session);
+        setCheckingSession(false);
+      }
     }
 
-    checkSession();
+    void checkSession();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsLoggedIn(!!session);
+      if (mounted) {
+        setIsLoggedIn(!!session);
+      }
     });
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, []);
@@ -211,7 +236,6 @@ export default function Home() {
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#F5F1EA] text-[#171513] selection:bg-[#C7A47A]/20">
-
       {/* NAVBAR */}
       <nav className="sticky top-0 z-50 border-b border-[#171513]/[0.07] bg-[#F5F1EA]/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1440px] items-center justify-between px-5 py-4 sm:px-8 lg:px-12">
@@ -303,10 +327,8 @@ export default function Home() {
         <div className="pointer-events-none absolute right-[-100px] top-[-100px] h-[400px] w-[400px] rounded-full bg-[#E1D4C2]/60 blur-[110px]" />
 
         <div className="relative mx-auto grid max-w-[1440px] items-center gap-8 px-5 py-8 sm:px-8 sm:py-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-10 lg:px-12 lg:py-8 xl:py-10">
-
           {/* LEFT */}
           <div className="relative z-10 flex flex-col justify-center lg:pr-4">
-
             <div className="mb-4 inline-flex w-fit items-center gap-3 rounded-full border border-black/10 bg-white/60 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-black/45 shadow-sm backdrop-blur-sm">
               <span className="h-1.5 w-1.5 rounded-full bg-[#B99163] shadow-[0_0_12px_rgba(185,145,99,0.6)]" />
               AI-powered digital invitations
@@ -373,7 +395,13 @@ export default function Home() {
 
             <a
               href={demoInvitationUrl}
-              aria-label={`${demo.names} жишээ урилгыг үзэх`}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={
+                isMN
+                  ? "Хангай & Сарнай жишээ урилгыг үзэх"
+                  : "View the Hangai & Sarnai example invitation"
+              }
               className="group relative block rotate-[2deg] transition duration-700 hover:rotate-0"
             >
               {/* Back card */}
@@ -383,13 +411,21 @@ export default function Home() {
               <div className="relative rounded-[30px] border border-white/70 bg-white/80 p-2.5 shadow-[0_25px_60px_rgba(50,40,30,0.14)] backdrop-blur-sm transition duration-500 group-hover:-translate-y-1 group-hover:shadow-[0_30px_75px_rgba(50,40,30,0.20)]">
                 <div className="overflow-hidden rounded-[24px] bg-[#2A2420]">
                   <div className="relative flex min-h-[460px] flex-col items-center justify-between overflow-hidden px-6 py-8 text-center text-white">
-
                     {/* Background photo */}
                     <img
                       src={demo.background}
-                      alt=""
+                      alt="Хангай, Сарнай нарын жишээ урилгын дэвсгэр зураг"
                       className="absolute inset-0 h-full w-full object-cover transition duration-1000 group-hover:scale-105"
+                      onError={(event) => {
+                        const image = event.currentTarget;
+
+                        if (image.src.endsWith("/demo-bg.jpg")) return;
+
+                        image.onerror = null;
+                        image.src = demoFallbackBackground;
+                      }}
                     />
+
                     <div className="absolute inset-0 bg-black/25" />
                     <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-black/55" />
 
@@ -453,7 +489,6 @@ export default function Home() {
       {/* EVENTS */}
       <section id="events" className="bg-[#FBF9F6]">
         <div className="mx-auto max-w-[1440px] px-5 py-20 sm:px-8 lg:px-12 lg:py-24">
-
           <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#A27A4F]">
@@ -517,7 +552,6 @@ export default function Home() {
         <div className="pointer-events-none absolute bottom-[-200px] right-[-100px] h-[500px] w-[500px] rounded-full bg-[#CDB99E]/10 blur-[120px]" />
 
         <div className="relative mx-auto grid max-w-[1440px] items-center gap-12 px-5 py-20 sm:px-8 lg:grid-cols-2 lg:gap-16 lg:px-12 lg:py-24">
-
           <div className="flex flex-col justify-center">
             <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#CBA77C]">
               AI DESIGNER
@@ -624,7 +658,6 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
-
                 </div>
               </div>
             </div>
@@ -635,7 +668,6 @@ export default function Home() {
       {/* HOW IT WORKS */}
       <section id="how" className="bg-[#F5F1EA]">
         <div className="mx-auto max-w-[1440px] px-5 py-20 sm:px-8 lg:px-12 lg:py-24">
-
           <div className="text-center">
             <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#A27A4F]">
               {isMN ? "Хялбархан" : "Simple"}
@@ -708,7 +740,6 @@ export default function Home() {
       {/* PRICING */}
       <section className="bg-[#FBF9F6]">
         <div className="mx-auto max-w-4xl px-5 py-20 text-center sm:px-8 lg:py-24">
-
           <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#A27A4F]">
             {isMN ? "Энгийн үнэ" : "Simple pricing"}
           </div>
@@ -721,7 +752,6 @@ export default function Home() {
 
           <div className="mx-auto mt-10 max-w-md rounded-[36px] border border-black/[0.08] bg-white p-2 shadow-[0_30px_80px_rgba(50,40,30,0.10)]">
             <div className="rounded-[30px] bg-[#F5F1EA] px-8 py-9 sm:px-10 sm:py-10">
-
               <div className="text-[10px] font-semibold uppercase tracking-[0.3em] text-black/35">
                 ONE INVITATION
               </div>
@@ -779,7 +809,6 @@ export default function Home() {
       {/* FEEDBACK */}
       <section className="border-t border-black/[0.06] bg-[#F5F1EA]">
         <div className="mx-auto max-w-3xl px-5 py-20 text-center sm:px-8 lg:py-24">
-
           <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#A27A4F]">
             {isMN ? "Санал хүсэлт" : "Feedback"}
           </div>
@@ -798,7 +827,6 @@ export default function Home() {
 
           <div className="mx-auto mt-8 max-w-xl rounded-[34px] border border-black/[0.08] bg-white p-2 shadow-[0_25px_70px_rgba(50,40,30,0.08)]">
             <div className="rounded-[28px] bg-[#FBF9F6] p-6 sm:p-8">
-
               <div>
                 <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black/35">
                   {isMN ? "Таны үнэлгээ" : "Your rating"}
@@ -843,11 +871,15 @@ export default function Home() {
               </div>
 
               <div className="mt-6 text-left">
-                <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-black/35">
+                <label
+                  htmlFor="feedback-message"
+                  className="text-[10px] font-semibold uppercase tracking-[0.18em] text-black/35"
+                >
                   {isMN ? "Санал хүсэлт" : "Your feedback"}
                 </label>
 
                 <textarea
+                  id="feedback-message"
                   value={feedback}
                   onChange={(event) => {
                     setFeedback(event.target.value);
