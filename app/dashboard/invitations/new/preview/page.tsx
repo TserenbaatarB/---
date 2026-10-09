@@ -5,6 +5,7 @@ import * as QRCode from "qrcode";
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { toIndexedDbBlob } from "@/lib/indexedDbBlob";
 import WizardStepper from "@/components/WizardStepper";
 
 type InvitationDraft = {
@@ -132,13 +133,7 @@ async function getStoredImage(
     request.onsuccess = () => {
       db.close();
 
-      if (
-        request.result instanceof Blob
-      ) {
-        resolve(request.result);
-      } else {
-        resolve(null);
-      }
+      resolve(toIndexedDbBlob(request.result));
     };
 
     request.onerror = () => {

@@ -13,6 +13,7 @@ import BrandLogo from "@/components/BrandLogo";
 import WizardStepper from "@/components/WizardStepper";
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
+import { toIndexedDbBlob } from "@/lib/indexedDbBlob";
 import {
   getExtrasSnapshot,
   getServerExtrasSnapshot,
@@ -133,11 +134,7 @@ async function getStoredImage(id: string): Promise<Blob | null> {
 
       const result = request.result;
 
-      if (result instanceof Blob) {
-        resolve(result);
-      } else {
-        resolve(null);
-      }
+      resolve(toIndexedDbBlob(result));
     };
 
     request.onerror = () => {

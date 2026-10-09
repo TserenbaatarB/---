@@ -14,6 +14,12 @@ import VideoAndMusic from "@/components/VideoAndMusic";
 import ExtrasEditor from "@/components/ExtrasEditor";
 import { supabase } from "@/lib/supabase";
 import {
+  isIndexedDbBlobCloneError,
+  toIndexedDbBlob,
+  toIndexedDbBlobRecord,
+  type IndexedDbBlobRecord,
+} from "@/lib/indexedDbBlob";
+import {
   InvitationExtras,
   defaultExtras,
   readExtras,
@@ -658,53 +664,69 @@ async function compressImageForStorage(file: File): Promise<Blob> {
 
 async function saveImage(id: string, file: File): Promise<void> {
   const blob = await compressImageForStorage(file);
-  const db = await openImageDatabase();
 
-  return new Promise((resolve, reject) => {
-    let settled = false;
+  async function write(
+    value: Blob | IndexedDbBlobRecord
+  ): Promise<void> {
+    const db = await openImageDatabase();
 
-    const finish = (error?: Error | DOMException | null) => {
-      if (settled) return;
-      settled = true;
+    return new Promise<void>((resolve, reject) => {
+      let settled = false;
 
-      db.close();
+      const finish = (error?: Error | DOMException | null) => {
+        if (settled) return;
+        settled = true;
 
-      if (error) {
-        reject(error);
-      } else {
-        resolve();
+        db.close();
+
+        if (error) {
+          reject(error);
+        } else {
+          resolve();
+        }
+      };
+
+      try {
+        const transaction = db.transaction(STORE_NAME, "readwrite");
+        const store = transaction.objectStore(STORE_NAME);
+
+        transaction.oncomplete = () => finish();
+
+        transaction.onerror = () => {
+          finish(
+            transaction.error ??
+              new Error("Файлыг хадгалахад алдаа гарлаа.")
+          );
+        };
+
+        transaction.onabort = () => {
+          finish(
+            transaction.error ??
+              new Error("Файл хадгалах transaction цуцлагдлаа.")
+          );
+        };
+
+        store.put(value, id);
+      } catch (error) {
+        finish(
+          error instanceof Error
+            ? error
+            : new Error("Файл хадгалах үед тодорхойгүй алдаа гарлаа.")
+        );
       }
-    };
+    });
+  }
 
-    try {
-      const transaction = db.transaction(STORE_NAME, "readwrite");
-      const store = transaction.objectStore(STORE_NAME);
-
-      transaction.oncomplete = () => finish();
-
-      transaction.onerror = () => {
-        finish(
-          transaction.error ??
-            new Error("Файлыг хадгалахад алдаа гарлаа.")
-        );
-      };
-
-      transaction.onabort = () => {
-        finish(
-          transaction.error ??
-            new Error("Файл хадгалах transaction цуцлагдлаа.")
-        );
-      };
-
-      store.put(blob, id);
-    } catch (error) {
-      finish(
-        error instanceof Error
-          ? error
-          : new Error("Файл хадгалах үед тодорхойгүй алдаа гарлаа.")
-      );
+  try {
+    await write(blob);
+  } catch (error) {
+    if (!isIndexedDbBlobCloneError(error)) {
+      throw error;
     }
-  });
+
+    const fallbackRecord = await toIndexedDbBlobRecord(blob);
+    await write(fallbackRecord);
+  }
 }
 
 /* =========================================================
@@ -758,9 +780,10 @@ async function getStoredBlob(id: string): Promise<Blob | null> {
       const request = transaction.objectStore(STORE_NAME).get(id);
 
       request.onsuccess = () => {
+        const blob = toIndexedDbBlob(request.result);
         finish(
           null,
-          request.result instanceof Blob ? request.result : null
+          blob
         );
       };
 
