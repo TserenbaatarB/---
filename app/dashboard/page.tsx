@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import BrandLogo from "@/components/BrandLogo";
+import { isDemoInvitation } from "@/lib/demoInvitation";
 
 type Invitation = {
   id: string;
@@ -193,6 +194,11 @@ export default function DashboardPage() {
   }
 
   async function handleDeleteInvitation(invitation: Invitation) {
+    if (isDemoInvitation(invitation.public_slug)) {
+      alert("Энэ нь нүүр хуудсанд ашигладаг жишээ урилга тул устгах боломжгүй.");
+      return;
+    }
+
     const invitationName =
       invitation.title ||
       invitation.names ||
@@ -449,6 +455,9 @@ export default function DashboardPage() {
 
                 const isDeleting =
                   deletingId === invitation.id;
+                const isLockedDemo = isDemoInvitation(
+                  invitation.public_slug
+                );
 
                 return (
                   <div
@@ -575,10 +584,17 @@ export default function DashboardPage() {
                               invitation
                             )
                           }
-                          disabled={isDeleting}
+                          disabled={isDeleting || isLockedDemo}
                           className="rounded-full border border-red-200 bg-red-50 px-6 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                          title={
+                            isLockedDemo
+                              ? "Нүүр хуудсанд ашигладаг жишээ урилга тул устгах боломжгүй."
+                              : undefined
+                          }
                         >
-                          {isDeleting
+                          {isLockedDemo
+                            ? "🔒 Түгжигдсэн"
+                            : isDeleting
                             ? "Устгаж байна..."
                             : "🗑️ Устгах"}
                         </button>

@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import BrandLogo from "@/components/BrandLogo";
+import { demoInvitationSlug } from "@/lib/demoInvitation";
 import { supabase } from "@/lib/supabase";
 
 const eventTypes = [
@@ -18,10 +19,9 @@ const eventTypes = [
 ];
 
 // Нүүр хуудсанд гаргах жишээ урилга
-const demoSlug = "хангай-сарнай-skehsd";
+const demoSlug = demoInvitationSlug;
 
-const demoInvitationUrl =
-  `https://smart-invitation-m0io4u881-tseba-s-team.vercel.app/u/${encodeURIComponent(demoSlug)}`;
+const demoInvitationUrl = `/u/${encodeURIComponent(demoSlug)}`;
 
 // Өгөгдлийн сангаас уншиж чадаагүй үед харагдах нөөц утгууд
 const demoFallbackNames = "Хангай & Сарнай";
