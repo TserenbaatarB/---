@@ -6,12 +6,20 @@ export type ProgramItem = {
 export type RsvpVisibility = "open" | "anonymous" | "hidden";
 
 export type MusicSource = "mp3" | "youtube" | "video" | "none";
-export type FontFamilyId = "serif" | "sans" | "system";
+export type FontFamilyId =
+  | "serif"
+  | "sans"
+  | "system"
+  | "display"
+  | "script"
+  | "modern";
 
 export type Appearance = {
   frame: string;
   primary: string;
   accent: string;
+  /* Empty string means automatic text color. */
+  textColor: string;
   tone: "dark" | "light";
   font: FontFamilyId;
   brightness: number;
@@ -61,70 +69,312 @@ export function getServerExtrasSnapshot() {
   return null;
 }
 
-export const FRAMES = [
-  { id: "evereguls", label: "Эвэр угалз" },
-  { id: "cloud", label: "Үүлэн угалз" },
-  { id: "sprout", label: "Нахиат мөчир" },
-  { id: "khadag", label: "Хадаг" },
-  { id: "khaan", label: "Хаан бугуйвч хатан сүйх" },
-  { id: "none", label: "Хүрээгүй" },
+export type EventKind =
+  | "wedding"
+  | "engagement"
+  | "anniversary"
+  | "birthday"
+  | "baby"
+  | "graduation"
+  | "housewarming"
+  | "other";
+
+export type AppearanceOption = {
+  id: string;
+  label: string;
+  icon: string;
+  /* Omitted means the option fits every event type. */
+  events?: EventKind[];
+};
+
+const ROMANTIC: EventKind[] = ["wedding", "engagement", "anniversary"];
+const FESTIVE: EventKind[] = [
+  "birthday",
+  "graduation",
+  "housewarming",
+  "other",
 ];
 
-export const PATTERNS = [
-  { id: "olzii", label: "Өлзий" },
-  { id: "evereguls", label: "Эвэр угалз" },
-  { id: "cloud", label: "Үүлэн угалз" },
-  { id: "tumen", label: "Түмэн наст" },
-  { id: "stars", label: "Цэг ба од" },
-  { id: "paper", label: "Цаасан текстур" },
-  { id: "none", label: "Хээгүй" },
+export const FRAMES: AppearanceOption[] = [
+  { id: "evereguls", label: "Эвэр угалз", icon: "🐏" },
+  { id: "cloud", label: "Үүлэн угалз", icon: "☁️" },
+  { id: "sprout", label: "Нахиат мөчир", icon: "🌱" },
+  {
+    id: "khadag",
+    label: "Хадаг",
+    icon: "🎗️",
+    events: [...ROMANTIC, "baby", "housewarming"],
+  },
+  {
+    id: "khaan",
+    label: "Хаан бугуйвч хатан сүйх",
+    icon: "👑",
+    events: ROMANTIC,
+  },
+  { id: "thin", label: "Нимгэн шугам", icon: "▭" },
+  {
+    id: "bold",
+    label: "Зузаан хүрээ",
+    icon: "🖼️",
+    events: [...FESTIVE, "baby"],
+  },
+  { id: "none", label: "Хүрээгүй", icon: "⬜" },
 ];
 
-export const ANIMATIONS = [
-  { id: "snow", label: "Цас" },
-  { id: "meteor", label: "Сүүлт од" },
-  { id: "party", label: "Парти" },
-  { id: "petals", label: "Дэлбээ" },
-  { id: "fireflies", label: "Гэрэлт цох" },
-  { id: "fireworks", label: "Салют" },
-  { id: "hearts", label: "Зүрх" },
-  { id: "balloons", label: "Бөмбөлөг" },
-  { id: "clouds", label: "Үүл" },
-  { id: "aurora", label: "Туйлын туяа" },
-  { id: "fog", label: "Манан" },
-  { id: "none", label: "Эффектгүй" },
+export const PATTERNS: AppearanceOption[] = [
+  { id: "olzii", label: "Өлзий", icon: "卍" },
+  { id: "evereguls", label: "Эвэр угалз", icon: "🐏" },
+  { id: "cloud", label: "Үүлэн угалз", icon: "☁️" },
+  { id: "tumen", label: "Түмэн наст", icon: "▣" },
+  {
+    id: "stars",
+    label: "Цэг ба од",
+    icon: "✨",
+    events: [...FESTIVE, "baby"],
+  },
+  {
+    id: "dots",
+    label: "Цэгэн хээ",
+    icon: "⁙",
+    events: [...FESTIVE, "baby"],
+  },
+  {
+    id: "stripes",
+    label: "Налуу зураас",
+    icon: "▨",
+    events: ["graduation", "other", "anniversary", "housewarming"],
+  },
+  { id: "paper", label: "Цаасан текстур", icon: "📄" },
+  { id: "none", label: "Хээгүй", icon: "⬜" },
 ];
 
-export const OPEN_STYLES = [
-  { id: "envelope", label: "Дугтуй" },
-  { id: "light", label: "Гэрэл цацрах" },
-  { id: "focus", label: "Фокуслах" },
-  { id: "curtain", label: "Хөшиг нээгдэх" },
-  { id: "slide", label: "Лугших" },
-  { id: "iris", label: "Хүрээлэх" },
+export const ANIMATIONS: AppearanceOption[] = [
+  { id: "snow", label: "Цас", icon: "❄️" },
+  { id: "meteor", label: "Сүүлт од", icon: "☄️" },
+  {
+    id: "party",
+    label: "Парти",
+    icon: "🎊",
+    events: [...FESTIVE, "baby"],
+  },
+  {
+    id: "petals",
+    label: "Дэлбээ",
+    icon: "🌸",
+    events: [...ROMANTIC, "baby", "housewarming"],
+  },
+  { id: "fireflies", label: "Гэрэлт цох", icon: "🪲" },
+  {
+    id: "fireworks",
+    label: "Салют",
+    icon: "🎆",
+    events: ["wedding", "anniversary", "birthday", "graduation", "other"],
+  },
+  { id: "hearts", label: "Зүрх", icon: "❤️", events: ROMANTIC },
+  {
+    id: "balloons",
+    label: "Бөмбөлөг",
+    icon: "🎈",
+    events: [...FESTIVE, "baby"],
+  },
+  { id: "clouds", label: "Үүл", icon: "⛅", events: ["baby", "other"] },
+  { id: "aurora", label: "Туйлын туяа", icon: "🌌" },
+  { id: "fog", label: "Манан", icon: "🌫️" },
+  { id: "sparkle", label: "Гялбаа", icon: "✨" },
+  {
+    id: "leaves",
+    label: "Навч",
+    icon: "🍃",
+    events: ["wedding", "engagement", "baby", "housewarming"],
+  },
+  {
+    id: "stars",
+    label: "Одон",
+    icon: "⭐",
+    events: ["birthday", "baby", "graduation", "other"],
+  },
+  { id: "none", label: "Эффектгүй", icon: "🚫" },
 ];
+
+export const OPEN_STYLES: AppearanceOption[] = [
+  { id: "envelope", label: "Дугтуй", icon: "💌" },
+  { id: "light", label: "Гэрэл цацрах", icon: "💡" },
+  { id: "focus", label: "Фокуслах", icon: "🔍" },
+  {
+    id: "curtain",
+    label: "Хөшиг нээгдэх",
+    icon: "🎭",
+    events: ["wedding", "anniversary", "birthday", "graduation", "other"],
+  },
+  { id: "slide", label: "Гулсах", icon: "↔️" },
+  {
+    id: "iris",
+    label: "Дугуйрч нээгдэх",
+    icon: "⭕",
+    events: [...ROMANTIC, "graduation"],
+  },
+  {
+    id: "pulse",
+    label: "Лугших",
+    icon: "💗",
+    events: [...FESTIVE, "baby", "wedding"],
+  },
+  { id: "circle", label: "Тэлэх тойрог", icon: "🔵" },
+];
+
+export function optionsForEvent(
+  options: AppearanceOption[],
+  eventType: string,
+  selectedId?: string
+): AppearanceOption[] {
+  const filtered = options.filter(
+    (option) =>
+      !option.events ||
+      option.events.includes(eventType as EventKind)
+  );
+
+  /* Keep a previously saved value visible even if it no longer fits. */
+  const selected = options.find((option) => option.id === selectedId);
+
+  return selected && !filtered.includes(selected)
+    ? [...filtered, selected]
+    : filtered;
+}
+
+type EventDefaults = Pick<
+  Appearance,
+  "frame" | "pattern" | "animation" | "open"
+>;
+
+export const EVENT_DEFAULTS: Record<EventKind, EventDefaults> = {
+  wedding: {
+    frame: "khaan",
+    pattern: "olzii",
+    animation: "petals",
+    open: "envelope",
+  },
+  engagement: {
+    frame: "khadag",
+    pattern: "cloud",
+    animation: "hearts",
+    open: "iris",
+  },
+  anniversary: {
+    frame: "khadag",
+    pattern: "tumen",
+    animation: "sparkle",
+    open: "curtain",
+  },
+  birthday: {
+    frame: "bold",
+    pattern: "stars",
+    animation: "balloons",
+    open: "pulse",
+  },
+  baby: {
+    frame: "sprout",
+    pattern: "dots",
+    animation: "clouds",
+    open: "pulse",
+  },
+  graduation: {
+    frame: "bold",
+    pattern: "stripes",
+    animation: "fireworks",
+    open: "curtain",
+  },
+  housewarming: {
+    frame: "khadag",
+    pattern: "evereguls",
+    animation: "leaves",
+    open: "light",
+  },
+  other: {
+    frame: "thin",
+    pattern: "stars",
+    animation: "party",
+    open: "circle",
+  },
+};
+
+export function eventDefaultsFor(eventType: string): EventDefaults {
+  return (
+    EVENT_DEFAULTS[eventType as EventKind] ?? EVENT_DEFAULTS.other
+  );
+}
+
+type StylePreset = Pick<
+  Appearance,
+  "primary" | "accent" | "tone" | "font" | "textColor"
+>;
+
+/* Colors and typography that match each design template. */
+export const STYLE_PRESETS: Record<string, StylePreset> = {
+  romantic: { primary: "#a66a78", accent: "#b08d57", tone: "light", font: "serif", textColor: "" },
+  luxury: { primary: "#b08d57", accent: "#d5b98c", tone: "dark", font: "display", textColor: "" },
+  minimal: { primary: "#2c241b", accent: "#555555", tone: "light", font: "modern", textColor: "" },
+  garden: { primary: "#6d8b63", accent: "#4f6849", tone: "light", font: "serif", textColor: "" },
+  "black-gold": { primary: "#d5b98c", accent: "#b08d57", tone: "dark", font: "display", textColor: "" },
+  "white-gold": { primary: "#b08d57", accent: "#d5b98c", tone: "light", font: "display", textColor: "" },
+  pastel: { primary: "#a66a78", accent: "#7a4fa3", tone: "light", font: "script", textColor: "" },
+  editorial: { primary: "#2c241b", accent: "#c0503b", tone: "light", font: "modern", textColor: "" },
+  vintage: { primary: "#8a6a4a", accent: "#b08d57", tone: "light", font: "serif", textColor: "" },
+  boho: { primary: "#c0503b", accent: "#6d8b63", tone: "light", font: "script", textColor: "" },
+  royal: { primary: "#d5b98c", accent: "#7a4fa3", tone: "dark", font: "display", textColor: "" },
+  "dark-romance": { primary: "#a66a78", accent: "#d5b98c", tone: "dark", font: "script", textColor: "" },
+  "blue-elegant": { primary: "#2f5d8a", accent: "#b08d57", tone: "light", font: "display", textColor: "" },
+  sage: { primary: "#6d8b63", accent: "#b08d57", tone: "light", font: "serif", textColor: "" },
+  terracotta: { primary: "#c0503b", accent: "#b08d57", tone: "light", font: "sans", textColor: "" },
+  blush: { primary: "#a66a78", accent: "#b08d57", tone: "light", font: "script", textColor: "" },
+  celestial: { primary: "#a78bfa", accent: "#d5b98c", tone: "dark", font: "display", textColor: "" },
+  "modern-black": { primary: "#ffffff", accent: "#b08d57", tone: "dark", font: "modern", textColor: "" },
+  coastal: { primary: "#2f5d8a", accent: "#6d8b63", tone: "light", font: "sans", textColor: "" },
+  classic: { primary: "#b08d57", accent: "#b08d57", tone: "light", font: "serif", textColor: "" },
+};
 
 export const ACCENT_COLORS = [
   "#b08d57",
+  "#d5b98c",
   "#a66a78",
+  "#c0503b",
   "#6d8b63",
   "#2f5d8a",
   "#7a4fa3",
-  "#c0503b",
   "#2c241b",
+  "#ffffff",
+];
+
+export const TEXT_COLORS = [
+  "#2c241b",
+  "#4a3b2e",
+  "#392a2d",
+  "#263326",
+  "#1f2a44",
+  "#ffffff",
+  "#f3ead9",
 ];
 
 export const FONT_FAMILIES: {
   id: FontFamilyId;
   label: string;
+  icon: string;
 }[] = [
-  { id: "serif", label: "Сериф" },
-  { id: "sans", label: "Санс" },
-  { id: "system", label: "Систем" },
+  { id: "serif", label: "Сериф", icon: "Aa" },
+  { id: "display", label: "Дэгжин", icon: "Ƒ" },
+  { id: "script", label: "Гар бичмэл", icon: "𝒜" },
+  { id: "modern", label: "Модерн", icon: "M" },
+  { id: "sans", label: "Санс", icon: "Ab" },
+  { id: "system", label: "Систем", icon: "S" },
 ];
 
 export function fontFamilyFor(font: FontFamilyId): string {
   switch (font) {
+    case "display":
+      return "var(--font-playfair), Georgia, serif";
+    case "script":
+      return "var(--font-marck), cursive";
+    case "modern":
+      return "var(--font-montserrat), Arial, sans-serif";
     case "sans":
       return "var(--font-inter), Arial, sans-serif";
     case "system":
@@ -157,6 +407,7 @@ export function defaultExtras(): InvitationExtras {
       frame: "evereguls",
       primary: "#b08d57",
       accent: "#b08d57",
+      textColor: "",
       tone: "light",
       font: "serif",
       brightness: 100,
@@ -224,9 +475,15 @@ export function mergeExtras(
         ? appearanceInput.accent
         : base.appearance.accent,
       tone: appearanceInput.tone === "dark" ? "dark" : "light",
+      textColor: isHexColor(appearanceInput.textColor)
+        ? appearanceInput.textColor
+        : "",
       font:
         appearanceInput.font === "sans" ||
-        appearanceInput.font === "system"
+        appearanceInput.font === "system" ||
+        appearanceInput.font === "display" ||
+        appearanceInput.font === "script" ||
+        appearanceInput.font === "modern"
           ? appearanceInput.font
           : "serif",
       brightness: clampSetting(

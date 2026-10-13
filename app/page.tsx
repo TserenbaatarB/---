@@ -247,8 +247,8 @@ export default function Home() {
               {isMN ? "Арга хэмжээ" : "Events"}
             </a>
 
-            <a href="#ai" className="transition duration-300 hover:text-black">
-              AI Designer
+            <a href="#design" className="transition duration-300 hover:text-black">
+              {isMN ? "Загвар" : "Designs"}
             </a>
 
             <a href="#how" className="transition duration-300 hover:text-black">
@@ -323,7 +323,7 @@ export default function Home() {
           <div className="relative z-10 flex flex-col justify-center lg:pr-4">
             <div className="mb-4 inline-flex w-fit items-center gap-3 rounded-full border border-black/10 bg-white/60 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-black/45 shadow-sm backdrop-blur-sm">
               <span className="h-1.5 w-1.5 rounded-full bg-[#B99163] shadow-[0_0_12px_rgba(185,145,99,0.6)]" />
-              AI-powered digital invitations
+              Digital invitations
             </div>
 
             <h1 className="max-w-4xl font-serif text-[3.5rem] font-normal leading-[0.88] tracking-[-0.045em] sm:text-[4.2rem] lg:text-[4.6rem] xl:text-[4.9rem]">
@@ -350,8 +350,8 @@ export default function Home() {
 
             <p className="mt-5 max-w-2xl text-[14px] leading-6 text-black/50 sm:text-[15px]">
               {isMN
-                ? "Хурим, төрсөн өдөр, сэвлэг үргээх, төгсөлт болон бусад онцгой мөчдөө зориулан AI ашиглан өөрийн дижитал урилгаа бүтээгээрэй."
-                : "Create beautiful digital invitations for weddings, birthdays, baby ceremonies, graduations and every special moment with AI."}
+                ? "Хурим, төрсөн өдөр, сэвлэг үргээх, төгсөлт болон бусад онцгой мөчдөө зориулан өөрийн дижитал урилгаа бүтээгээрэй."
+                : "Create beautiful digital invitations for weddings, birthdays, baby ceremonies, graduations and every special moment."}
             </p>
 
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
@@ -374,7 +374,7 @@ export default function Home() {
             </div>
 
             <div className="mt-5 flex flex-wrap items-center gap-x-7 gap-y-2 text-[9px] font-medium uppercase tracking-[0.16em] text-black/35">
-              <span>✦ AI Designer</span>
+              <span>✦ Custom Design</span>
               <span>✦ Live Preview</span>
               <span>✦ QR Share</span>
             </div>
@@ -537,43 +537,43 @@ export default function Home() {
         </div>
       </section>
 
-      {/* AI SECTION */}
-      <section id="ai" className="relative overflow-hidden bg-[#171513] text-white">
+      {/* DESIGN SECTION */}
+      <section id="design" className="relative overflow-hidden bg-[#171513] text-white">
         <div className="pointer-events-none absolute left-[-150px] top-[-100px] h-[500px] w-[500px] rounded-full bg-[#A27A4F]/10 blur-[120px]" />
         <div className="pointer-events-none absolute bottom-[-200px] right-[-100px] h-[500px] w-[500px] rounded-full bg-[#CDB99E]/10 blur-[120px]" />
 
         <div className="relative mx-auto grid max-w-[1440px] items-center gap-12 px-5 py-20 sm:px-8 lg:grid-cols-2 lg:gap-16 lg:px-12 lg:py-24">
           <div className="flex flex-col justify-center">
             <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#CBA77C]">
-              AI DESIGNER
+              {isMN ? "ДИЗАЙН" : "DESIGN"}
             </div>
 
             <h2 className="mt-5 max-w-xl font-serif text-5xl font-normal leading-[0.95] tracking-[-0.035em] sm:text-6xl lg:text-[4.4rem]">
               {isMN
-                ? "Зүгээр л хүссэн зүйлээ хэл."
-                : "Just tell us what you want."}
+                ? "Бүх зүйл таны хүссэнээр."
+                : "Everything just the way you want."}
             </h2>
 
             <p className="mt-6 max-w-xl text-[15px] leading-7 text-white/45 sm:text-base">
               {isMN
-                ? "“Luxury, romantic, cream өнгөтэй хуримын урилга хий” гэж бичихэд AI таны санааг ойлгож, урилгыг шууд бүтээнэ."
-                : "Tell AI what you want — for example, “Create a luxury romantic wedding invitation in cream tones” — and watch your invitation come to life."}
+                ? "Урилгын төрөл бүрт тохирсон загвар, хүрээ, фонт, өнгө, анимэйшн болон нээгдэх хэлбэрийг өөрөө сонгоно."
+                : "Pick the template, frame, font, colors, animation and opening style that fit your event."}
             </p>
 
             <div className="mt-8 space-y-2.5">
               {[
                 isMN
-                  ? "🎨 Загвар, өнгө, typography"
-                  : "🎨 Style, colors & typography",
+                  ? "🎨 Загвар, өнгө, фонт"
+                  : "🎨 Style, colors & fonts",
                 isMN
-                  ? "✍️ Текстийг AI-аар боловсруулах"
-                  : "✍️ AI-powered copywriting",
+                  ? "🖼️ Зургийн хүрээ, арын хээ"
+                  : "🖼️ Photo frames & patterns",
                 isMN
                   ? "📱 Шууд live preview"
                   : "📱 Instant live preview",
                 isMN
-                  ? "🔄 Хүссэнээрээ дахин засах"
-                  : "🔄 Edit everything with AI",
+                  ? "💌 Нээгдэх хэлбэр, анимэйшн"
+                  : "💌 Opening styles & animations",
               ].map((item) => (
                 <div
                   key={item}
@@ -592,41 +592,6 @@ export default function Home() {
 
               <div className="relative rounded-[32px] border border-white/10 bg-[#211F1C] p-3 shadow-[0_35px_100px_rgba(0,0,0,0.45)]">
                 <div className="relative overflow-hidden rounded-[24px] border border-white/[0.05] bg-[#191816] p-5 sm:p-7">
-                  <div className="absolute inset-0 z-10 flex cursor-not-allowed items-center justify-center bg-[#191816]/70 backdrop-blur-[2px]">
-                    <span className="rounded-full border border-white/15 bg-white px-5 py-2 text-xs font-semibold text-[#171513] shadow-lg">
-                      {isMN ? "Тун удахгүй" : "Coming soon"}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between border-b border-white/[0.07] pb-5">
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full bg-[#CBA77C]" />
-                      <div className="text-[9px] font-medium uppercase tracking-[0.2em] text-white/35">
-                        URILGA AI
-                      </div>
-                    </div>
-
-                    <div className="text-[9px] text-white/20">DESIGNER</div>
-                  </div>
-
-                  <div className="mt-5 rounded-[20px] border border-white/[0.06] bg-white/[0.025] p-5">
-                    <div className="text-[9px] font-medium uppercase tracking-[0.18em] text-white/25">
-                      {isMN ? "Таны хүсэлт" : "Your prompt"}
-                    </div>
-
-                    <p className="mt-4 text-sm leading-7 text-white/70">
-                      {isMN
-                        ? "“Cream өнгөтэй, luxury, romantic хуримын урилга. Gold accent нэмээд story хэсгийг гоё харагдуул.”"
-                        : "“Create a luxury romantic wedding invitation in cream with gold accents and a beautiful story section.”"}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center justify-center py-5">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 text-xs text-white/25">
-                      ↓
-                    </div>
-                  </div>
-
                   <div className="relative overflow-hidden rounded-[20px] bg-[#E9E0D4] p-8 text-center text-black shadow-xl">
                     <div className="absolute left-1/2 top-0 h-32 w-32 -translate-x-1/2 rounded-full bg-white/50 blur-3xl" />
 
@@ -679,10 +644,10 @@ export default function Home() {
               },
               {
                 number: "02",
-                title: isMN ? "AI-аар бүтээ" : "Design with AI",
+                title: isMN ? "Загвараа сонго" : "Customize it",
                 text: isMN
-                  ? "Хүссэн загвараа хэлээд шууд бүтээлгээрэй."
-                  : "Describe your vision and let AI design it.",
+                  ? "Загвар, өнгө, фонт, хүрээгээ өөрийнхөөрөө тохируул."
+                  : "Pick the template, colors, fonts and frames you like.",
               },
               {
                 number: "03",
@@ -759,13 +724,13 @@ export default function Home() {
               <ul className="mx-auto space-y-3 text-left text-sm text-black/60">
                 {(isMN
                   ? [
-                      "AI Designer",
+                      "Загвар, өнгө, фонт",
                       "Live preview",
                       "Хувийн линк болон QR код",
                       "Хөгжим, зураг, газрын зураг",
                     ]
                   : [
-                      "AI Designer",
+                      "Styles, colors & fonts",
                       "Live preview",
                       "Personal link & QR code",
                       "Music, photos & map",

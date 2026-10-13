@@ -4,11 +4,15 @@ import {
   ACCENT_COLORS,
   ANIMATIONS,
   Appearance,
+  eventDefaultsFor,
   FONT_FAMILIES,
   FRAMES,
   fontFamilyFor,
   OPEN_STYLES,
+  optionsForEvent,
   PATTERNS,
+  STYLE_PRESETS,
+  TEXT_COLORS,
   writeExtras,
 } from "@/lib/invitationExtras";
 import {
@@ -16,17 +20,20 @@ import {
   FxOverlay,
   patternStyle,
 } from "@/components/InvitationFx";
+import { getOpeningTheme } from "@/lib/openingTheme";
 
 function Chips({
   title,
   options,
   value,
   onChange,
+  fontPreview = false,
 }: {
   title: string;
-  options: { id: string; label: string }[];
+  options: { id: string; label: string; icon?: string }[];
   value: string;
   onChange: (id: string) => void;
+  fontPreview?: boolean;
 }) {
   return (
     <div className="mt-6">
@@ -41,12 +48,22 @@ function Chips({
             type="button"
             onClick={() => onChange(option.id)}
             aria-pressed={value === option.id}
-            className={`rounded-full border px-4 py-2 text-xs font-semibold transition ${
+            className={`flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition ${
               value === option.id
                 ? "border-black bg-black text-white"
                 : "border-black/10 bg-white hover:bg-black/5"
             }`}
+            style={
+              fontPreview
+                ? { fontFamily: fontFamilyFor(option.id as Appearance["font"]) }
+                : undefined
+            }
           >
+            {option.icon && (
+              <span aria-hidden className="text-sm leading-none">
+                {option.icon}
+              </span>
+            )}
             {option.label}
           </button>
         ))}
@@ -59,10 +76,14 @@ function ColorPicker({
   title,
   value,
   onChange,
+  colors = ACCENT_COLORS,
+  onReset,
 }: {
   title: string;
   value: string;
   onChange: (color: string) => void;
+  colors?: string[];
+  onReset?: () => void;
 }) {
   return (
     <div className="mt-6">
@@ -71,7 +92,22 @@ function ColorPicker({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        {ACCENT_COLORS.map((color) => (
+        {onReset && (
+          <button
+            type="button"
+            onClick={onReset}
+            aria-pressed={!value}
+            className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold transition ${
+              !value
+                ? "border-black bg-black text-white"
+                : "border-black/10 bg-white hover:bg-black/5"
+            }`}
+          >
+            Автомат
+          </button>
+        )}
+
+        {colors.map((color) => (
           <button
             key={color}
             type="button"
@@ -81,7 +117,7 @@ function ColorPicker({
             className={`h-8 w-8 rounded-full border-2 transition ${
               value === color
                 ? "scale-110 border-black"
-                : "border-white shadow"
+                : "border-black/15 shadow"
             }`}
             style={{ backgroundColor: color }}
           />
@@ -89,7 +125,7 @@ function ColorPicker({
 
         <input
           type="color"
-          value={value}
+          value={value || "#2c241b"}
           onChange={(event) => onChange(event.target.value)}
           aria-label={`${title} өөр өнгө сонгох`}
           className="h-8 w-10 cursor-pointer rounded border border-black/10 bg-white"
@@ -107,11 +143,15 @@ const textShadowStyle = {
 
 export default function AppearanceControls({
   appearance,
+  eventType,
+  styleId,
   backgroundImage,
   onBackgroundChange,
   onBackgroundRemove,
 }: {
   appearance: Appearance;
+  eventType: string;
+  styleId: string;
   backgroundImage?: string | null;
   onBackgroundChange?: (file: File) => void;
   onBackgroundRemove?: () => void;
@@ -120,8 +160,18 @@ export default function AppearanceControls({
     writeExtras({ appearance: { ...appearance, ...patch } });
   }
 
+  function applyTemplatePreset() {
+    update({
+      ...eventDefaultsFor(eventType),
+      ...(STYLE_PRESETS[styleId] ?? {}),
+    });
+  }
+
+  const openingTheme = getOpeningTheme(eventType, styleId, appearance);
+
   const backgroundPreviewText =
-    appearance.tone === "dark" ? "#fff" : "#2c241b";
+    appearance.textColor ||
+    (appearance.tone === "dark" ? "#fff" : "#2c241b");
 
   return (
     <div className="mb-6 rounded-[28px] border border-black/10 bg-white p-5 shadow-sm sm:p-6">
@@ -261,34 +311,96 @@ export default function AppearanceControls({
       <div className="mt-5 rounded-2xl border border-black/10 bg-[#F8F5F0] p-4">
         <div className="text-xs font-semibold">Нээлтийн эффектийн харагдац</div>
         <div
-          className={`relative mt-3 flex h-20 items-center justify-center overflow-hidden rounded-xl bg-[#2c241b] text-white transition ${
-            appearance.open === "focus"
-              ? "ring-4 ring-inset ring-white/50"
-              : appearance.open === "curtain"
-                ? "before:absolute before:inset-y-0 before:left-0 before:w-1/4 before:bg-[#a66a78] after:absolute after:inset-y-0 after:right-0 after:w-1/4 after:bg-[#a66a78]"
-                : appearance.open === "light"
-                  ? "bg-[radial-gradient(circle,#fff8d8_0%,#a48663_35%,#2c241b_75%)]"
-                  : appearance.open === "iris"
-                    ? "ring-[14px] ring-inset ring-black shadow-[inset_0_0_0_2px_rgba(255,255,255,.7)]"
-                    : appearance.open === "slide"
-                      ? "[&>span]:translate-x-2"
-                      : "border border-white/25"
-          }`}
+          className="relative mt-3 flex h-28 items-center justify-center overflow-hidden rounded-xl"
+          style={{
+            background:
+              appearance.open === "light"
+                ? `radial-gradient(circle, ${openingTheme.accent}cc 0%, ${openingTheme.accent}33 40%, transparent 75%), ${openingTheme.background}`
+                : openingTheme.background,
+            color: openingTheme.ink,
+          }}
           aria-label={`Сонгосон нээлтийн хэлбэр: ${
             OPEN_STYLES.find((style) => style.id === appearance.open)?.label ??
             appearance.open
           }`}
         >
-          <span className="relative z-10 text-center text-xs font-semibold transition-transform">
-            {appearance.open === "envelope" ? "💌" : "Урилгаа нээх"}
-          </span>
+          {(appearance.open === "curtain" || appearance.open === "slide") && (
+            <>
+              <span
+                className="absolute inset-y-0 left-0 w-[28%]"
+                style={{
+                  background: `linear-gradient(90deg, ${openingTheme.panelA}, ${openingTheme.panelB})`,
+                }}
+              />
+              <span
+                className="absolute inset-y-0 right-0 w-[28%]"
+                style={{
+                  background: `linear-gradient(270deg, ${openingTheme.panelA}, ${openingTheme.panelB})`,
+                }}
+              />
+            </>
+          )}
+
+          {(appearance.open === "pulse" ||
+            appearance.open === "circle" ||
+            appearance.open === "iris") && (
+            <span
+              className="absolute h-20 w-20 rounded-full"
+              style={{
+                border: `2px solid ${openingTheme.accent}`,
+                background:
+                  appearance.open === "iris"
+                    ? openingTheme.paper
+                    : "transparent",
+                opacity: appearance.open === "iris" ? 0.35 : 0.8,
+              }}
+            />
+          )}
+
+          {appearance.open === "envelope" && (
+            <span
+              className="absolute h-16 w-28 rounded-md"
+              style={{
+                background: openingTheme.paper,
+                border: `1px solid ${openingTheme.accent}66`,
+              }}
+            />
+          )}
+
+          <div
+            className="relative z-10 text-center"
+            style={{
+              color:
+                appearance.open === "envelope"
+                  ? "#49382a"
+                  : openingTheme.ink,
+              filter: appearance.open === "focus" ? "blur(1px)" : undefined,
+            }}
+          >
+            <div className="text-2xl">{openingTheme.emblem}</div>
+            <div className="text-[9px] font-semibold uppercase tracking-[0.2em] opacity-75">
+              {openingTheme.label}
+            </div>
+          </div>
+        </div>
+        <div className="mt-2 text-[11px] text-black/45">
+          Нээлтийн өнгө, дүрс нь урилгын төрөл болон сонгосон загварт
+          автоматаар тохирно.
         </div>
       </div>
+
+      <button
+        type="button"
+        onClick={applyTemplatePreset}
+        className="mt-5 w-full rounded-2xl border border-black/10 bg-[#F8F5F0] px-4 py-3 text-xs font-semibold transition hover:bg-black/5"
+      >
+        ✨ Урилгын төрөл болон загварт тохируулах
+      </button>
 
       {!backgroundImage && (
         <Chips
           title="Зургийн хүрээ"
-          options={FRAMES}
+          options={optionsForEvent(FRAMES, eventType, appearance.frame)}
           value={appearance.frame}
           onChange={(frame) => update({ frame })}
         />
@@ -306,10 +418,19 @@ export default function AppearanceControls({
         onChange={(accent) => update({ accent })}
       />
 
+      <ColorPicker
+        title="Бичвэрийн өнгө"
+        colors={TEXT_COLORS}
+        value={appearance.textColor}
+        onChange={(textColor) => update({ textColor })}
+        onReset={() => update({ textColor: "" })}
+      />
+
       <Chips
         title="Фонт"
         options={FONT_FAMILIES}
         value={appearance.font}
+        fontPreview
         onChange={(font) =>
           update({ font: font as Appearance["font"] })
         }
@@ -318,8 +439,8 @@ export default function AppearanceControls({
       <Chips
         title="Суурь өнгө"
         options={[
-          { id: "dark", label: "Бараан" },
-          { id: "light", label: "Цайвар" },
+          { id: "dark", label: "Бараан", icon: "🌙" },
+          { id: "light", label: "Цайвар", icon: "☀️" },
         ]}
         value={appearance.tone}
         onChange={(tone) =>
@@ -364,9 +485,9 @@ export default function AppearanceControls({
       <Chips
         title="Бичвэрийн сүүдэр"
         options={[
-          { id: "none", label: "Үгүй" },
-          { id: "soft", label: "Зөөлөн" },
-          { id: "strong", label: "Тод" },
+          { id: "none", label: "Үгүй", icon: "⭘" },
+          { id: "soft", label: "Зөөлөн", icon: "☁️" },
+          { id: "strong", label: "Тод", icon: "◼" },
         ]}
         value={appearance.textShadow}
         onChange={(textShadow) =>
@@ -378,21 +499,21 @@ export default function AppearanceControls({
 
       <Chips
         title="Арын хээ"
-        options={PATTERNS}
+        options={optionsForEvent(PATTERNS, eventType, appearance.pattern)}
         value={appearance.pattern}
         onChange={(pattern) => update({ pattern })}
       />
 
       <Chips
         title="Анимэйшн"
-        options={ANIMATIONS}
+        options={optionsForEvent(ANIMATIONS, eventType, appearance.animation)}
         value={appearance.animation}
         onChange={(animation) => update({ animation })}
       />
 
       <Chips
         title="Урилга нээх хэлбэр"
-        options={OPEN_STYLES}
+        options={optionsForEvent(OPEN_STYLES, eventType, appearance.open)}
         value={appearance.open}
         onChange={(open) => update({ open })}
       />

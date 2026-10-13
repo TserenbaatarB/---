@@ -13,7 +13,9 @@ import { createClient } from "@supabase/supabase-js";
 import EventCalendar from "./EventCalendar";
 import RsvpSection from "./RsvpSection";
 import { FxOverlay, patternStyle } from "@/components/InvitationFx";
-import { fontFamilyFor } from "@/lib/invitationExtras";
+import { eventDefaultsFor, fontFamilyFor } from "@/lib/invitationExtras";
+import InvitationOpening from "@/components/InvitationOpening";
+import { getOpeningTheme } from "@/lib/openingTheme";
 import type { FontFamilyId } from "@/lib/invitationExtras";
 
 type OpeningStyle =
@@ -36,6 +38,7 @@ type Appearance = {
   open?: OpeningStyle;
   animation?: string;
   primary?: string;
+  textColor?: string;
   accent?: string;
   tone?: string;
   font?: FontFamilyId;
@@ -241,7 +244,10 @@ function getStyle(style: string) {
 function getOpeningStyle(
   invitation: PublicInvitation
 ): OpeningStyle {
-  return invitation.extras?.appearance?.open || "envelope";
+  return (
+    invitation.extras?.appearance?.open ||
+    eventDefaultsFor(invitation.event_type).open
+  );
 }
 
 function getOpeningLabel(open: OpeningStyle) {
@@ -266,9 +272,11 @@ function getOpeningLabel(open: OpeningStyle) {
     case "hureel":
       return "Хүрээлэх";
     case "slide":
-      return "Гулсаж нээгдэх";
+      return "Гулсах";
     case "iris":
       return "Дугуйрч нээгдэх";
+    case "circle":
+      return "Тэлэх тойрог";
     default:
       return "Дугтуй";
   }
@@ -474,10 +482,18 @@ export default function PublicInvitationPage() {
                             ? rawAppearance.tone
                             : undefined,
 
+                        textColor:
+                          typeof rawAppearance.textColor === "string"
+                            ? rawAppearance.textColor
+                            : undefined,
+
                         font:
                           rawAppearance.font === "serif" ||
                           rawAppearance.font === "sans" ||
-                          rawAppearance.font === "system"
+                          rawAppearance.font === "system" ||
+                          rawAppearance.font === "display" ||
+                          rawAppearance.font === "script" ||
+                          rawAppearance.font === "modern"
                             ? rawAppearance.font
                             : undefined,
 
@@ -1210,6 +1226,7 @@ export default function PublicInvitationPage() {
     (invitation.extras?.appearance ?? {}) as {
       accent?: string;
       primary?: string;
+      textColor?: string;
       pattern?: string;
       frame?: string;
       tone?: string;
@@ -1291,8 +1308,16 @@ export default function PublicInvitationPage() {
     button: baseStyle.button,
   };
   const buttonTextColor = readableTextOn(style.accent);
-  const contentTextColor =
-    customTone === "dark" ? "#ffffff" : style.textColor;
+  const openingTheme = getOpeningTheme(
+    invitation.event_type,
+    invitation.selected_style,
+    appearance
+  );
+  const contentTextColor = isHexColor(appearance.textColor)
+    ? appearance.textColor
+    : customTone === "dark"
+      ? "#ffffff"
+      : style.textColor;
   const contrastAccent =
     contrastRatio(style.secondaryAccent, contentTextColor) >= 3
       ? style.secondaryAccent
@@ -1403,6 +1428,10 @@ export default function PublicInvitationPage() {
                   borderWidth: "3px",
                   boxShadow: `inset 0 0 0 5px ${contrastAccent}22`,
                 }
+              : customFrame === "thin"
+                ? { borderColor: contrastAccent, borderWidth: "1px" }
+              : customFrame === "bold"
+                ? { borderColor: contrastAccent, borderWidth: "6px" }
               : customFrame === "evereguls"
                 ? {
                     borderColor: contrastAccent,
@@ -1429,401 +1458,15 @@ export default function PublicInvitationPage() {
   const renderOpeningScreen = () => {
     if (openingFinished) return null;
 
-    const isStarted = openingStarted;
-
-    if (openingStyle === "envelope" || openingStyle === "dugtui") {
-      return (
-        <div
-          className={`fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-black transition-all duration-1000 ${
-            isStarted
-              ? "pointer-events-none opacity-0"
-              : "opacity-100"
-          }`}
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-black via-[#181818] to-black" />
-
-          <div
-            className={`relative z-10 flex w-[min(88vw,420px)] flex-col items-center transition-all duration-[1500ms] ${
-              isStarted
-                ? "scale-[1.35] opacity-0"
-                : "scale-100 opacity-100"
-            }`}
-          >
-            <div
-              className={`relative h-[230px] w-[340px] max-w-full overflow-hidden rounded-[18px] border border-white/15 bg-[#f8f1e8] shadow-[0_30px_100px_rgba(0,0,0,0.55)] transition-all duration-[1300ms] ${
-                isStarted ? "translate-y-[-40px] scale-105" : ""
-              }`}
-            >
-              <div
-                className="absolute inset-x-0 top-0 h-0 border-l-[170px] border-r-[170px] border-t-[125px] border-l-transparent border-r-transparent border-t-[#e8d8c5]"
-                style={{
-                  transformOrigin: "top center",
-                  transition: "transform 900ms ease",
-                  transform: isStarted
-                    ? "rotateX(180deg)"
-                    : "rotateX(0deg)",
-                }}
-              />
-
-              <div className="absolute inset-x-5 bottom-5 top-5 rounded-[12px] border border-black/10 bg-[#fffaf2]" />
-
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="relative z-10 text-center text-[#49382a]">
-                  <div className="mb-3 text-4xl">💌</div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.28em] opacity-50">
-                    Invitation
-                  </p>
-
-                  {hasNames && (
-                    <p className="mt-2 text-lg font-medium">
-                      {invitation.names}
-                    </p>
-                  )}
-
-                  {!hasNames && hasTitle && (
-                    <p className="mt-2 text-lg font-medium">
-                      {invitation.title}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div
-                className={`absolute bottom-0 left-0 right-0 h-[120px] origin-bottom bg-[#f2e5d5] transition-transform duration-[1000ms] ${
-                  isStarted ? "scale-y-0" : "scale-y-100"
-                }`}
-                style={{
-                  clipPath: "polygon(0 100%, 50% 0, 100% 100%)",
-                }}
-              />
-            </div>
-
-            {!isStarted && (
-              <button
-                type="button"
-                onClick={handleOpenInvitation}
-                disabled={!mediaReady}
-                className="mt-10 rounded-full border border-white/20 bg-white/10 px-8 py-3 text-sm font-medium text-white shadow-lg backdrop-blur-md transition hover:bg-white/20 active:scale-95 disabled:opacity-50"
-              >
-                {!mediaReady
-                  ? "Ачаалж байна..."
-                  : "Урилгаа нээх"}
-              </button>
-            )}
-          </div>
-        </div>
-      );
-    }
-
-    if (
-      openingStyle === "light" ||
-      openingStyle === "gerel" ||
-      openingStyle === "гэрэл"
-    ) {
-      return (
-        <div
-          className={`fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-black transition-all duration-[1400ms] ${
-            isStarted
-              ? "pointer-events-none opacity-0"
-              : "opacity-100"
-          }`}
-        >
-          <div
-            className={`absolute inset-0 transition-all duration-[1400ms] ${
-              isStarted
-                ? "scale-[3] opacity-0"
-                : "scale-100 opacity-100"
-            }`}
-            style={{
-              background:
-                "radial-gradient(circle at center, rgba(255,255,255,0.98) 0%, rgba(255,245,220,0.75) 12%, rgba(255,255,255,0.08) 40%, rgba(0,0,0,0) 70%)",
-            }}
-          />
-
-          <div className="relative z-10 text-center text-white">
-            <div
-              className={`mb-6 text-5xl transition-all duration-[900ms] ${
-                isStarted
-                  ? "scale-[3] opacity-0"
-                  : "scale-100 opacity-100"
-              }`}
-            >
-              ✨
-            </div>
-
-            <h1 className="text-3xl font-semibold">
-              {invitation.names || invitation.title}
-            </h1>
-
-            {!isStarted && (
-              <button
-                type="button"
-                onClick={handleOpenInvitation}
-                disabled={!mediaReady}
-                className="mt-8 rounded-full bg-white px-8 py-3 text-sm font-semibold text-black shadow-xl transition hover:scale-105 active:scale-95 disabled:opacity-50"
-              >
-                Урилгаа нээх
-              </button>
-            )}
-          </div>
-        </div>
-      );
-    }
-
-    if (openingStyle === "focus" || openingStyle === "fokus") {
-      return (
-        <div
-          className={`fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-black transition-all duration-[1300ms] ${
-            isStarted
-              ? "pointer-events-none opacity-0"
-              : "opacity-100"
-          }`}
-        >
-          <div
-            className={`absolute inset-0 transition-all duration-[1300ms] ${
-              isStarted
-                ? "scale-[1.5] blur-0 opacity-0"
-                : "scale-100 blur-[18px] opacity-100"
-            }`}
-            style={{
-              background:
-                "radial-gradient(circle at center, rgba(255,255,255,0.18), rgba(0,0,0,0.96) 55%)",
-            }}
-          />
-
-          <div
-            className={`relative z-10 text-center text-white transition-all duration-[1200ms] ${
-              isStarted
-                ? "scale-[1.25] blur-0 opacity-0"
-                : "scale-100 blur-[7px] opacity-100"
-            }`}
-          >
-            <p className="text-sm uppercase tracking-[0.35em] text-white/60">
-              Invitation
-            </p>
-
-            <h1 className="mt-4 text-4xl font-semibold">
-              {invitation.names || invitation.title}
-            </h1>
-
-            {!isStarted && (
-              <button
-                type="button"
-                onClick={handleOpenInvitation}
-                disabled={!mediaReady}
-                className="mt-9 rounded-full border border-white/20 bg-white/10 px-8 py-3 text-sm font-medium backdrop-blur-md transition hover:bg-white/20 active:scale-95 disabled:opacity-50"
-              >
-                Урилгаа нээх
-              </button>
-            )}
-          </div>
-        </div>
-      );
-    }
-
-    if (
-      openingStyle === "curtain" ||
-      openingStyle === "hoshig"
-    ) {
-      return (
-        <div
-          className={`fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-[#160f12] transition-opacity duration-[1300ms] ${
-            isStarted
-              ? "pointer-events-none opacity-0"
-              : "opacity-100"
-          }`}
-        >
-          <div
-            className={`absolute bottom-0 left-0 top-0 w-1/2 origin-left bg-gradient-to-r from-[#6e273b] via-[#8e3c53] to-[#4c1828] shadow-[20px_0_50px_rgba(0,0,0,0.45)] transition-transform duration-[1200ms] ease-in-out ${
-              isStarted ? "-translate-x-full" : "translate-x-0"
-            }`}
-          />
-
-          <div
-            className={`absolute bottom-0 right-0 top-0 w-1/2 origin-right bg-gradient-to-l from-[#6e273b] via-[#8e3c53] to-[#4c1828] shadow-[-20px_0_50px_rgba(0,0,0,0.45)] transition-transform duration-[1200ms] ease-in-out ${
-              isStarted ? "translate-x-full" : "translate-x-0"
-            }`}
-          />
-
-          <div className="relative z-10 text-center text-white">
-            <div className="text-5xl">🕊️</div>
-            <h1 className="mt-5 text-3xl font-semibold">
-              {invitation.names || invitation.title}
-            </h1>
-
-            {!isStarted && (
-              <button
-                type="button"
-                onClick={handleOpenInvitation}
-                disabled={!mediaReady}
-                className="mt-9 rounded-full bg-white px-8 py-3 text-sm font-semibold text-[#4c1828] shadow-xl transition hover:scale-105 active:scale-95 disabled:opacity-50"
-              >
-                Урилгаа нээх
-              </button>
-            )}
-          </div>
-        </div>
-      );
-    }
-
-    if (
-      openingStyle === "pulse" ||
-      openingStyle === "lugshih"
-    ) {
-      return (
-        <div
-          className={`fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-black transition-opacity duration-[1200ms] ${
-            isStarted
-              ? "pointer-events-none opacity-0"
-              : "opacity-100"
-          }`}
-        >
-          <div
-            className={`absolute h-[180px] w-[180px] rounded-full border border-white/30 transition-all duration-[1200ms] ${
-              isStarted
-                ? "scale-[8] opacity-0"
-                : "animate-pulse scale-100 opacity-100"
-            }`}
-          />
-
-          <div
-            className={`absolute h-[110px] w-[110px] rounded-full border border-white/40 transition-all duration-[1000ms] ${
-              isStarted
-                ? "scale-[7] opacity-0"
-                : "animate-pulse scale-100 opacity-100"
-            }`}
-          />
-
-          <div className="relative z-10 text-center text-white">
-            <div className="text-5xl">💗</div>
-            <h1 className="mt-5 text-3xl font-semibold">
-              {invitation.names || invitation.title}
-            </h1>
-
-            {!isStarted && (
-              <button
-                type="button"
-                onClick={handleOpenInvitation}
-                disabled={!mediaReady}
-                className="mt-9 rounded-full border border-white/20 bg-white/10 px-8 py-3 text-sm font-medium backdrop-blur-md transition hover:bg-white/20 active:scale-95 disabled:opacity-50"
-              >
-                Урилгаа нээх
-              </button>
-            )}
-          </div>
-        </div>
-      );
-    }
-
-    if (openingStyle === "slide") {
-      return (
-        <div
-          className={`fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-[#20191c] transition-opacity duration-[1300ms] ${
-            isStarted
-              ? "pointer-events-none opacity-0"
-              : "opacity-100"
-          }`}
-        >
-          <div
-            className={`absolute inset-y-0 left-0 w-1/2 bg-gradient-to-r from-[#8e5967] to-[#b58a94] transition-transform duration-[1300ms] ${
-              isStarted ? "-translate-x-full" : "translate-x-0"
-            }`}
-          />
-          <div
-            className={`absolute inset-y-0 right-0 w-1/2 bg-gradient-to-l from-[#8e5967] to-[#b58a94] transition-transform duration-[1300ms] ${
-              isStarted ? "translate-x-full" : "translate-x-0"
-            }`}
-          />
-
-          <div className="relative z-10 text-center text-white">
-            <div className="text-5xl">💌</div>
-            <h1 className="mt-5 text-3xl font-semibold">
-              {invitation.names || invitation.title}
-            </h1>
-            {!isStarted && (
-              <button
-                type="button"
-                onClick={handleOpenInvitation}
-                disabled={!mediaReady}
-                className="mt-9 rounded-full bg-white px-8 py-3 text-sm font-semibold text-black disabled:opacity-50"
-              >
-                Урилгаа нээх
-              </button>
-            )}
-          </div>
-        </div>
-      );
-    }
-
-    if (openingStyle === "iris") {
-      return (
-        <div
-          className={`fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-black transition-opacity duration-[1300ms] ${
-            isStarted
-              ? "pointer-events-none opacity-0"
-              : "opacity-100"
-          }`}
-        >
-          <div
-            className={`absolute left-1/2 top-1/2 aspect-square w-[30vmax] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white transition-transform duration-[1300ms] ease-in-out ${
-              isStarted ? "scale-[12]" : "scale-0"
-            }`}
-          />
-
-          <div className="relative z-10 text-center text-white">
-            <div className="text-5xl">💍</div>
-            <h1 className="mt-5 text-3xl font-semibold">
-              {invitation.names || invitation.title}
-            </h1>
-            {!isStarted && (
-              <button
-                type="button"
-                onClick={handleOpenInvitation}
-                disabled={!mediaReady}
-                className="mt-9 rounded-full border border-white/20 bg-white/10 px-8 py-3 text-sm font-medium backdrop-blur-md disabled:opacity-50"
-              >
-                Урилгаа нээх
-              </button>
-            )}
-          </div>
-        </div>
-      );
-    }
-
     return (
-      <div
-        className={`fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-black transition-opacity duration-[1300ms] ${
-          isStarted
-            ? "pointer-events-none opacity-0"
-            : "opacity-100"
-        }`}
-      >
-        <div
-          className={`absolute left-1/2 top-1/2 h-[70px] w-[70px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white transition-all duration-[1300ms] ease-in-out ${
-            isStarted
-              ? "scale-[40] opacity-100"
-              : "scale-100 opacity-0"
-          }`}
-        />
-
-        <div className="relative z-10 text-center text-white">
-          <div className="text-5xl">💍</div>
-          <h1 className="mt-5 text-3xl font-semibold">
-            {invitation.names || invitation.title}
-          </h1>
-
-          {!isStarted && (
-            <button
-              type="button"
-              onClick={handleOpenInvitation}
-              disabled={!mediaReady}
-              className="mt-9 rounded-full bg-white px-8 py-3 text-sm font-semibold text-black shadow-xl transition hover:scale-105 active:scale-95 disabled:opacity-50"
-            >
-              Урилгаа нээх
-            </button>
-          )}
-        </div>
-      </div>
+      <InvitationOpening
+        style={openingStyle}
+        theme={openingTheme}
+        title={invitation.names || invitation.title || ""}
+        started={openingStarted}
+        ready={mediaReady}
+        onOpen={handleOpenInvitation}
+      />
     );
   };
 

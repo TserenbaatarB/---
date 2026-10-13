@@ -228,6 +228,7 @@ export async function GET(
           frame: rawAppearance.frame,
           primary: rawAppearance.primary,
           accent: rawAppearance.accent,
+          textColor: rawAppearance.textColor,
           tone: rawAppearance.tone,
           font: rawAppearance.font,
           brightness: rawAppearance.brightness,

@@ -74,6 +74,22 @@ export function patternStyle(
         ),
         backgroundSize: "60px 60px",
       };
+    case "dots":
+      return {
+        ...base,
+        backgroundImage: svgUri(
+          `<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28'><circle cx='7' cy='7' r='1.8' ${fill}/><circle cx='21' cy='21' r='1.8' ${fill}/></svg>`
+        ),
+        backgroundSize: "28px 28px",
+      };
+    case "stripes":
+      return {
+        ...base,
+        backgroundImage: svgUri(
+          `<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><path d='M-4 4l8-8M0 24L24 0M20 28l8-8' ${stroke}/></svg>`
+        ),
+        backgroundSize: "24px 24px",
+      };
     case "paper":
       return {
         ...base,
@@ -133,6 +149,14 @@ export function FrameBox({
       borderRadius: "14px",
       boxShadow: `0 0 0 4px ${accent}33`,
     },
+    thin: {
+      border: `1px solid ${accent}`,
+      borderRadius: "2px",
+    },
+    bold: {
+      border: `6px solid ${accent}`,
+      borderRadius: "10px",
+    },
   };
 
   return (
@@ -188,6 +212,12 @@ function particleConfig(animation: string): Particle | null {
       return { glyph: "🎈", mode: "rise", size: 24, duration: 12 };
     case "clouds":
       return { glyph: "☁", mode: "drift", size: 48, duration: 40 };
+    case "sparkle":
+      return { glyph: "✦", mode: "twinkle", size: 14, duration: 4 };
+    case "leaves":
+      return { glyph: "🍃", mode: "fall", size: 16, duration: 11 };
+    case "stars":
+      return { glyph: "⭐", mode: "fall", size: 14, duration: 10 };
     default:
       return null;
   }

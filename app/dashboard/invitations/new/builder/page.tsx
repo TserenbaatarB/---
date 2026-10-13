@@ -15,10 +15,13 @@ import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
 import { toIndexedDbBlob } from "@/lib/indexedDbBlob";
 import {
+  eventDefaultsFor,
   getExtrasSnapshot,
   getServerExtrasSnapshot,
   OPEN_STYLES,
   parseExtras,
+  readExtras,
+  STYLE_PRESETS,
   subscribeExtras,
   fontFamilyFor,
   writeExtras,
@@ -245,6 +248,25 @@ function InvitationBuilderPageContent() {
   const [activeSection, setActiveSection] =
     useState("cover");
 
+  /*
+   * A brand-new invitation starts with decorations that fit its type.
+   */
+  useEffect(() => {
+    if (invitationId) return;
+
+    const seedKey = `invitation-extras-seed:${eventType}`;
+
+    if (sessionStorage.getItem(seedKey)) return;
+
+    sessionStorage.setItem(seedKey, "1");
+    writeExtras({
+      appearance: {
+        ...readExtras().appearance,
+        ...eventDefaultsFor(eventType),
+      },
+    });
+  }, [eventType, invitationId]);
+
   const [saving, setSaving] = useState(false);
 
   const [savedMessage, setSavedMessage] =
@@ -390,13 +412,6 @@ function InvitationBuilderPageContent() {
     );
     setSavedMessage("");
   }
-
-  const [buildingDesign, setBuildingDesign] =
-    useState(false);
-
-  const [aiMessage, setAiMessage] = useState("");
-
-  const [aiError, setAiError] = useState("");
 
   const [styleSearch, setStyleSearch] = useState("");
 
@@ -1767,112 +1782,17 @@ function InvitationBuilderPageContent() {
   }, []);
 
   /*
-   * =========================================================
-   * AI DESIGNER
-   * =========================================================
+   * Picking a template also applies its matching colors and font.
    */
+  function selectStyle(styleId: string) {
+    setSelectedStyle(styleId);
 
-  async function buildDesignFromPrompt() {
-    const prompt =
-      aiPrompt.trim();
+    const preset = STYLE_PRESETS[styleId];
 
-    if (!prompt) {
-      setAiError(
-        "Эхлээд ямар дизайн хүсэж байгаагаа бичнэ үү."
-      );
-      setAiMessage("");
-      return;
-    }
-
-    setBuildingDesign(true);
-    setAiMessage("");
-    setAiError("");
-
-    try {
-      const response =
-        await fetch(
-          "/api/ai/design",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-            body: JSON.stringify({
-              prompt,
-              eventType,
-              styles: styles.map(
-                ({
-                  id,
-                  name,
-                  description,
-                }) => ({
-                  id,
-                  name,
-                  description,
-                })
-              ),
-            }),
-          }
-        );
-
-      const result: unknown =
-        await response.json();
-
-      if (
-        typeof result !==
-          "object" ||
-        result === null ||
-        Array.isArray(result)
-      ) {
-        throw new Error(
-          "Gemini-ээс буруу хариу ирлээ."
-        );
-      }
-
-      if (!response.ok) {
-        const errorMessage =
-          "error" in result &&
-          typeof result.error ===
-            "string"
-            ? result.error
-            : "Gemini хүсэлтийг боловсруулж чадсангүй.";
-
-        throw new Error(
-          errorMessage
-        );
-      }
-
-      const selected =
-        styles.find(
-          (style) =>
-            style.id ===
-            ("styleId" in result
-              ? result.styleId
-              : undefined)
-        );
-
-      if (!selected) {
-        throw new Error(
-          "Gemini боломжит загвараас сонгож чадсангүй."
-        );
-      }
-
-      setSelectedStyle(
-        selected.id
-      );
-
-      setAiMessage(
-        `Дизайн үүсгэлээ — ${selected.name}`
-      );
-    } catch (error) {
-      setAiError(
-        error instanceof Error
-          ? error.message
-          : "Gemini-тэй холбогдож чадсангүй. Дахин оролдоно уу."
-      );
-    } finally {
-      setBuildingDesign(false);
+    if (preset) {
+      writeExtras({
+        appearance: { ...appearance, ...preset },
+      });
     }
   }
 
@@ -2692,7 +2612,7 @@ function InvitationBuilderPageContent() {
           <div className="mx-auto max-w-3xl">
             <div className="mb-8">
               <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#A48663]">
-                AI Invitation Builder
+                Invitation Builder
               </div>
 
               <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
@@ -2701,13 +2621,15 @@ function InvitationBuilderPageContent() {
               </h1>
 
               <p className="mt-2 text-sm text-black/40">
-                Хүссэн дизайнаа AI
-                Designer-д бичээд
-                шууд үүсгээрэй.
+                Урилгын төрөл, загварт
+                тохирсон сонголтуудаас
+                өөрийнхөөрөө тохируулаарай.
               </p>
             </div>
 
             <AppearanceControls
+              eventType={eventType}
+              styleId={selectedStyle}
               appearance={
                 appearance
               }
@@ -2796,109 +2718,6 @@ function InvitationBuilderPageContent() {
                         Details хэсэг рүү
                         буцаж өөрийн MP3
                         дуугаа нэмнэ үү.
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="relative overflow-hidden rounded-[28px] border border-black/10 bg-white p-5 shadow-sm sm:p-6">
-              <div className="absolute inset-0 z-10 flex cursor-not-allowed items-center justify-center bg-white/70 backdrop-blur-[2px]">
-                <span className="rounded-full bg-black px-5 py-2 text-xs font-semibold text-white shadow-lg">
-                  Тун удахгүй
-                </span>
-              </div>
-              <div className="flex items-start gap-4">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-black text-lg text-white">
-                  ✦
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold">
-                    Gemini AI Designer
-                  </div>
-
-                  <div className="mt-1 text-xs leading-5 text-black/40">
-                    Хүссэн урилгынхаа
-                    дизайн, өнгө болон
-                    мэдрэмжийг
-                    тайлбарлаарай.
-                  </div>
-
-                  <textarea
-                    value={aiPrompt}
-                    onChange={(e) =>
-                      setAiPrompt(
-                        e.target.value
-                      )
-                    }
-                    rows={3}
-                    maxLength={1200}
-                    placeholder="Жишээ: Хар background-тэй, алтлаг детальтай, тансаг хуримын урилга"
-                    className="mt-4 w-full resize-none rounded-2xl border border-black/10 bg-[#F8F5F0] px-4 py-3 text-sm outline-none transition focus:border-black/25 focus:bg-white"
-                  />
-
-                  <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-h-[20px] text-[10px]">
-                      {aiError ? (
-                        <span className="font-semibold text-red-700">
-                          {aiError}
-                        </span>
-                      ) : aiMessage ? (
-                        <span className="font-semibold text-green-700">
-                          ✓{" "}
-                          {aiMessage}
-                        </span>
-                      ) : (
-                        <span className="text-black/30">
-                          Жишээ: luxury,
-                          minimal,
-                          garden, black & gold...
-                        </span>
-                      )}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={
-                        buildDesignFromPrompt
-                      }
-                      disabled={
-                        buildingDesign ||
-                        !aiPrompt.trim()
-                      }
-                      className="rounded-full bg-black px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      {buildingDesign
-                        ? "Дизайн үүсгэж байна..."
-                        : "✨ Дизайн үүсгэх"}
-                    </button>
-                  </div>
-
-                  {aiPrompt.trim() && (
-                    <div className="mt-4 rounded-2xl border border-black/10 bg-[#F8F5F0] p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <div className="text-[9px] uppercase tracking-[0.16em] text-black/35">
-                            Gemini AI
-                            Designer
-                          </div>
-
-                          <div className="mt-1 text-xs font-semibold">
-                            {
-                              currentStyle.name
-                            }
-                          </div>
-                        </div>
-
-                        <div
-                          className="h-9 w-9 rounded-xl border border-black/10"
-                          style={{
-                            background:
-                              currentStyle.preview,
-                          }}
-                        />
                       </div>
                     </div>
                   )}
@@ -3009,15 +2828,11 @@ function InvitationBuilderPageContent() {
                               style.id
                             }
                             type="button"
-                            onClick={() => {
-                              setSelectedStyle(
+                            onClick={() =>
+                              selectStyle(
                                 style.id
-                              );
-
-                              setAiMessage(
-                                `${style.name} загвар сонгогдлоо`
-                              );
-                            }}
+                              )
+                            }
                             className={`group rounded-2xl border p-4 text-left transition ${
                               selectedStyle ===
                               style.id
@@ -3458,6 +3273,7 @@ function InvitationBuilderPageContent() {
                   style={{
                     fontFamily: fontFamilyFor(appearance.font),
                     textShadow: appearanceTextShadow,
+                    color: appearance.textColor || undefined,
                   }}
                 >
                   <div>
