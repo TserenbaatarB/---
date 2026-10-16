@@ -13,7 +13,11 @@ import { createClient } from "@supabase/supabase-js";
 import EventCalendar from "./EventCalendar";
 import RsvpSection from "./RsvpSection";
 import { FxOverlay, patternStyle } from "@/components/InvitationFx";
-import { eventDefaultsFor, fontFamilyFor } from "@/lib/invitationExtras";
+import {
+  eventDefaultsFor,
+  fontFamilyFor,
+  parseYouTubeId,
+} from "@/lib/invitationExtras";
 import InvitationOpening from "@/components/InvitationOpening";
 import { getOpeningTheme } from "@/lib/openingTheme";
 import type { FontFamilyId } from "@/lib/invitationExtras";
@@ -21,7 +25,10 @@ import SceneOpening from "@/components/scenes/SceneOpening";
 import SceneBackdrop from "@/components/scenes/SceneBackdrop";
 import { useReducedMotion } from "@/components/scenes/hooks";
 import { sceneColors } from "@/lib/sceneTheme";
-import { getScene, sceneOpeningDuration } from "@/lib/invitationTemplates";
+import {
+  getScene,
+  sceneOpeningDuration,
+} from "@/lib/invitationTemplates";
 
 type OpeningStyle =
   | "envelope"
@@ -52,6 +59,8 @@ type Appearance = {
   textShadow?: "none" | "soft" | "strong";
   pattern?: string;
   frame?: string;
+  tier?: string;
+  scene?: string;
 };
 
 type PublicInvitation = {
@@ -83,6 +92,8 @@ type PublicInvitation = {
     mapUrl: string;
     program?: ProgramItem[];
     appearance?: Appearance;
+    musicSource?: "mp3" | "youtube" | "video" | "none";
+    youtubeUrl?: string;
   } | null;
 };
 
@@ -161,6 +172,7 @@ function contrastRatio(first: string, second: string): number {
       value & 255,
     ].map((channel) => {
       const normalized = channel / 255;
+
       return normalized <= 0.04045
         ? normalized / 12.92
         : ((normalized + 0.055) / 1.055) ** 2.4;
@@ -192,9 +204,12 @@ function getProgramItems(value: unknown): ProgramItem[] {
     )
     .map((item) => ({
       time: typeof item.time === "string" ? item.time.trim() : "",
-      title: typeof item.title === "string" ? item.title.trim() : "",
+      title:
+        typeof item.title === "string" ? item.title.trim() : "",
     }))
-    .filter((item) => item.time.length > 0 || item.title.length > 0);
+    .filter(
+      (item) => item.time.length > 0 || item.title.length > 0
+    );
 }
 
 function getStyle(style: string) {
@@ -280,8 +295,6 @@ function getOpeningLabel(open: OpeningStyle) {
       return "Гулсах";
     case "iris":
       return "Дугуйрч нээгдэх";
-    case "circle":
-      return "Тэлэх тойрог";
     default:
       return "Дугтуй";
   }
@@ -324,14 +337,32 @@ export default function PublicInvitationPage() {
   const [videoChecked, setVideoChecked] = useState(false);
   const [openingStarted, setOpeningStarted] = useState(false);
   const [openingFinished, setOpeningFinished] = useState(false);
+
+  const [youtubeStarted, setYoutubeStarted] = useState(false);
+  const [youtubePlaying, setYoutubePlaying] = useState(false);
+
   const reducedMotion = useReducedMotion();
   const skippedRef = useRef(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const youtubeRef = useRef<HTMLIFrameElement | null>(null);
 
   const musicIsVideo = /\.(mp4|webm|mov)$/i.test(
     invitation?.music_path ?? ""
+  );
+
+  const youtubeVideoId = useMemo(
+    () => parseYouTubeId(invitation?.extras?.youtubeUrl ?? ""),
+    [invitation?.extras?.youtubeUrl]
+  );
+
+  const isYouTubeMusic = Boolean(
+    youtubeVideoId &&
+      (
+        invitation?.extras?.musicSource === "youtube" ||
+        !invitation?.music_path
+      )
   );
 
   const galleryUrls = useMemo(
@@ -360,7 +391,10 @@ export default function PublicInvitationPage() {
     openingFinished;
 
   const mediaReady =
-    !invitation?.music_path || musicUrl !== null || musicError;
+    isYouTubeMusic ||
+    !invitation?.music_path ||
+    musicUrl !== null ||
+    musicError;
 
   /* ============================================================
      LOAD PUBLIC INVITATION AND SAVED DESIGN SETTINGS
@@ -394,7 +428,9 @@ export default function PublicInvitationPage() {
         }
 
         const result = Array.isArray(data)
-          ? (data[0] ?? undefined) as PublicInvitation | undefined
+          ? (data[0] ?? undefined) as
+              | PublicInvitation
+              | undefined
           : undefined;
 
         if (!result) {
@@ -402,6 +438,7 @@ export default function PublicInvitationPage() {
             setInvitation(null);
             setLoading(false);
           }
+
           return;
         }
 
@@ -440,6 +477,8 @@ export default function PublicInvitationPage() {
             if (rawExtras) {
               const rawAppearance = rawExtras?.appearance;
 
+              const rawMusicSource = rawExtras?.musicSource;
+
               mapExtras = {
                 lat:
                   typeof rawExtras.lat === "number"
@@ -454,6 +493,19 @@ export default function PublicInvitationPage() {
                 mapUrl:
                   typeof rawExtras.mapUrl === "string"
                     ? rawExtras.mapUrl
+                    : "",
+
+                musicSource:
+                  rawMusicSource === "mp3" ||
+                  rawMusicSource === "youtube" ||
+                  rawMusicSource === "video" ||
+                  rawMusicSource === "none"
+                    ? rawMusicSource
+                    : undefined,
+
+                youtubeUrl:
+                  typeof rawExtras.youtubeUrl === "string"
+                    ? rawExtras.youtubeUrl
                     : "",
 
                 program: getProgramItems(
@@ -530,6 +582,16 @@ export default function PublicInvitationPage() {
                           typeof rawAppearance.frame === "string"
                             ? rawAppearance.frame
                             : undefined,
+
+                        tier:
+                          typeof rawAppearance.tier === "string"
+                            ? rawAppearance.tier
+                            : undefined,
+
+                        scene:
+                          typeof rawAppearance.scene === "string"
+                            ? rawAppearance.scene
+                            : undefined,
                       }
                     : undefined,
               };
@@ -549,6 +611,8 @@ export default function PublicInvitationPage() {
           mapExtras = {
             ...result.extras,
             program: getProgramItems(result.extras.program),
+            musicSource: result.extras.musicSource,
+            youtubeUrl: result.extras.youtubeUrl ?? "",
           };
         }
 
@@ -567,9 +631,21 @@ export default function PublicInvitationPage() {
           > = {
             lat: mapExtras?.lat ?? result.extras?.lat ?? null,
             lng: mapExtras?.lng ?? result.extras?.lng ?? null,
+
             mapUrl:
               mapExtras?.mapUrl ?? result.extras?.mapUrl ?? "",
+
+            musicSource:
+              mapExtras?.musicSource ??
+              result.extras?.musicSource,
+
+            youtubeUrl:
+              mapExtras?.youtubeUrl ||
+              result.extras?.youtubeUrl ||
+              "",
+
             program: finalProgram,
+
             appearance: {
               ...(result.extras?.appearance ?? {}),
               ...(mapExtras?.appearance ?? {}),
@@ -595,6 +671,8 @@ export default function PublicInvitationPage() {
             extras: finalExtras,
           });
 
+          setYoutubeStarted(false);
+          setYoutubePlaying(false);
           setOpeningStarted(false);
           setOpeningFinished(false);
           setLoading(false);
@@ -624,7 +702,7 @@ export default function PublicInvitationPage() {
     let cancelled = false;
 
     async function loadMedia() {
-      if (!invitation?.music_path) {
+      if (isYouTubeMusic || !invitation?.music_path) {
         if (!cancelled) {
           setMusicUrl(null);
           setVideoUrl(null);
@@ -635,6 +713,7 @@ export default function PublicInvitationPage() {
           setMusicNeedsInteraction(false);
           setMusicError(false);
         }
+
         return;
       }
 
@@ -684,18 +763,26 @@ export default function PublicInvitationPage() {
           return;
         }
 
-        const folder = musicPath.split("/").slice(0, -1).join("/");
+        const folder = musicPath
+          .split("/")
+          .slice(0, -1)
+          .join("/");
+
         const { data: files, error: listError } =
           await bucket.list(folder);
 
         if (listError) {
-          console.warn("COVER VIDEO LIST ERROR:", listError.message);
+          console.warn(
+            "COVER VIDEO LIST ERROR:",
+            listError.message
+          );
 
           if (!cancelled) {
             setVideoUrl(null);
             setVideoChecked(true);
             setVideoDone(true);
           }
+
           return;
         }
 
@@ -709,6 +796,7 @@ export default function PublicInvitationPage() {
             setVideoChecked(true);
             setVideoDone(true);
           }
+
           return;
         }
 
@@ -716,7 +804,8 @@ export default function PublicInvitationPage() {
           ? `${folder}/${video.name}`
           : video.name;
 
-        const { data: videoPub } = bucket.getPublicUrl(videoPath);
+        const { data: videoPub } =
+          bucket.getPublicUrl(videoPath);
 
         if (!cancelled) {
           setVideoUrl(videoPub.publicUrl);
@@ -741,7 +830,7 @@ export default function PublicInvitationPage() {
     return () => {
       cancelled = true;
     };
-  }, [invitation?.music_path, musicIsVideo]);
+  }, [invitation?.music_path, musicIsVideo, isYouTubeMusic]);
 
   /* ============================================================
      VIDEO AUTOPLAY
@@ -785,6 +874,15 @@ export default function PublicInvitationPage() {
      ============================================================ */
 
   const playMusic = useCallback(async () => {
+    if (isYouTubeMusic && youtubeVideoId) {
+      setYoutubeStarted(true);
+      setYoutubePlaying(true);
+      setMusicPlaying(true);
+      setMusicNeedsInteraction(false);
+      setMusicError(false);
+      return;
+    }
+
     const media = audioRef.current;
 
     if (!media) {
@@ -807,34 +905,49 @@ export default function PublicInvitationPage() {
       setMusicNeedsInteraction(true);
       setMusicError(false);
     }
-  }, []);
+  }, [isYouTubeMusic, youtubeVideoId]);
 
   useEffect(() => {
+    if (isYouTubeMusic) return;
     if (!musicUrl || musicIsVideo || !showInvitation) return;
     if (!audioRef.current || !audioReady) return;
 
     void playMusic();
-  }, [musicUrl, musicIsVideo, showInvitation, audioReady, playMusic]);
+  }, [
+    isYouTubeMusic,
+    musicUrl,
+    musicIsVideo,
+    showInvitation,
+    audioReady,
+    playMusic,
+  ]);
 
   /* ============================================================
      OPENING ANIMATION
      ============================================================ */
 
-  async function handleOpenInvitation(sceneTier: "premium" | "luxury3d" | null = null) {
+  async function handleOpenInvitation(
+    sceneTier: "premium" | "luxury3d" | null = null
+  ) {
     if (openingStarted || !mediaReady) return;
 
-    if (musicUrl && !musicIsVideo) {
+    if (
+      isYouTubeMusic ||
+      (musicUrl && !musicIsVideo)
+    ) {
       void playMusic();
     }
 
     setOpeningStarted(true);
 
-    await new Promise((resolve) => window.setTimeout(resolve, 120));
+    await new Promise((resolve) =>
+      window.setTimeout(resolve, 120)
+    );
 
     const duration = sceneTier
       ? sceneOpeningDuration(sceneTier, reducedMotion)
       : openingStyle === "envelope" ||
-      openingStyle === "dugtui"
+          openingStyle === "dugtui"
         ? 1500
         : openingStyle === "curtain" ||
             openingStyle === "hoshig"
@@ -851,9 +964,12 @@ export default function PublicInvitationPage() {
                 ? 1200
                 : 1300;
 
-    await new Promise((resolve) => window.setTimeout(resolve, duration));
+    await new Promise((resolve) =>
+      window.setTimeout(resolve, duration)
+    );
 
     if (skippedRef.current) return;
+
     setOpeningFinished(true);
     window.scrollTo({ top: 0, behavior: "auto" });
   }
@@ -1063,18 +1179,31 @@ export default function PublicInvitationPage() {
     initialTimer = window.setTimeout(() => {
       initialTimer = null;
 
-      if (!reachedEnd && !userPaused && !hiddenPaused && !document.hidden) {
+      if (
+        !reachedEnd &&
+        !userPaused &&
+        !hiddenPaused &&
+        !document.hidden
+      ) {
         startAnimation();
       }
     }, 1500);
 
-    window.addEventListener("wheel", handleWheel, { passive: true });
+    window.addEventListener("wheel", handleWheel, {
+      passive: true,
+    });
+
     window.addEventListener("pointerdown", handlePointerDown, {
       passive: true,
     });
+
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("focusin", handleFocusIn);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    document.addEventListener(
+      "visibilitychange",
+      handleVisibilityChange
+    );
 
     return () => {
       reachedEnd = true;
@@ -1087,9 +1216,13 @@ export default function PublicInvitationPage() {
       clearResumeTimer();
 
       window.removeEventListener("wheel", handleWheel);
-      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener(
+        "pointerdown",
+        handlePointerDown
+      );
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("focusin", handleFocusIn);
+
       document.removeEventListener(
         "visibilitychange",
         handleVisibilityChange
@@ -1102,9 +1235,11 @@ export default function PublicInvitationPage() {
      ============================================================ */
 
   useEffect(() => {
-    if (!musicUrl || musicIsVideo) {
+    if (isYouTubeMusic || !musicUrl || musicIsVideo) {
       setAudioReady(false);
-      setMusicPlaying(false);
+
+      if (!isYouTubeMusic) setMusicPlaying(false);
+
       return;
     }
 
@@ -1159,8 +1294,14 @@ export default function PublicInvitationPage() {
     };
 
     media.addEventListener("canplay", handleCanPlay);
-    media.addEventListener("canplaythrough", handleCanPlayThrough);
-    media.addEventListener("loadedmetadata", handleLoadedMetadata);
+    media.addEventListener(
+      "canplaythrough",
+      handleCanPlayThrough
+    );
+    media.addEventListener(
+      "loadedmetadata",
+      handleLoadedMetadata
+    );
     media.addEventListener("loadeddata", handleLoadedData);
     media.addEventListener("play", handlePlay);
     media.addEventListener("pause", handlePause);
@@ -1171,16 +1312,45 @@ export default function PublicInvitationPage() {
 
     return () => {
       media.removeEventListener("canplay", handleCanPlay);
-      media.removeEventListener("canplaythrough", handleCanPlayThrough);
-      media.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      media.removeEventListener(
+        "canplaythrough",
+        handleCanPlayThrough
+      );
+      media.removeEventListener(
+        "loadedmetadata",
+        handleLoadedMetadata
+      );
       media.removeEventListener("loadeddata", handleLoadedData);
       media.removeEventListener("play", handlePlay);
       media.removeEventListener("pause", handlePause);
       media.removeEventListener("error", handleError);
     };
-  }, [musicUrl, musicIsVideo]);
+  }, [isYouTubeMusic, musicUrl, musicIsVideo]);
 
   function toggleMusic() {
+    if (isYouTubeMusic) {
+      if (!youtubeStarted) {
+        void playMusic();
+        return;
+      }
+
+      const nextPlaying = !youtubePlaying;
+
+      setYoutubePlaying(nextPlaying);
+      setMusicPlaying(nextPlaying);
+
+      youtubeRef.current?.contentWindow?.postMessage(
+        JSON.stringify({
+          event: "command",
+          func: nextPlaying ? "playVideo" : "pauseVideo",
+          args: "",
+        }),
+        "https://www.youtube.com"
+      );
+
+      return;
+    }
+
     const media = audioRef.current;
     if (!media) return;
 
@@ -1214,7 +1384,9 @@ export default function PublicInvitationPage() {
     return (
       <main className="flex min-h-screen items-center justify-center bg-black px-6 text-white">
         <div className="text-center">
-          <h1 className="text-xl font-semibold">Урилга олдсонгүй</h1>
+          <h1 className="text-xl font-semibold">
+            Урилга олдсонгүй
+          </h1>
           <p className="mt-2 text-sm text-white/60">
             Урилгын линк буруу эсвэл нийтлэгдээгүй байна.
           </p>
@@ -1232,31 +1404,24 @@ export default function PublicInvitationPage() {
   );
 
   const appearance =
-    (invitation.extras?.appearance ?? {}) as {
-      accent?: string;
-      primary?: string;
-      textColor?: string;
-      pattern?: string;
-      frame?: string;
-      tone?: string;
-      animation?: string;
-      font?: FontFamilyId;
-      brightness?: number;
-      darkness?: number;
-      textShadow?: "none" | "soft" | "strong";
-      tier?: string;
-      scene?: string;
-    };
+    (invitation.extras?.appearance ?? {}) as Appearance;
 
   const sceneDef = getScene(appearance.scene ?? "");
+
   const sceneTier: "classic" | "premium" | "luxury3d" =
-    appearance.tier === "premium" || appearance.tier === "luxury3d"
+    appearance.tier === "premium" ||
+    appearance.tier === "luxury3d"
       ? appearance.tier
       : "classic";
+
   const sceneCols = sceneDef
     ? sceneColors(
-        isHexColor(appearance.primary) ? appearance.primary : sceneDef.palette.primary,
-        isHexColor(appearance.accent) ? appearance.accent : sceneDef.palette.accent,
+        isHexColor(appearance.primary)
+          ? appearance.primary
+          : sceneDef.palette.primary,
+        isHexColor(appearance.accent)
+          ? appearance.accent
+          : sceneDef.palette.accent,
         appearance.tone === "dark" ? "dark" : "light",
         sceneDef.palette
       )
@@ -1266,21 +1431,20 @@ export default function PublicInvitationPage() {
    * Хуучин урилгуудын default тохиргоог шинэ custom style гэж
    * үзэхгүй. Ингэснээр өмнөх загварын өнгө, харагдац хэвээр үлдэнэ.
    */
+
   const legacyAccent =
-    isHexColor(appearance?.accent) &&
-    appearance?.accent !== "#b08d57"
+    isHexColor(appearance.accent) &&
+    appearance.accent !== "#b08d57"
       ? appearance.accent
       : baseStyle.accent;
 
-  const customAccent =
-    isHexColor(appearance.primary)
-      ? appearance.primary
-      : legacyAccent;
+  const customAccent = isHexColor(appearance.primary)
+    ? appearance.primary
+    : legacyAccent;
 
-  const decorativeAccent =
-    isHexColor(appearance.accent)
-      ? appearance.accent
-      : baseStyle.accent;
+  const decorativeAccent = isHexColor(appearance.accent)
+    ? appearance.accent
+    : baseStyle.accent;
 
   const customPattern =
     hasText(appearance.pattern) &&
@@ -1309,12 +1473,14 @@ export default function PublicInvitationPage() {
     typeof appearance.brightness === "number"
       ? Math.min(150, Math.max(50, appearance.brightness))
       : 100;
+
   const photoDarkness =
     typeof appearance.darkness === "number"
       ? Math.min(80, Math.max(0, appearance.darkness))
       : customTone === "dark"
         ? 40
         : 15;
+
   const textShadow =
     appearance.textShadow === "none"
       ? "none"
@@ -1332,41 +1498,51 @@ export default function PublicInvitationPage() {
         : baseStyle.accentSoft,
     button: baseStyle.button,
   };
+
   const buttonTextColor = readableTextOn(style.accent);
+
   const openingTheme = getOpeningTheme(
     invitation.event_type,
     invitation.selected_style,
     appearance
   );
+
   const contentTextColor = isHexColor(appearance.textColor)
     ? appearance.textColor
     : customTone === "dark"
       ? "#ffffff"
       : style.textColor;
+
   const contrastAccent =
     contrastRatio(style.secondaryAccent, contentTextColor) >= 3
       ? style.secondaryAccent
       : contentTextColor;
+
   const mutedTextColor =
     customTone === "dark"
       ? "rgba(255, 255, 255, 0.76)"
       : "rgba(44, 36, 27, 0.72)";
+
   const sectionSurface =
     customTone === "dark"
       ? `rgba(20, 18, 22, ${(0.18 + (photoDarkness / 80) * 0.32).toFixed(2)})`
       : "rgba(255, 255, 255, 0.48)";
+
   const panelSurface =
     customTone === "dark"
       ? `rgba(20, 18, 22, ${(0.42 + (photoDarkness / 80) * 0.34).toFixed(2)})`
       : "rgba(255, 255, 255, 0.84)";
+
   const softSurface =
     customTone === "dark"
       ? "rgba(255, 255, 255, 0.10)"
       : "rgba(255, 255, 255, 0.72)";
+
   const panelBorder =
     customTone === "dark"
       ? "rgba(255, 255, 255, 0.22)"
       : `${contrastAccent}55`;
+
   const coverSurface =
     customTone === "dark"
       ? `rgba(12, 10, 14, ${(0.08 + (photoDarkness / 80) * 0.24).toFixed(2)})`
@@ -1431,7 +1607,7 @@ export default function PublicInvitationPage() {
       ? { borderColor: "transparent" }
       : customFrame === "cloud"
         ? {
-          borderColor: contrastAccent,
+            borderColor: contrastAccent,
             borderWidth: "3px",
             borderStyle: "double",
           }
@@ -1454,15 +1630,21 @@ export default function PublicInvitationPage() {
                   boxShadow: `inset 0 0 0 5px ${contrastAccent}22`,
                 }
               : customFrame === "thin"
-                ? { borderColor: contrastAccent, borderWidth: "1px" }
-              : customFrame === "bold"
-                ? { borderColor: contrastAccent, borderWidth: "6px" }
-              : customFrame === "evereguls"
                 ? {
                     borderColor: contrastAccent,
-                    borderWidth: "2px",
+                    borderWidth: "1px",
                   }
-                : {};
+                : customFrame === "bold"
+                  ? {
+                      borderColor: contrastAccent,
+                      borderWidth: "6px",
+                    }
+                  : customFrame === "evereguls"
+                    ? {
+                        borderColor: contrastAccent,
+                        borderWidth: "2px",
+                      }
+                    : {};
 
   const patternOverlayStyle =
     customPattern !== "none"
@@ -1495,7 +1677,14 @@ export default function PublicInvitationPage() {
           onOpen={() => void handleOpenInvitation(sceneTier)}
           onSkip={() => {
             skippedRef.current = true;
-            if (musicUrl && !musicIsVideo) void playMusic();
+
+            if (
+              isYouTubeMusic ||
+              (musicUrl && !musicIsVideo)
+            ) {
+              void playMusic();
+            }
+
             setOpeningStarted(true);
             setOpeningFinished(true);
             window.scrollTo({ top: 0, behavior: "auto" });
@@ -1528,8 +1717,30 @@ export default function PublicInvitationPage() {
     >
       {renderOpeningScreen()}
 
-      {/* MUSIC PLAYER */}
-      {musicUrl && !musicIsVideo && (
+      {/* YOUTUBE MUSIC PLAYER */}
+      {isYouTubeMusic &&
+        youtubeVideoId &&
+        youtubeStarted && (
+          <div className="fixed bottom-4 left-4 z-50 w-56 overflow-hidden rounded-2xl border border-white/20 bg-black/80 p-2 text-white shadow-xl backdrop-blur-md">
+            <iframe
+              ref={youtubeRef}
+              key={youtubeVideoId}
+              title="Урилгын YouTube хөгжим"
+              src={`https://www.youtube.com/embed/${youtubeVideoId}?autoplay=1&playsinline=1&controls=1&enablejsapi=1`}
+              className="aspect-video w-full rounded-xl"
+              allow="autoplay; encrypted-media; picture-in-picture"
+              referrerPolicy="strict-origin-when-cross-origin"
+              allowFullScreen
+            />
+
+            <p className="px-1 pt-2 text-xs text-white/80">
+              🎵 YouTube хөгжим
+            </p>
+          </div>
+        )}
+
+      {/* MP3 MUSIC PLAYER */}
+      {musicUrl && !musicIsVideo && !isYouTubeMusic && (
         <audio
           ref={audioRef}
           id="invitation-background-music"
@@ -1641,7 +1852,9 @@ export default function PublicInvitationPage() {
                   alt=""
                   className="h-full w-full object-cover"
                 />
+
                 <div className="absolute inset-0 bg-black/30" />
+
                 <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
               </div>
             ))}
@@ -1684,18 +1897,23 @@ export default function PublicInvitationPage() {
         )}
 
       {/* ANIMATION EFFECT */}
-      {showInvitation && customAnimation && customAnimation !== "none" && (
-        <FxOverlay
-          animation={customAnimation}
-          accent={style.secondaryAccent}
-          className="fixed"
-        />
-      )}
+      {showInvitation &&
+        customAnimation &&
+        customAnimation !== "none" && (
+          <FxOverlay
+            animation={customAnimation}
+            accent={style.secondaryAccent}
+            className="fixed"
+          />
+        )}
 
       {/* MUSIC BUTTON */}
       {showInvitation &&
-        invitation.music_path &&
-        !musicIsVideo && (
+        (
+          (invitation.extras?.musicSource === "youtube" &&
+            Boolean(youtubeVideoId)) ||
+          (invitation.music_path && !musicIsVideo)
+        ) && (
           <div className="fixed right-4 top-4 z-50">
             <button
               type="button"
@@ -1810,14 +2028,20 @@ export default function PublicInvitationPage() {
                       {hasEventDate && (
                         <p
                           className="text-lg font-medium"
-                          style={{ textShadow, color: contentTextColor }}
+                          style={{
+                            textShadow,
+                            color: contentTextColor,
+                          }}
                         >
                           {invitation.event_date}
                         </p>
                       )}
 
                       {hasEventTime && (
-                        <p className="text-sm" style={{ color: mutedTextColor }}>
+                        <p
+                          className="text-sm"
+                          style={{ color: mutedTextColor }}
+                        >
                           {invitation.event_time}
                         </p>
                       )}
@@ -1871,7 +2095,10 @@ export default function PublicInvitationPage() {
                     )}
 
                     {hasAddress && (
-                      <p className="mx-auto mt-3 max-w-lg text-sm leading-6" style={{ color: mutedTextColor }}>
+                      <p
+                        className="mx-auto mt-3 max-w-lg text-sm leading-6"
+                        style={{ color: mutedTextColor }}
+                      >
                         {invitation.address}
                       </p>
                     )}
@@ -1928,7 +2155,9 @@ export default function PublicInvitationPage() {
                   >
                     <EventCalendar
                       date={invitation.event_date}
-                      time={hasEventTime ? invitation.event_time : ""}
+                      time={
+                        hasEventTime ? invitation.event_time : ""
+                      }
                       title={
                         hasNames
                           ? invitation.names
@@ -2103,7 +2332,10 @@ export default function PublicInvitationPage() {
                       )}
 
                       {hasAddress && (
-                        <p className="mx-auto mt-3 max-w-lg text-sm leading-6" style={{ color: mutedTextColor }}>
+                        <p
+                          className="mx-auto mt-3 max-w-lg text-sm leading-6"
+                          style={{ color: mutedTextColor }}
+                        >
                           {invitation.address}
                         </p>
                       )}
@@ -2223,6 +2455,7 @@ export default function PublicInvitationPage() {
         !audioReady &&
         !musicError &&
         !musicIsVideo &&
+        !isYouTubeMusic &&
         showInvitation && (
           <div className="pointer-events-none fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full bg-black/40 px-4 py-2 text-xs text-white/70 backdrop-blur-md">
             🎵 Хөгжим ачаалж байна...
@@ -2236,10 +2469,12 @@ export default function PublicInvitationPage() {
         </div>
       )}
 
+      {/* MUSIC INTERACTION FALLBACK */}
       {musicNeedsInteraction &&
         showInvitation &&
         !musicError &&
-        !musicIsVideo && (
+        !musicIsVideo &&
+        !isYouTubeMusic && (
           <div
             className="fixed inset-x-0 z-50 flex justify-center px-4"
             style={{
@@ -2260,7 +2495,9 @@ export default function PublicInvitationPage() {
         )}
 
       <div className="hidden">{getOpeningLabel(openingStyle)}</div>
-      <div className="hidden">{hasPhone ? invitation.phone : ""}</div>
+      <div className="hidden">
+        {hasPhone ? invitation.phone : ""}
+      </div>
     </main>
   );
 }
