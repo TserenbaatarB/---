@@ -225,6 +225,8 @@ export async function GET(
         : null;
     const appearance = rawAppearance
       ? {
+          tier: rawAppearance.tier,
+          scene: rawAppearance.scene,
           frame: rawAppearance.frame,
           primary: rawAppearance.primary,
           accent: rawAppearance.accent,

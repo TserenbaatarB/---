@@ -186,3 +186,275 @@ select {
 @media (prefers-reduced-motion: reduce) {
   .fx-layer * { animation: none !important; }
 }
+
+/* =========================================================
+   Scenes: Premium and Luxury 3D invitation experiences
+   (components/scenes). Transform and opacity only.
+========================================================= */
+@property --sc-r {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+.sc-art {
+  transform: translate3d(
+    calc(var(--px, 0) * var(--d, 0) * 1.4px),
+    calc((var(--py, 0) + var(--sy, 0)) * var(--d, 0) * 1.4px),
+    0
+  );
+}
+.sc-root[data-tier="luxury3d"] .sc-art {
+  will-change: transform;
+  transition: transform 0.25s ease-out;
+}
+.sc-stage {
+  perspective: 900px;
+}
+
+@keyframes sc-bob {
+  from { transform: translateY(-5px); }
+  to { transform: translateY(7px); }
+}
+@keyframes sc-sway {
+  from { transform: rotate(-3deg); }
+  to { transform: rotate(3deg); }
+}
+@keyframes sc-cloud {
+  from { transform: translateX(-3cqw); }
+  to { transform: translateX(7cqw); }
+}
+@keyframes sc-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes sc-twinkle {
+  0%, 100% { opacity: 0.25; transform: scale(0.8) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1.15) rotate(20deg); }
+}
+@keyframes sc-flicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+@keyframes sc-rays {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+@keyframes sc-sheen {
+  from { background-position: 0 0, 160% 0; }
+  to { background-position: 0 0, -60% 0; }
+}
+@keyframes sc-sweep {
+  from { transform: rotate(calc(var(--a, 0deg) - 9deg)); }
+  to { transform: rotate(calc(var(--a, 0deg) + 9deg)); }
+}
+
+.sc-bob { animation: sc-bob 5.5s ease-in-out infinite alternate; }
+.sc-sway { transform-origin: 50% 100%; animation: sc-sway 4.5s ease-in-out infinite alternate; }
+.sc-cloud { animation: sc-cloud 16s ease-in-out infinite alternate; }
+.sc-spin-slow { animation: sc-spin 140s linear infinite; }
+.sc-twinkle-slow { animation: sc-twinkle 4.5s ease-in-out infinite; }
+.sc-bulb { animation: sc-flicker 2.6s ease-in-out infinite; }
+.sc-flame { animation: sc-flicker 1.8s ease-in-out infinite; }
+.sc-rays { animation: sc-rays 7s ease-in-out infinite; }
+.sc-sheen { animation: sc-sheen 12s linear infinite; }
+.sc-beam { transform: rotate(var(--a, 0deg)); }
+.sc-beam.sc-sweep { animation: sc-sweep 9s ease-in-out infinite alternate; }
+
+/* Particles */
+@keyframes sc-fall {
+  0% { transform: translate3d(0, -12cqh, 0) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translate3d(var(--sc-dx, 30px), 112cqh, 0) rotate(300deg); opacity: 0.9; }
+}
+@keyframes sc-rise {
+  0% { transform: translate3d(0, 112cqh, 0); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translate3d(var(--sc-dx, 30px), -18cqh, 0); opacity: 0.9; }
+}
+@keyframes sc-glint {
+  0%, 100% { opacity: 0; transform: scale(0.5); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+@keyframes sc-drift {
+  from { transform: translate3d(-30cqw, 0, 0); }
+  to { transform: translate3d(130cqw, 0, 0); }
+}
+.sc-p {
+  position: absolute;
+  display: block;
+  animation-iteration-count: infinite;
+  animation-timing-function: linear;
+  will-change: transform;
+}
+.sc-p-fall { animation-name: sc-fall; }
+.sc-p-rise { animation-name: sc-rise; }
+.sc-p-twinkle { animation-name: sc-glint; animation-timing-function: ease-in-out; }
+.sc-p-drift { animation-name: sc-drift; }
+
+/* Opening overlay */
+.sc-open {
+  --sc-ease: cubic-bezier(0.22, 0.7, 0.2, 1);
+}
+.sc-open[data-started] {
+  animation: sc-open-out 700ms ease-in forwards;
+  animation-delay: calc(var(--sc-dur) - 700ms);
+}
+@keyframes sc-open-out {
+  to { opacity: 0; visibility: hidden; }
+}
+.sc-dolly {
+  transform-origin: 50% 55%;
+  transition: transform var(--sc-dur) var(--sc-ease);
+}
+.sc-open[data-tier="luxury3d"][data-started] .sc-dolly {
+  transform: scale(1.16);
+}
+.sc-center {
+  transition: opacity 500ms ease, transform 500ms ease;
+}
+.sc-center-out {
+  opacity: 0;
+  transform: scale(0.94) translateY(-10px);
+}
+.sc-flash {
+  opacity: 0;
+}
+.sc-open[data-started] .sc-flash {
+  animation: sc-flash calc(var(--sc-dur) * 0.8) ease-out calc(var(--sc-dur) * 0.1) forwards;
+}
+@keyframes sc-flash {
+  0% { opacity: 0; }
+  40% { opacity: 0.55; }
+  100% { opacity: 0; }
+}
+.sc-open[data-tier="luxury3d"][data-started] .sc-flash {
+  animation-name: sc-flash-strong;
+}
+@keyframes sc-flash-strong {
+  0% { opacity: 0; }
+  40% { opacity: 0.9; }
+  100% { opacity: 0; }
+}
+
+/* Doors */
+.sc-doors { transform-style: preserve-3d; }
+.sc-door {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  backface-visibility: hidden;
+  transition: transform calc(var(--sc-dur) * 0.72) var(--sc-ease) calc(var(--sc-dur) * 0.12);
+}
+.sc-door-l { left: 0; transform-origin: 0 50%; }
+.sc-door-r { right: 0; transform-origin: 100% 50%; }
+.sc-open[data-started] .sc-door-l { transform: rotateY(calc(var(--sc-angle) * -1)); }
+.sc-open[data-started] .sc-door-r { transform: rotateY(var(--sc-angle)); }
+.sc-spill {
+  opacity: 0;
+  transition: opacity calc(var(--sc-dur) * 0.5) ease calc(var(--sc-dur) * 0.1);
+}
+.sc-open[data-started] .sc-spill { opacity: 1; }
+
+/* Curtains */
+.sc-curtain {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  transition: transform calc(var(--sc-dur) * 0.75) var(--sc-ease) calc(var(--sc-dur) * 0.1);
+}
+.sc-curtain-l { left: 0; transform-origin: 0 50%; }
+.sc-curtain-r { right: 0; transform-origin: 100% 50%; }
+.sc-open[data-started] .sc-curtain { transform: scaleX(0.14); }
+.sc-valance {
+  transition: opacity 600ms ease calc(var(--sc-dur) * 0.7);
+}
+.sc-open[data-started] .sc-valance { opacity: 0; }
+
+/* Silk */
+.sc-silk {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  transition: transform calc(var(--sc-dur) * 0.72) var(--sc-ease) calc(var(--sc-dur) * 0.16);
+}
+.sc-silk-l { left: 0; }
+.sc-silk-r { right: 0; }
+.sc-open[data-started] .sc-silk-l { transform: translateX(-102%); }
+.sc-open[data-started] .sc-silk-r { transform: translateX(102%); }
+.sc-medallion {
+  transition: transform calc(var(--sc-dur) * 0.4) ease, opacity calc(var(--sc-dur) * 0.4) ease;
+}
+.sc-open[data-started] .sc-medallion {
+  transform: translate(-50%, -50%) scale(1.7) rotate(45deg);
+  opacity: 0;
+}
+
+/* Balloons and clouds */
+.sc-balloon {
+  transition: transform calc(var(--sc-dur) * 0.8) cubic-bezier(0.4, 0, 0.6, 1)
+    calc(var(--sc-dur) * var(--sc-delay, 0));
+}
+.sc-open[data-started] .sc-balloon { transform: translate3d(0, -160vh, 0); }
+.sc-cover {
+  transition: opacity calc(var(--sc-dur) * 0.4) ease calc(var(--sc-dur) * 0.45);
+}
+.sc-open[data-started] .sc-cover { opacity: 0; }
+.sc-cloud-l, .sc-cloud-r {
+  transition: transform calc(var(--sc-dur) * 0.8) var(--sc-ease) calc(var(--sc-dur) * 0.1);
+}
+.sc-open[data-started] .sc-cloud-l { transform: translate3d(-140%, 0, 0); }
+.sc-open[data-started] .sc-cloud-r { transform: translate3d(140%, 0, 0); }
+
+/* Bloom: a circular hole grows from the center, flowers ride its edge */
+.sc-bloom-cover {
+  --sc-r: 0px;
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent var(--sc-r), #000 calc(var(--sc-r) + 2px));
+  mask-image: radial-gradient(circle at 50% 50%, transparent var(--sc-r), #000 calc(var(--sc-r) + 2px));
+  transition: --sc-r calc(var(--sc-dur) * 0.85) ease-in-out calc(var(--sc-dur) * 0.08);
+}
+.sc-bloom-ring {
+  --sc-r: 0px;
+  width: 0;
+  height: 0;
+  transition: --sc-r calc(var(--sc-dur) * 0.85) ease-in-out calc(var(--sc-dur) * 0.08);
+}
+.sc-open[data-started] .sc-bloom-cover,
+.sc-open[data-started] .sc-bloom-ring { --sc-r: 90vmax; }
+.sc-bloom-flower {
+  left: 0;
+  top: 0;
+  opacity: 0;
+  transform: translate(-50%, -50%) rotate(var(--sc-a)) translateY(calc(var(--sc-r) * -1)) rotate(calc(var(--sc-a) * -1));
+  transition: opacity 300ms ease;
+}
+.sc-open[data-started] .sc-bloom-flower { opacity: 1; }
+
+/* Shutters */
+.sc-slat {
+  transform-origin: 50% 0;
+  transition: transform calc(var(--sc-dur) * 0.6) var(--sc-ease)
+    calc(var(--sc-i, 0) * 90ms + var(--sc-dur) * 0.1);
+}
+.sc-open[data-started] .sc-slat { transform: scaleY(0); }
+
+/* Content reveal once the opening is done */
+@keyframes sc-reveal {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+.sc-reveal { animation: sc-reveal 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-open,
+  .sc-open *,
+  .sc-root *,
+  .sc-reveal {
+    animation: none !important;
+    transition-duration: 1ms !important;
+    transition-delay: 0s !important;
+  }
+  .sc-art { transform: none !important; }
+}

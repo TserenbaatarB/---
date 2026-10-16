@@ -17,6 +17,11 @@ import { eventDefaultsFor, fontFamilyFor } from "@/lib/invitationExtras";
 import InvitationOpening from "@/components/InvitationOpening";
 import { getOpeningTheme } from "@/lib/openingTheme";
 import type { FontFamilyId } from "@/lib/invitationExtras";
+import SceneOpening from "@/components/scenes/SceneOpening";
+import SceneBackdrop from "@/components/scenes/SceneBackdrop";
+import { useReducedMotion } from "@/components/scenes/hooks";
+import { sceneColors } from "@/lib/sceneTheme";
+import { getScene, sceneOpeningDuration } from "@/lib/invitationTemplates";
 
 type OpeningStyle =
   | "envelope"
@@ -319,6 +324,8 @@ export default function PublicInvitationPage() {
   const [videoChecked, setVideoChecked] = useState(false);
   const [openingStarted, setOpeningStarted] = useState(false);
   const [openingFinished, setOpeningFinished] = useState(false);
+  const reducedMotion = useReducedMotion();
+  const skippedRef = useRef(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -813,7 +820,7 @@ export default function PublicInvitationPage() {
      OPENING ANIMATION
      ============================================================ */
 
-  async function handleOpenInvitation() {
+  async function handleOpenInvitation(sceneTier: "premium" | "luxury3d" | null = null) {
     if (openingStarted || !mediaReady) return;
 
     if (musicUrl && !musicIsVideo) {
@@ -824,8 +831,9 @@ export default function PublicInvitationPage() {
 
     await new Promise((resolve) => window.setTimeout(resolve, 120));
 
-    const duration =
-      openingStyle === "envelope" ||
+    const duration = sceneTier
+      ? sceneOpeningDuration(sceneTier, reducedMotion)
+      : openingStyle === "envelope" ||
       openingStyle === "dugtui"
         ? 1500
         : openingStyle === "curtain" ||
@@ -845,6 +853,7 @@ export default function PublicInvitationPage() {
 
     await new Promise((resolve) => window.setTimeout(resolve, duration));
 
+    if (skippedRef.current) return;
     setOpeningFinished(true);
     window.scrollTo({ top: 0, behavior: "auto" });
   }
@@ -1235,7 +1244,23 @@ export default function PublicInvitationPage() {
       brightness?: number;
       darkness?: number;
       textShadow?: "none" | "soft" | "strong";
+      tier?: string;
+      scene?: string;
     };
+
+  const sceneDef = getScene(appearance.scene ?? "");
+  const sceneTier: "classic" | "premium" | "luxury3d" =
+    appearance.tier === "premium" || appearance.tier === "luxury3d"
+      ? appearance.tier
+      : "classic";
+  const sceneCols = sceneDef
+    ? sceneColors(
+        isHexColor(appearance.primary) ? appearance.primary : sceneDef.palette.primary,
+        isHexColor(appearance.accent) ? appearance.accent : sceneDef.palette.accent,
+        appearance.tone === "dark" ? "dark" : "light",
+        sceneDef.palette
+      )
+    : null;
 
   /*
    * Хуучин урилгуудын default тохиргоог шинэ custom style гэж
@@ -1458,6 +1483,27 @@ export default function PublicInvitationPage() {
   const renderOpeningScreen = () => {
     if (openingFinished) return null;
 
+    if (sceneDef && sceneCols && sceneTier !== "classic") {
+      return (
+        <SceneOpening
+          scene={sceneDef}
+          colors={sceneCols}
+          tier={sceneTier}
+          title={invitation.names || invitation.title || ""}
+          started={openingStarted}
+          ready={mediaReady}
+          onOpen={() => void handleOpenInvitation(sceneTier)}
+          onSkip={() => {
+            skippedRef.current = true;
+            if (musicUrl && !musicIsVideo) void playMusic();
+            setOpeningStarted(true);
+            setOpeningFinished(true);
+            window.scrollTo({ top: 0, behavior: "auto" });
+          }}
+        />
+      );
+    }
+
     return (
       <InvitationOpening
         style={openingStyle}
@@ -1465,7 +1511,7 @@ export default function PublicInvitationPage() {
         title={invitation.names || invitation.title || ""}
         started={openingStarted}
         ready={mediaReady}
-        onOpen={handleOpenInvitation}
+        onOpen={() => void handleOpenInvitation()}
       />
     );
   };
@@ -1602,8 +1648,19 @@ export default function PublicInvitationPage() {
           </div>
         )}
 
+      {/* SCENE BACKDROP */}
+      {sceneDef && sceneCols && showInvitation && (
+        <SceneBackdrop
+          scene={sceneDef}
+          colors={sceneCols}
+          tier={sceneTier}
+          withBackground={!hasAnyBackground}
+          fixed
+        />
+      )}
+
       {/* DEFAULT BACKGROUND */}
-      {!hasAnyBackground && showInvitation && (
+      {!hasAnyBackground && !sceneDef && showInvitation && (
         <div className="pointer-events-none fixed inset-0 z-0">
           <div
             className="h-full w-full"

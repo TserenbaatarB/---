@@ -14,7 +14,13 @@ export type FontFamilyId =
   | "script"
   | "modern";
 
+export type TierId = "classic" | "premium" | "luxury3d";
+
 export type Appearance = {
+  /* Visual tier. Missing or "classic" keeps the original look. */
+  tier: TierId;
+  /* Event scene id (see lib/invitationTemplates.ts). Empty means none. */
+  scene: string;
   frame: string;
   primary: string;
   accent: string;
@@ -404,6 +410,8 @@ export function defaultExtras(): InvitationExtras {
     rsvpDeadline: "",
     rsvpVisibility: "open",
     appearance: {
+      tier: "classic",
+      scene: "",
       frame: "evereguls",
       primary: "#b08d57",
       accent: "#b08d57",
@@ -475,6 +483,16 @@ export function mergeExtras(
         ? appearanceInput.accent
         : base.appearance.accent,
       tone: appearanceInput.tone === "dark" ? "dark" : "light",
+      tier:
+        appearanceInput.tier === "premium" ||
+        appearanceInput.tier === "luxury3d"
+          ? appearanceInput.tier
+          : "classic",
+      scene:
+        typeof appearanceInput.scene === "string" &&
+        /^[a-z0-9-]{1,40}$/.test(appearanceInput.scene)
+          ? appearanceInput.scene
+          : "",
       textColor: isHexColor(appearanceInput.textColor)
         ? appearanceInput.textColor
         : "",

@@ -21,6 +21,8 @@ import {
   patternStyle,
 } from "@/components/InvitationFx";
 import { getOpeningTheme } from "@/lib/openingTheme";
+import { SCENES, TIERS, getScene } from "@/lib/invitationTemplates";
+import type { TierId } from "@/lib/invitationExtras";
 
 function Chips({
   title,
@@ -388,6 +390,36 @@ export default function AppearanceControls({
           автоматаар тохирно.
         </div>
       </div>
+
+      <Chips
+        title="Түвшин"
+        options={TIERS.map((t) => ({ id: t.id, label: t.label }))}
+        value={appearance.tier ?? "classic"}
+        onChange={(tier) => update({ tier: tier as TierId })}
+      />
+
+      <Chips
+        title="Сцен (хаалга, чимэглэл)"
+        options={[
+          { id: "", label: "Байхгүй" },
+          ...SCENES.map((s) => ({ id: s.id, label: s.label, icon: s.icon })),
+        ]}
+        value={appearance.scene ?? ""}
+        onChange={(sceneId) => {
+          const scene = getScene(sceneId);
+          update(
+            scene
+              ? {
+                  scene: scene.id,
+                  ...scene.palette,
+                  font: scene.font,
+                  ...scene.defaults,
+                  textColor: "",
+                }
+              : { scene: "" }
+          );
+        }}
+      />
 
       <button
         type="button"

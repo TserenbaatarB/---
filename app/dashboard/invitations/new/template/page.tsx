@@ -1,253 +1,269 @@
 "use client";
 
-import { Suspense } from "react";
-
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import BrandLogo from "@/components/BrandLogo";
+import SceneBackdrop from "@/components/scenes/SceneBackdrop";
+import SceneOpening from "@/components/scenes/SceneOpening";
+import { useReducedMotion } from "@/components/scenes/hooks";
+import { sceneColors } from "@/lib/sceneTheme";
+import {
+  SCENES,
+  TIERS,
+  appearanceForTemplate,
+  getScene,
+  sceneForEvent,
+  sceneOpeningDuration,
+  templatesForScene,
+  type SceneDef,
+  type TemplateDef,
+} from "@/lib/invitationTemplates";
+import { readExtras, writeExtras } from "@/lib/invitationExtras";
+import type { TierId } from "@/lib/invitationExtras";
 
-const templates = [
-  {
-    id: "classic",
-    title: "Classic Romance",
-    subtitle: "Сонгодог, дэгжин",
-    description: "Зөөлөн өнгө, цэвэрхэн зохиомжтой сонгодог урилга.",
-    previewClass:
-      "bg-gradient-to-br from-[#f7f0e8] via-white to-[#e9ddd0]",
-    examples: {
-      wedding: {
-        line1: "Бат & Саруул",
-        line2: "Бидний хуримын өдөр",
-        description: "Танд зориулсан\nхайрын баярт өдөр",
-      },
-      birthday: {
-        line1: "Номин",
-        line2: "Төрсөн өдрийн баяр",
-        description: "Хамтдаа баяраа\nтэмдэглэцгээе",
-      },
-      baby: {
-        line1: "Бяцхан үр",
-        line2: "Сэвлэг үргээх ёслол",
-        description: "Бидний баярт өдөрт\nхүрэлцэн ирээрэй",
-      },
-      anniversary: {
-        line1: "Бат & Саруул",
-        line2: "Хамтын амьдралын ой",
-        description: "Бидний дурсамжит\nөдөрт хүрэлцэн ирээрэй",
-      },
-      graduation: {
-        line1: "Тэмүүлэн",
-        line2: "Төгсөлтийн баяр",
-        description: "Баярт мөчөө\nхамтдаа хуваалцъя",
-      },
-      engagement: {
-        line1: "Ананд & Номин",
-        line2: "Сүй тавих ёслол",
-        description: "Бидний онцгой\nөдөрт хүрэлцэн ирээрэй",
-      },
-      housewarming: {
-        line1: "Бат & Саруул",
-        line2: "Шинэ гэрийн баяр",
-        description: "Шинэ гэрийнхээ\nбаярыг хамт тэмдэглэе",
-      },
-      other: {
-        line1: "Онцгой өдөр",
-        line2: "Баярт мөч",
-        description: "Танд зориулсан\nдурсамжит өдөр",
-      },
-    },
-  },
-  {
-    id: "luxury",
-    title: "Luxury Gold",
-    subtitle: "Тансаг, premium",
-    description: "Алтан өнгөний акценттай тансаг загвар.",
-    previewClass:
-      "bg-gradient-to-br from-[#1f1b17] via-[#3b3025] to-[#b89b72]",
-    examples: {
-      wedding: {
-        line1: "Тэмүүлэн & Номин",
-        line2: "Хайрын баярт өдөр",
-        description: "Бидний онцгой\nөдөрт морилно уу",
-      },
-      birthday: {
-        line1: "Энхжин",
-        line2: "Төрсөн өдрийн баяр",
-        description: "Тансаг үдшийг\nхамтдаа өнгөрүүлье",
-      },
-      baby: {
-        line1: "Бяцхан ханхүү",
-        line2: "Сэвлэг үргээх ёслол",
-        description: "Баярт мөчөө\nхамтдаа хуваалцъя",
-      },
-      anniversary: {
-        line1: "Тэмүүлэн & Номин",
-        line2: "10 жилийн ой",
-        description: "Бидний дурсамжит\nөдөрт морилно уу",
-      },
-      graduation: {
-        line1: "Энхжин",
-        line2: "Төгсөлтийн баяр",
-        description: "Амжилтын баяраа\nхамтдаа тэмдэглэе",
-      },
-      engagement: {
-        line1: "Ананд & Сувд",
-        line2: "Сүй тавих ёслол",
-        description: "Бидний баярт\nмөчид морилно уу",
-      },
-      housewarming: {
-        line1: "Тэмүүлэн & Номин",
-        line2: "Шинэ гэрийн баяр",
-        description: "Шинэ гэрийнхээ\nбаярыг хуваалцаарай",
-      },
-      other: {
-        line1: "Тэмдэглэлт өдөр",
-        line2: "Онцгой баяр",
-        description: "Танд зориулсан\nтансаг үдэш",
-      },
-    },
-  },
-  {
-    id: "minimal",
-    title: "Modern Minimal",
-    subtitle: "Минимал, modern",
-    description: "Цэвэрхэн typography болон минимал дизайн.",
-    previewClass:
-      "bg-gradient-to-br from-[#f5f5f3] via-white to-[#deded8]",
-    examples: {
-      wedding: {
-        line1: "Бат & Номин",
-        line2: "Save the Date",
-        description: "2026.10.24\nБидэнтэй хамт байгаарай",
-      },
-      birthday: {
-        line1: "Номин",
-        line2: "Birthday Celebration",
-        description: "2026.10.24\nХамтдаа тэмдэглэцгээе",
-      },
-      baby: {
-        line1: "Baby Ceremony",
-        line2: "Сэвлэг үргээх ёслол",
-        description: "Бидний баярт өдөр\nхамтдаа байгаарай",
-      },
-      anniversary: {
-        line1: "Бат & Саруул",
-        line2: "Our Anniversary",
-        description: "10 Years Together\nХамтдаа тэмдэглэе",
-      },
-      graduation: {
-        line1: "Тэмүүлэн",
-        line2: "Graduation Day",
-        description: "Шинэ эхлэлийн өдөр\nхамтдаа байгаарай",
-      },
-      engagement: {
-        line1: "Ананд & Сувд",
-        line2: "Engagement",
-        description: "Бидний шинэ эхлэл\nхамтдаа байгаарай",
-      },
-      housewarming: {
-        line1: "Бат & Номин",
-        line2: "New Home",
-        description: "Шинэ гэрийн баяр\nхамтдаа тэмдэглэе",
-      },
-      other: {
-        line1: "Онцгой өдөр",
-        line2: "Save the Date",
-        description: "Баярт мөчөө\nхамтдаа хуваалцъя",
-      },
-    },
-  },
-  {
-    id: "garden",
-    title: "Garden",
-    subtitle: "Романтик, floral",
-    description: "Байгаль, цэцэгсийн зөөлөн мэдрэмжтэй загвар.",
-    previewClass:
-      "bg-gradient-to-br from-[#edf3ea] via-[#f8f5ee] to-[#d8e2d2]",
-    examples: {
-      wedding: {
-        line1: "Ананд & Сувд",
-        line2: "Хайрын цэцэгсийн дунд",
-        description: "Бидний хуримын\nбаярт өдөрт морилно уу",
-      },
-      birthday: {
-        line1: "Сувд",
-        line2: "Төрсөн өдрийн баяр",
-        description: "Инээд хөөр, баяр хөөрөөр\nдүүрэн өдөр",
-      },
-      baby: {
-        line1: "Бяцхан үр",
-        line2: "Сэвлэг үргээх ёслол",
-        description: "Бяцхан үрийнхээ\nбаярт өдрийг хамт тэмдэглэе",
-      },
-      anniversary: {
-        line1: "Ананд & Сувд",
-        line2: "Хайрын ойн өдөр",
-        description: "Хамтын амьдралынхаа\nдурсамжийг хуваалцъя",
-      },
-      graduation: {
-        line1: "Сувд",
-        line2: "Төгсөлтийн баяр",
-        description: "Шинэ эхлэлийн\nбаярт мөч",
-      },
-      engagement: {
-        line1: "Ананд & Сувд",
-        line2: "Бидний шинэ эхлэл",
-        description: "Сүй тавих ёслолын\nбаярт өдөр",
-      },
-      housewarming: {
-        line1: "Бат & Саруул",
-        line2: "Шинэ гэрийн баяр",
-        description: "Шинэ гэрийнхээ\nбаярыг хамт тэмдэглэе",
-      },
-      other: {
-        line1: "Онцгой мөч",
-        line2: "Баярт өдөр",
-        description: "Цэцэгсийн дунд\nдурсамж бүтээе",
-      },
-    },
-  },
-];
+function colorsFor(template: TemplateDef, scene: SceneDef) {
+  return sceneColors(
+    template.appearance.primary ?? scene.palette.primary,
+    template.appearance.accent ?? scene.palette.accent,
+    template.appearance.tone === "dark" ? "dark" : "light",
+    scene.palette
+  );
+}
 
-const eventNames = {
-  wedding: "Хурим",
-  birthday: "Төрсөн өдөр",
-  baby: "Сэвлэг үргээх",
-  anniversary: "Ойн баяр",
-  graduation: "Төгсөлт",
-  engagement: "Сүй тавих",
-  housewarming: "Шинэ гэр",
-  other: "Бусад арга хэмжээ",
-} as const;
+function Thumb({
+  template,
+  scene,
+}: {
+  template: TemplateDef;
+  scene: SceneDef;
+}) {
+  const c = colorsFor(template, scene);
 
-type EventType = keyof typeof eventNames;
+  return (
+    <div className="relative aspect-[3/4] w-full overflow-hidden">
+      <SceneBackdrop
+        scene={scene}
+        colors={c}
+        tier="classic"
+        withBackground
+        fixed={false}
+        animated={false}
+      />
+      <div className="absolute inset-0 flex flex-col items-center justify-center px-4 text-center">
+        <div
+          className="text-[10px] uppercase tracking-[0.25em]"
+          style={{ color: c.accent }}
+        >
+          {scene.english}
+        </div>
+        <div
+          className="mt-2 text-lg font-semibold leading-tight"
+          style={{ color: c.ink }}
+        >
+          {scene.sample.names}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PreviewModal({
+  template,
+  scene,
+  tier,
+  onClose,
+  onSelect,
+}: {
+  template: TemplateDef;
+  scene: SceneDef;
+  tier: TierId;
+  onClose: () => void;
+  onSelect: () => void;
+}) {
+  const reduced = useReducedMotion();
+  const [started, setStarted] = useState(false);
+  const [done, setDone] = useState(tier === "classic");
+  const [run, setRun] = useState(0);
+  const timer = useRef<number | null>(null);
+  const c = colorsFor(template, scene);
+  const s = scene.sample;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      if (timer.current) window.clearTimeout(timer.current);
+    };
+  }, [onClose]);
+
+  function finish() {
+    if (timer.current) window.clearTimeout(timer.current);
+    setStarted(true);
+    setDone(true);
+  }
+
+  function open() {
+    if (started || tier === "classic") return;
+    setStarted(true);
+    timer.current = window.setTimeout(
+      () => setDone(true),
+      sceneOpeningDuration(tier, reduced)
+    );
+  }
+
+  function replay() {
+    if (timer.current) window.clearTimeout(timer.current);
+    setStarted(false);
+    setDone(tier === "classic");
+    setRun((n) => n + 1);
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Урьдчилан харах"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 backdrop-blur-sm"
+    >
+      <div className="flex max-h-full w-full max-w-md flex-col gap-3">
+        <div className="relative aspect-[9/16] max-h-[78dvh] w-full self-center overflow-hidden rounded-3xl shadow-2xl">
+          <SceneBackdrop
+            scene={scene}
+            colors={c}
+            tier={tier}
+            withBackground
+            fixed={false}
+          />
+          {done && (
+            <div className="sc-reveal absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
+              <div
+                className="text-xs uppercase tracking-[0.3em]"
+                style={{ color: c.accent }}
+              >
+                {s.title}
+              </div>
+              <div
+                className="mt-3 text-3xl font-semibold leading-tight"
+                style={{ color: c.ink }}
+              >
+                {s.names}
+              </div>
+              <div className="mt-4 text-sm" style={{ color: c.ink }}>
+                {s.date} · {s.time}
+              </div>
+              <div className="text-sm opacity-80" style={{ color: c.ink }}>
+                {s.venue}
+              </div>
+              <p
+                className="mt-4 max-w-xs text-sm leading-6 opacity-90"
+                style={{ color: c.ink }}
+              >
+                {s.message}
+              </p>
+            </div>
+          )}
+          {!done && tier !== "classic" && (
+            <SceneOpening
+              key={run}
+              scene={scene}
+              colors={c}
+              tier={tier}
+              title={s.names}
+              started={started}
+              ready
+              onOpen={open}
+              onSkip={finish}
+              embedded
+            />
+          )}
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-2xl bg-white/15 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/25"
+          >
+            Хаах
+          </button>
+          {tier !== "classic" && (
+            <button
+              type="button"
+              onClick={replay}
+              className="flex-1 rounded-2xl bg-white/15 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/25"
+            >
+              Дахин үзэх
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onSelect}
+            className="flex-1 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-white/90"
+          >
+            Сонгох
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function TemplatePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const eventParam = searchParams.get("event") ?? "wedding";
-  const event: EventType = eventParam in eventNames ? (eventParam as EventType) : "wedding";
-  const eventName = eventNames[event] ?? "Арга хэмжээ";
+  const event = searchParams.get("event") ?? "wedding";
+  const initialScene =
+    getScene(searchParams.get("category"))?.id ?? sceneForEvent(event).id;
 
-  function handleTemplateSelect(templateId: string) {
+  const [sceneId, setSceneId] = useState<string>(initialScene);
+  const [tier, setTier] = useState<TierId>("premium");
+  const [preview, setPreview] = useState<TemplateDef | null>(null);
+  const [error, setError] = useState("");
+
+  const scene = getScene(sceneId);
+  const templates = templatesForScene(sceneId);
+  const previewScene = preview ? getScene(preview.scene) : undefined;
+
+  function handleSelect(template: TemplateDef) {
+    const target = getScene(template.scene);
+    if (!target) return;
+
+    try {
+      const current = readExtras();
+      writeExtras({
+        appearance: {
+          ...current.appearance,
+          ...appearanceForTemplate(template, tier),
+        },
+      });
+      sessionStorage.setItem(
+        `invitation-extras-seed:${target.eventType}`,
+        "1"
+      );
+    } catch {
+      setError(
+        "Загварыг хадгалж чадсангүй. Хөтөчийн хадгалалт идэвхтэй эсэхийг шалгаад дахин оролдоно уу."
+      );
+      return;
+    }
+
     router.push(
-      `/dashboard/invitations/new/details?event=${event}&template=${templateId}`
+      `/dashboard/invitations/new/details?event=${target.eventType}&template=${template.id}`
     );
-  }
-
-  function handleBack() {
-    router.push("/dashboard/invitations/new");
   }
 
   return (
     <main className="min-h-screen bg-[#F8F5F0] text-[#171717]">
       <header className="border-b border-black/10 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6 sm:py-5">
           <BrandLogo />
-
           <button
             type="button"
-            onClick={handleBack}
+            onClick={() => router.push("/dashboard/invitations/new")}
             className="text-sm text-black/45 transition hover:text-black"
           >
             ← Буцах
@@ -255,97 +271,153 @@ function TemplatePageContent() {
         </div>
       </header>
 
-      <section className="mx-auto max-w-6xl px-6 py-14 sm:py-20">
-        <div className="mb-10 text-center">
-          <div className="text-sm font-medium text-black/40">
-            {eventName}
-          </div>
-
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
-            Загвараа сонгоно уу
+      <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-14">
+        <div className="mb-8 text-center">
+          <div className="text-sm font-medium text-black/40">Загвар сонгох</div>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-4xl">
+            Урилгынхаа төрөл, хэв маягийг сонгоно уу
           </h1>
+        </div>
 
-          <p className="mx-auto mt-4 max-w-lg text-sm leading-6 text-black/45">
-            Таны урилгын үндсэн загварыг сонгоод дараагийн алхам руу
-            үргэлжлүүлнэ үү.
+        <div
+          role="tablist"
+          aria-label="Төрөл"
+          className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-3 sm:mx-0 sm:flex-wrap sm:justify-center sm:px-0"
+        >
+          {SCENES.map((s) => (
+            <button
+              key={s.id}
+              role="tab"
+              type="button"
+              aria-selected={s.id === sceneId}
+              onClick={() => setSceneId(s.id)}
+              className={`shrink-0 rounded-full border px-4 py-2 text-sm transition ${
+                s.id === sceneId
+                  ? "border-black bg-black text-white"
+                  : "border-black/10 bg-white text-black/70 hover:border-black/30"
+              }`}
+            >
+              <span aria-hidden="true">{s.icon} </span>
+              {s.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          {TIERS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              aria-pressed={t.id === tier}
+              onClick={() => setTier(t.id)}
+              className={`rounded-2xl border p-4 text-left transition ${
+                t.id === tier
+                  ? "border-black bg-white shadow-md"
+                  : "border-black/10 bg-white/60 hover:border-black/30"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-semibold">{t.label}</span>
+                <span className="text-[10px] uppercase tracking-wider text-black/40">
+                  {t.english}
+                </span>
+              </div>
+              <p className="mt-1 text-xs leading-5 text-black/55">{t.blurb}</p>
+            </button>
+          ))}
+        </div>
+
+        {scene && (
+          <p className="mt-6 text-center text-sm text-black/50">
+            {scene.blurb}
           </p>
-        </div>
+        )}
 
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {templates.map((template) => {
-            const eventKey = event as EventType;
+        {error && (
+          <div
+            role="alert"
+            className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          >
+            {error}
+          </div>
+        )}
 
-            const example =
-              template.examples[eventKey] ?? template.examples.other;
-
-            return (
-              <button
+        {!scene || templates.length === 0 ? (
+          <div className="mt-10 rounded-3xl border border-dashed border-black/15 bg-white p-10 text-center text-sm text-black/50">
+            Энэ төрөлд одоогоор загвар алга байна. Өөр төрөл сонгоно уу.
+          </div>
+        ) : (
+          <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {templates.map((template) => (
+              <article
                 key={template.id}
-                type="button"
-                onClick={() => handleTemplateSelect(template.id)}
-                className="group overflow-hidden rounded-[28px] border border-black/10 bg-white text-left shadow-sm transition duration-200 hover:-translate-y-1 hover:border-black/20 hover:shadow-xl"
+                className="overflow-hidden rounded-[26px] border border-black/10 bg-white shadow-sm"
               >
-                <div
-                  className={`relative h-[360px] overflow-hidden ${template.previewClass}`}
-                >
-                  <div className="absolute inset-5 rounded-[22px] border border-black/10 bg-white/65 p-6 backdrop-blur-sm">
-                    <div className="text-center">
-                      <div className="text-[10px] uppercase tracking-[0.28em] text-black/30">
-                        {eventName}
-                      </div>
-
-                      <div className="mx-auto mt-8 h-px w-12 bg-black/15" />
-
-                      <div className="mt-8 text-2xl font-serif italic text-black/45">
-                        {example.line1}
-                      </div>
-
-                      <div className="mt-2 text-2xl font-semibold tracking-tight text-black/50">
-                        {example.line2}
-                      </div>
-
-                      <div className="mx-auto mt-6 h-px w-12 bg-black/15" />
-
-                      <div className="mt-6 whitespace-pre-line text-[11px] leading-5 text-black/35">
-                        {example.description}
-                      </div>
-
-                      <div className="mt-10 text-[9px] uppercase tracking-[0.25em] text-black/25">
-                        JZT GROUP · URILGA
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-6">
-                  <div className="text-lg font-semibold">
-                    {template.title}
-                  </div>
-
-                  <div className="mt-1 text-xs font-medium text-black/40">
-                    {template.subtitle}
-                  </div>
-
-                  <p className="mt-3 text-sm leading-6 text-black/45">
-                    {template.description}
+                <Thumb template={template} scene={scene} />
+                <div className="p-4">
+                  <h2 className="font-semibold">{template.name}</h2>
+                  <p className="mt-1 text-xs leading-5 text-black/55">
+                    {template.blurb}
                   </p>
-
-                  <div className="mt-5 text-xs font-semibold text-black/35 transition group-hover:text-black">
-                    Энэ загварыг сонгох →
+                  <div className="mt-4 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPreview(template)}
+                      className="flex-1 rounded-xl border border-black/15 px-3 py-2.5 text-sm font-medium transition hover:border-black/40"
+                    >
+                      Урьдчилан харах
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelect(template)}
+                      className="flex-1 rounded-xl bg-black px-3 py-2.5 text-sm font-medium text-white transition hover:bg-black/85"
+                    >
+                      Сонгох
+                    </button>
                   </div>
                 </div>
-              </button>
-            );
-          })}
-        </div>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
+
+      {preview && previewScene && (
+        <PreviewModal
+          key={`${preview.id}-${tier}`}
+          template={preview}
+          scene={previewScene}
+          tier={tier}
+          onClose={() => setPreview(null)}
+          onSelect={() => {
+            const t = preview;
+            setPreview(null);
+            handleSelect(t);
+          }}
+        />
+      )}
+    </main>
+  );
+}
+
+function TemplateSkeleton() {
+  return (
+    <main className="min-h-screen bg-[#F8F5F0]">
+      <div className="mx-auto max-w-6xl animate-pulse px-6 py-14">
+        <div className="mx-auto h-8 w-2/3 rounded bg-black/10" />
+        <div className="mt-10 grid gap-5 sm:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="aspect-[3/4] rounded-[26px] bg-black/10" />
+          ))}
+        </div>
+      </div>
     </main>
   );
 }
 
 export default function TemplatePage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<TemplateSkeleton />}>
       <TemplatePageContent />
     </Suspense>
   );
