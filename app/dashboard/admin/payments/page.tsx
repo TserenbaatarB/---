@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
@@ -131,11 +130,12 @@ export default function AdminPaymentsPage() {
 
       setMessage(
         decision === "approved"
-          ? "Төлбөр баталгаажлаа. Хэрэглэгчийн сарын эрх сунгагдаж, мэдэгдэл үүслээ."
-          : "Хүсэлтийг буцааж, шалтгаантай мэдэгдлийг хэрэглэгчид илгээлээ."
+          ? "Төлбөр баталгаажлаа. Хэрэглэгчийн сарын эрх сунгагдлаа."
+          : "Хүсэлтийг буцааж, шалтгааныг хадгаллаа."
       );
 
       setRejectingId("");
+
       setRejectionReasons((previous) => {
         const next = { ...previous };
         delete next[paymentId];
@@ -162,6 +162,7 @@ export default function AdminPaymentsPage() {
       setMessage("Төлбөрийн хүсэлтүүд шинэчлэгдлээ.");
     } catch (error) {
       console.error("ADMIN PAYMENT REFRESH ERROR:", error);
+
       setErrorMessage(
         error instanceof Error
           ? error.message
@@ -185,9 +186,11 @@ export default function AdminPaymentsPage() {
       <main className="flex min-h-screen items-center justify-center bg-[#F8F5F0] p-6">
         <div className="rounded-3xl bg-white p-8 text-center shadow-sm">
           <h1 className="text-xl font-semibold">Хандах эрхгүй</h1>
+
           <p className="mt-2 text-sm text-black/50">
             Энэ хэсэг зөвхөн админд нээлттэй.
           </p>
+
           <button
             type="button"
             onClick={() => router.push("/dashboard")}
@@ -216,9 +219,11 @@ export default function AdminPaymentsPage() {
             <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-black/35">
               ADMIN
             </p>
+
             <h1 className="mt-2 text-3xl font-semibold">
               Сарын эрхийн шилжүүлгүүд
             </h1>
+
             <p className="mt-2 text-sm text-black/50">
               Банкны дансанд мөнгө орсныг шалгасны дараа төлбөрийг баталгаажуулна.
             </p>
@@ -268,6 +273,7 @@ export default function AdminPaymentsPage() {
                     <h2 className="text-lg font-semibold">
                       {payment.user_email}
                     </h2>
+
                     <p className="mt-1 text-xs text-black/40">
                       Хүсэлт:{" "}
                       {new Date(payment.created_at).toLocaleString("mn-MN")}
@@ -284,6 +290,7 @@ export default function AdminPaymentsPage() {
                     <dt className="text-xs text-black/40">
                       Шилжүүлсэн хүний нэр
                     </dt>
+
                     <dd className="mt-1 font-medium">
                       {payment.payer_name}
                     </dd>
@@ -291,6 +298,7 @@ export default function AdminPaymentsPage() {
 
                   <div>
                     <dt className="text-xs text-black/40">Утас</dt>
+
                     <dd className="mt-1 font-medium">
                       {payment.payer_phone}
                     </dd>
@@ -300,6 +308,7 @@ export default function AdminPaymentsPage() {
                     <dt className="text-xs text-black/40">
                       Гүйлгээний утга
                     </dt>
+
                     <dd className="mt-1 break-words font-medium">
                       {payment.payment_reference}
                     </dd>
@@ -324,6 +333,7 @@ export default function AdminPaymentsPage() {
                     type="button"
                     onClick={() => {
                       setErrorMessage("");
+
                       setRejectingId((current) =>
                         current === payment.id ? "" : payment.id
                       );
