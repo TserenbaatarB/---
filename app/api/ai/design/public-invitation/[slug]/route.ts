@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 
+import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 type RouteContext = {
@@ -189,7 +189,7 @@ export async function GET(
     }
 
     // --------------------------------------------------
-    // EXTRA / MAP / PROGRAM DATA
+    // EXTRA / MAP / PROGRAM / MUSIC DATA
     // --------------------------------------------------
 
     const rawExtras =
@@ -213,16 +213,31 @@ export async function GET(
         ? rawExtras.mapUrl
         : "";
 
-    // Хөтөлбөр
+    // YouTube music
+    const youtubeUrl =
+      typeof rawExtras.youtubeUrl === "string"
+        ? rawExtras.youtubeUrl.trim()
+        : "";
+
+    const musicSource =
+      rawExtras.musicSource === "youtube" ||
+      rawExtras.musicSource === "mp3" ||
+      rawExtras.musicSource === "video"
+        ? rawExtras.musicSource
+        : "none";
+
+    // Program
     const program = normalizeProgram(
       rawExtras.program
     );
 
+    // Appearance
     const rawAppearance =
       rawExtras.appearance &&
       typeof rawExtras.appearance === "object"
         ? (rawExtras.appearance as Record<string, unknown>)
         : null;
+
     const appearance = rawAppearance
       ? {
           tier: rawAppearance.tier,
@@ -285,8 +300,6 @@ export async function GET(
             .map((url) => url.trim())
         : [];
 
-    // If background_id itself is already a URL,
-    // don't try to sign it as a storage path.
     const directBackgroundUrl =
       isHttpUrl(backgroundValue)
         ? backgroundValue.trim()
@@ -346,9 +359,6 @@ export async function GET(
           "PUBLIC INVITATION IMAGE URL ERROR:",
           signedImagesError
         );
-
-        // We do not immediately fail.
-        // Direct / legacy URLs can still be used.
       }
 
       for (const item of signedImages ?? []) {
@@ -437,6 +447,8 @@ export async function GET(
           legacyGalleryUrls.length,
         programCount: program.length,
         program,
+        musicSource,
+        hasYouTubeUrl: Boolean(youtubeUrl),
       }
     );
 
@@ -454,6 +466,8 @@ export async function GET(
           mapUrl,
           program,
           appearance,
+          youtubeUrl,
+          musicSource,
         },
 
         backgroundUrl,
