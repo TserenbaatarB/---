@@ -1786,44 +1786,27 @@ return (
         }}
       />
     )}
-      {/* MP3 MUSIC PLAYER */}
-      {musicUrl && !musicIsVideo && !isYouTubeMusic && (
-        <audio
-          ref={audioRef}
-          id="invitation-background-music"
-          key={musicUrl}
-          src={musicUrl}
-          loop
-          preload="auto"
-          playsInline
-          onCanPlay={() => {
-            setAudioReady(true);
-            setMusicError(false);
-          }}
-          onCanPlayThrough={() => {
-            setAudioReady(true);
-            setMusicError(false);
-          }}
-          onLoadedMetadata={() => {
-            setAudioReady(true);
-            setMusicError(false);
-          }}
-          onLoadedData={() => {
-            setAudioReady(true);
-            setMusicError(false);
-          }}
-          onPlay={() => {
-            setMusicPlaying(true);
-            setMusicError(false);
-          }}
-          onPause={() => setMusicPlaying(false)}
-          onError={() => {
-            setAudioReady(true);
-            setMusicPlaying(false);
-            setMusicError(false);
-          }}
-        />
-      )}
+      {/* YOUTUBE MUSIC PLAYER */}
+{isYouTubeMusic &&
+  youtubeVideoId &&
+  youtubeStarted && (
+    <div className="fixed bottom-4 left-4 z-50 w-56 overflow-hidden rounded-2xl border border-white/20 bg-black/80 p-2 text-white shadow-xl backdrop-blur-md">
+      <iframe
+        ref={youtubeRef}
+        key={youtubeVideoId}
+        title="Урилгын YouTube хөгжим"
+        src={`https://www.youtube.com/embed/${youtubeVideoId}?autoplay=1&playsinline=1&controls=1&enablejsapi=1`}
+        className="aspect-video w-full rounded-xl"
+        allow="autoplay; encrypted-media; picture-in-picture"
+        referrerPolicy="strict-origin-when-cross-origin"
+        allowFullScreen
+      />
+
+      <p className="px-1 pt-2 text-xs text-white/80">
+        🎵 YouTube хөгжим
+      </p>
+    </div>
+  )}
 
       {/* COVER VIDEO */}
       {videoUrl && !videoDone && (
