@@ -350,6 +350,8 @@ export default function PublicInvitationPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const youtubeRef = useRef<HTMLIFrameElement | null>(null);
 
+  const musicSource = invitation?.extras?.musicSource;
+
   const musicIsVideo = /\.(mp4|webm|mov)$/i.test(
     invitation?.music_path ?? ""
   );
@@ -359,13 +361,16 @@ export default function PublicInvitationPage() {
     [invitation?.extras?.youtubeUrl]
   );
 
-  const isYouTubeMusic = Boolean(
-    youtubeVideoId &&
-      (
-        invitation?.extras?.musicSource === "youtube" ||
-        !invitation?.music_path
-      )
-  );
+  // YouTube зөвхөн musicSource нь youtube үед ажиллана.
+  const isYouTubeMusic =
+    musicSource === "youtube" && Boolean(youtubeVideoId);
+
+  // MP3 болон audio файлыг YouTube-ээс тусад нь удирдана.
+  const isMp3Music =
+    !isYouTubeMusic &&
+    !musicIsVideo &&
+    Boolean(invitation?.music_path) &&
+    (musicSource === "mp3" || !musicSource);
 
   const galleryUrls = useMemo(
     () => getGalleryUrls(invitation?.gallery_urls),
@@ -394,7 +399,7 @@ export default function PublicInvitationPage() {
 
   const mediaReady =
     isYouTubeMusic ||
-    !invitation?.music_path ||
+    (!isMp3Music && !musicIsVideo) ||
     musicUrl !== null ||
     musicError;
 
@@ -726,7 +731,13 @@ export default function PublicInvitationPage() {
     let cancelled = false;
 
     async function loadMedia() {
-      if (isYouTubeMusic || !invitation?.music_path) {
+      // YouTube болон хөгжмийн эх үүсвэргүй урилгад
+      // Supabase storage-оос MP3 хайх шаардлагагүй.
+      if (
+        isYouTubeMusic ||
+        (!isMp3Music && !musicIsVideo) ||
+        !invitation?.music_path
+      ) {
         if (!cancelled) {
           setMusicUrl(null);
           setVideoUrl(null);
@@ -854,7 +865,12 @@ export default function PublicInvitationPage() {
     return () => {
       cancelled = true;
     };
-  }, [invitation?.music_path, musicIsVideo, isYouTubeMusic]);
+  }, [
+    invitation?.music_path,
+    musicIsVideo,
+    isYouTubeMusic,
+    isMp3Music,
+  ]);
 
   /* ============================================================
      VIDEO AUTOPLAY
@@ -898,6 +914,7 @@ export default function PublicInvitationPage() {
      ============================================================ */
 
   const playMusic = useCallback(async () => {
+    // YouTube хөгжмийн эх үүсвэр
     if (isYouTubeMusic && youtubeVideoId) {
       setYoutubeStarted(true);
       setYoutubePlaying(true);
@@ -910,6 +927,9 @@ export default function PublicInvitationPage() {
 
       return;
     }
+
+    // MP3 биш бол audio тоглуулахгүй.
+    if (!isMp3Music) return;
 
     const media = audioRef.current;
 
@@ -936,6 +956,7 @@ export default function PublicInvitationPage() {
   }, [
     isYouTubeMusic,
     youtubeVideoId,
+    isMp3Music,
     sendYouTubeCommand,
   ]);
 
@@ -977,13 +998,13 @@ export default function PublicInvitationPage() {
      ============================================================ */
 
   useEffect(() => {
-    if (isYouTubeMusic) return;
+    if (!isMp3Music) return;
     if (!musicUrl || musicIsVideo || !showInvitation) return;
     if (!audioRef.current || !audioReady) return;
 
     void playMusic();
   }, [
-    isYouTubeMusic,
+    isMp3Music,
     musicUrl,
     musicIsVideo,
     showInvitation,
@@ -1002,7 +1023,7 @@ export default function PublicInvitationPage() {
 
     if (
       isYouTubeMusic ||
-      (musicUrl && !musicIsVideo)
+      (isMp3Music && musicUrl)
     ) {
       void playMusic();
     }
@@ -1304,7 +1325,7 @@ export default function PublicInvitationPage() {
      ============================================================ */
 
   useEffect(() => {
-    if (isYouTubeMusic || !musicUrl || musicIsVideo) {
+    if (!isMp3Music || !musicUrl || musicIsVideo) {
       setAudioReady(false);
 
       if (!isYouTubeMusic) setMusicPlaying(false);
@@ -1359,7 +1380,7 @@ export default function PublicInvitationPage() {
       setAudioReady(true);
       setMusicPlaying(false);
       setMusicNeedsInteraction(false);
-      setMusicError(false);
+      setMusicError(true);
     };
 
     media.addEventListener("canplay", handleCanPlay);
@@ -1394,7 +1415,12 @@ export default function PublicInvitationPage() {
       media.removeEventListener("pause", handlePause);
       media.removeEventListener("error", handleError);
     };
-  }, [isYouTubeMusic, musicUrl, musicIsVideo]);
+  }, [
+    isMp3Music,
+    isYouTubeMusic,
+    musicUrl,
+    musicIsVideo,
+  ]);
 
   /* ============================================================
      TOGGLE MUSIC
@@ -1421,6 +1447,8 @@ export default function PublicInvitationPage() {
 
       return;
     }
+
+    if (!isMp3Music) return;
 
     const media = audioRef.current;
     if (!media) return;
@@ -1746,7 +1774,7 @@ export default function PublicInvitationPage() {
 
             if (
               isYouTubeMusic ||
-              (musicUrl && !musicIsVideo)
+              (isMp3Music && musicUrl)
             ) {
               void playMusic();
             }
@@ -1782,6 +1810,16 @@ export default function PublicInvitationPage() {
       className={`relative min-h-dvh overflow-x-hidden ${style.page}`}
     >
       {renderOpeningScreen()}
+
+      {/* MP3 BACKGROUND AUDIO — YouTube player биш */}
+      {isMp3Music && musicUrl && (
+        <audio
+          ref={audioRef}
+          src={musicUrl}
+          loop
+          preload="auto"
+        />
+      )}
 
       {/* ========================================================
           YOUTUBE MUSIC PLAYER
@@ -1946,10 +1984,7 @@ export default function PublicInvitationPage() {
 
       {/* MUSIC BUTTON */}
       {showInvitation &&
-        (
-          (isYouTubeMusic && Boolean(youtubeVideoId)) ||
-          (invitation.music_path && !musicIsVideo)
-        ) && (
+        (isYouTubeMusic || isMp3Music) && (
           <div className="fixed right-4 top-4 z-50">
             <button
               type="button"
@@ -2487,11 +2522,11 @@ export default function PublicInvitationPage() {
       )}
 
       {/* MUSIC LOADING */}
-      {musicUrl &&
+      {isMp3Music &&
+        musicUrl &&
         !audioReady &&
         !musicError &&
         !musicIsVideo &&
-        !isYouTubeMusic &&
         showInvitation && (
           <div className="pointer-events-none fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full bg-black/40 px-4 py-2 text-xs text-white/70 backdrop-blur-md">
             🎵 Хөгжим ачаалж байна...
@@ -2509,8 +2544,7 @@ export default function PublicInvitationPage() {
       {musicNeedsInteraction &&
         showInvitation &&
         !musicError &&
-        !musicIsVideo &&
-        !isYouTubeMusic && (
+        isMp3Music && (
           <div
             className="fixed inset-x-0 z-50 flex justify-center px-4"
             style={{
