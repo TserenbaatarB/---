@@ -1,12 +1,13 @@
+
 "use client";
 
 import dynamic from "next/dynamic";
 import { useState } from "react";
-import {
+
+import type {
   InvitationExtras,
   ProgramItem,
   RsvpVisibility,
-  parseMapsLink,
 } from "@/lib/invitationExtras";
 
 const MapPicker = dynamic(
@@ -31,6 +32,28 @@ const inputClass =
 
 const cardClass =
   "rounded-[28px] border border-black/10 bg-white p-6 shadow-sm sm:p-7";
+
+function parseMapsLink(value: string): { lat: number; lng: number } | null {
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(value);
+  } catch {
+    decoded = value;
+  }
+
+  const match =
+    decoded.match(/@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/) ??
+    decoded.match(/[?&](?:q|query|ll|center)=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i) ??
+    decoded.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/i) ??
+    decoded.trim().match(/^(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)$/);
+
+  if (!match) return null;
+
+  const lat = Number(match[1]);
+  const lng = Number(match[2]);
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { lat, lng };
+}
 
 function Toggle({
   checked,
@@ -323,7 +346,7 @@ export default function ExtrasEditor({
                     time: event.target.value,
                   })
                 }
-                className={`${inputClass} !w-32 shrink-0`}
+                className={`${inputClass} w-32! shrink-0`}
               />
 
               <input
