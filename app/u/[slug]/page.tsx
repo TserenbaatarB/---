@@ -340,6 +340,8 @@ export default function PublicInvitationPage() {
 
   const [youtubeStarted, setYoutubeStarted] = useState(false);
   const [youtubePlaying, setYoutubePlaying] = useState(false);
+  const [youtubeIframeLoaded, setYoutubeIframeLoaded] =
+    useState(false);
 
   const reducedMotion = useReducedMotion();
   const skippedRef = useRef(false);
@@ -395,6 +397,28 @@ export default function PublicInvitationPage() {
     !invitation?.music_path ||
     musicUrl !== null ||
     musicError;
+
+  /* ============================================================
+     YOUTUBE COMMAND
+     ============================================================ */
+
+  const sendYouTubeCommand = useCallback(
+    (command: "playVideo" | "pauseVideo" | "unMute") => {
+      const iframe = youtubeRef.current;
+
+      if (!iframe?.contentWindow) return;
+
+      iframe.contentWindow.postMessage(
+        JSON.stringify({
+          event: "command",
+          func: command,
+          args: [],
+        }),
+        "https://www.youtube.com"
+      );
+    },
+    []
+  );
 
   /* ============================================================
      LOAD PUBLIC INVITATION AND SAVED DESIGN SETTINGS
@@ -476,7 +500,6 @@ export default function PublicInvitationPage() {
 
             if (rawExtras) {
               const rawAppearance = rawExtras?.appearance;
-
               const rawMusicSource = rawExtras?.musicSource;
 
               mapExtras = {
@@ -673,6 +696,7 @@ export default function PublicInvitationPage() {
 
           setYoutubeStarted(false);
           setYoutubePlaying(false);
+          setYoutubeIframeLoaded(false);
           setOpeningStarted(false);
           setOpeningFinished(false);
           setLoading(false);
@@ -880,6 +904,10 @@ export default function PublicInvitationPage() {
       setMusicPlaying(true);
       setMusicNeedsInteraction(false);
       setMusicError(false);
+
+      sendYouTubeCommand("unMute");
+      sendYouTubeCommand("playVideo");
+
       return;
     }
 
@@ -905,7 +933,48 @@ export default function PublicInvitationPage() {
       setMusicNeedsInteraction(true);
       setMusicError(false);
     }
-  }, [isYouTubeMusic, youtubeVideoId]);
+  }, [
+    isYouTubeMusic,
+    youtubeVideoId,
+    sendYouTubeCommand,
+  ]);
+
+  /* ============================================================
+     YOUTUBE PLAYER READY — RETRY COMMAND AFTER LOAD
+     ============================================================ */
+
+  useEffect(() => {
+    if (
+      !isYouTubeMusic ||
+      !youtubeStarted ||
+      !youtubeIframeLoaded ||
+      !youtubeVideoId
+    ) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      if (youtubePlaying) {
+        sendYouTubeCommand("unMute");
+        sendYouTubeCommand("playVideo");
+      } else {
+        sendYouTubeCommand("pauseVideo");
+      }
+    }, 700);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    isYouTubeMusic,
+    youtubeStarted,
+    youtubeIframeLoaded,
+    youtubeVideoId,
+    youtubePlaying,
+    sendYouTubeCommand,
+  ]);
+
+  /* ============================================================
+     MP3 AUTOPLAY
+     ============================================================ */
 
   useEffect(() => {
     if (isYouTubeMusic) return;
@@ -1343,14 +1412,12 @@ export default function PublicInvitationPage() {
       setYoutubePlaying(nextPlaying);
       setMusicPlaying(nextPlaying);
 
-      youtubeRef.current?.contentWindow?.postMessage(
-        JSON.stringify({
-          event: "command",
-          func: nextPlaying ? "playVideo" : "pauseVideo",
-          args: [],
-        }),
-        "https://www.youtube.com"
-      );
+      if (nextPlaying) {
+        sendYouTubeCommand("unMute");
+        sendYouTubeCommand("playVideo");
+      } else {
+        sendYouTubeCommand("pauseVideo");
+      }
 
       return;
     }
@@ -1430,11 +1497,6 @@ export default function PublicInvitationPage() {
         sceneDef.palette
       )
     : null;
-
-  /*
-   * Хуучин урилгуудын default тохиргоог шинэ custom style гэж
-   * үзэхгүй. Ингэснээр өмнөх загварын өнгө, харагдац хэвээр үлдэнэ.
-   */
 
   const legacyAccent =
     isHexColor(appearance.accent) &&
@@ -1722,32 +1784,36 @@ export default function PublicInvitationPage() {
       {renderOpeningScreen()}
 
       {/* ========================================================
-          YOUTUBE MUSIC PLAYER — HIDDEN SINGLE PLAYER
-          ======================================================== */}
-      {/* ========================================================
-          YOUTUBE MUSIC PLAYER — VISIBLE MINI PLAYER
+          YOUTUBE MUSIC PLAYER
+          Урилга нээгдэхээс өмнө iframe ачаална.
+          Эхлээд нуугдмал, play дарахад харагдана.
           ======================================================== */}
 
-      {isYouTubeMusic &&
-        youtubeVideoId &&
-        youtubeStarted && (
-          <div className="fixed bottom-4 left-4 z-50 w-56 overflow-hidden rounded-2xl border border-white/20 bg-black/80 p-2 text-white shadow-xl backdrop-blur-md">
-            <iframe
-              ref={youtubeRef}
-              key={youtubeVideoId}
-              title="Урилгын YouTube хөгжим"
-              src={`https://www.youtube.com/embed/${youtubeVideoId}?autoplay=1&playsinline=1&controls=1&enablejsapi=1`}
-              className="aspect-video w-full rounded-xl"
-              allow="autoplay; encrypted-media; picture-in-picture"
-              referrerPolicy="strict-origin-when-cross-origin"
-              allowFullScreen
-            />
+      {isYouTubeMusic && youtubeVideoId && (
+        <div
+          className={`fixed bottom-4 left-4 z-50 w-56 overflow-hidden rounded-2xl border border-white/20 bg-black/80 p-2 text-white shadow-xl backdrop-blur-md transition-opacity duration-300 ${
+            youtubeStarted
+              ? "pointer-events-auto opacity-100"
+              : "pointer-events-none opacity-0"
+          }`}
+        >
+          <iframe
+            ref={youtubeRef}
+            key={youtubeVideoId}
+            title="Урилгын YouTube хөгжим"
+            src={`https://www.youtube.com/embed/${youtubeVideoId}?autoplay=0&playsinline=1&controls=1&enablejsapi=1&origin=${typeof window !== "undefined" ? window.location.origin : ""}`}
+            className="aspect-video w-full rounded-xl"
+            allow="autoplay; encrypted-media; picture-in-picture"
+            referrerPolicy="strict-origin-when-cross-origin"
+            allowFullScreen
+            onLoad={() => setYoutubeIframeLoaded(true)}
+          />
 
-            <p className="px-1 pt-2 text-xs text-white/80">
-              🎵 YouTube хөгжим
-            </p>
-          </div>
-        )}
+          <p className="px-1 pt-2 text-xs text-white/80">
+            🎵 YouTube хөгжим
+          </p>
+        </div>
+      )}
 
       {/* COVER VIDEO */}
       {videoUrl && !videoDone && (
