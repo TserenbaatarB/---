@@ -1717,21 +1717,32 @@ export default function PublicInvitationPage() {
     >
       {renderOpeningScreen()}
 
-      {/* YOUTUBE MUSIC PLAYER */}
-      {isYouTubeMusic &&
-        youtubeVideoId &&
-        youtubeStarted && (
-          <div className="fixed bottom-4 left-4 z-50 w-56 overflow-hidden rounded-2xl border border-white/20 bg-black/80 p-2 text-white shadow-xl backdrop-blur-md">
-            <iframe
-              ref={youtubeRef}
-              key={youtubeVideoId}
-              title="Урилгын YouTube хөгжим"
-              src={`https://www.youtube.com/embed/${youtubeVideoId}?autoplay=1&playsinline=1&controls=1&enablejsapi=1`}
-              className="aspect-video w-full rounded-xl"
-              allow="autoplay; encrypted-media; picture-in-picture"
-              referrerPolicy="strict-origin-when-cross-origin"
-              allowFullScreen
-            />
+     {/* YOUTUBE MUSIC PLAYER */}
+{isYouTubeMusic &&
+  youtubeVideoId &&
+  youtubeStarted && (
+    <div
+      style={{
+        position: "fixed",
+        width: "200px",
+        height: "110px",
+        left: "-9999px",
+        bottom: 0,
+        opacity: 0,
+        pointerEvents: "none",
+      }}
+    >
+      <iframe
+        ref={youtubeRef}
+        key={youtubeVideoId}
+        title="Урилгын YouTube хөгжим"
+        src={`https://www.youtube.com/embed/${youtubeVideoId}?autoplay=1&playsinline=1&controls=0&enablejsapi=1`}
+        className="w-full h-full"
+        allow="autoplay; encrypted-media"
+        referrerPolicy="strict-origin-when-cross-origin"
+      />
+    </div>
+  )}
 
             <p className="px-1 pt-2 text-xs text-white/80">
               🎵 YouTube хөгжим
