@@ -1709,47 +1709,83 @@ export default function PublicInvitationPage() {
      PAGE
      ============================================================ */
 
-  return (
-    <main
-      data-invitation
-      data-font-selected={appearance.font ? "true" : undefined}
-      className={`relative min-h-dvh overflow-x-hidden ${style.page}`}
-    >
-      {renderOpeningScreen()}
+  /* ============================================================
+   PAGE
+   ============================================================ */
 
-     {/* YOUTUBE MUSIC PLAYER */}
-{isYouTubeMusic &&
-  youtubeVideoId &&
-  youtubeStarted && (
-    <div
-      style={{
-        position: "fixed",
-        width: "200px",
-        height: "110px",
-        left: "-9999px",
-        bottom: 0,
-        opacity: 0,
-        pointerEvents: "none",
-      }}
-    >
-      <iframe
-        ref={youtubeRef}
-        key={youtubeVideoId}
-        title="Урилгын YouTube хөгжим"
-        src={`https://www.youtube.com/embed/${youtubeVideoId}?autoplay=1&playsinline=1&controls=0&enablejsapi=1`}
-        className="w-full h-full"
-        allow="autoplay; encrypted-media"
-        referrerPolicy="strict-origin-when-cross-origin"
+return (
+  <main
+    data-invitation
+    data-font-selected={appearance.font ? "true" : undefined}
+    className={`relative min-h-dvh overflow-x-hidden ${style.page}`}
+  >
+    {renderOpeningScreen()}
+
+    {/* YOUTUBE MUSIC PLAYER */}
+    {isYouTubeMusic &&
+      youtubeVideoId &&
+      youtubeStarted && (
+        <div
+          style={{
+            position: "fixed",
+            width: "200px",
+            height: "110px",
+            left: "-9999px",
+            bottom: 0,
+            opacity: 0,
+            pointerEvents: "none",
+          }}
+        >
+          <iframe
+            ref={youtubeRef}
+            key={youtubeVideoId}
+            title="Урилгын YouTube хөгжим"
+            src={`https://www.youtube.com/embed/${youtubeVideoId}?autoplay=1&playsinline=1&controls=0&enablejsapi=1`}
+            className="w-full h-full"
+            allow="autoplay; encrypted-media"
+            referrerPolicy="strict-origin-when-cross-origin"
+          />
+        </div>
+      )}
+
+    {/* MP3 MUSIC PLAYER */}
+    {musicUrl && !musicIsVideo && !isYouTubeMusic && (
+      <audio
+        ref={audioRef}
+        id="invitation-background-music"
+        key={musicUrl}
+        src={musicUrl}
+        loop
+        preload="auto"
+        playsInline
+        onCanPlay={() => {
+          setAudioReady(true);
+          setMusicError(false);
+        }}
+        onCanPlayThrough={() => {
+          setAudioReady(true);
+          setMusicError(false);
+        }}
+        onLoadedMetadata={() => {
+          setAudioReady(true);
+          setMusicError(false);
+        }}
+        onLoadedData={() => {
+          setAudioReady(true);
+          setMusicError(false);
+        }}
+        onPlay={() => {
+          setMusicPlaying(true);
+          setMusicError(false);
+        }}
+        onPause={() => setMusicPlaying(false)}
+        onError={() => {
+          setAudioReady(true);
+          setMusicPlaying(false);
+          setMusicError(false);
+        }}
       />
-    </div>
-  )}
-
-            <p className="px-1 pt-2 text-xs text-white/80">
-              🎵 YouTube хөгжим
-            </p>
-          </div>
-        )}
-
+    )}
       {/* MP3 MUSIC PLAYER */}
       {musicUrl && !musicIsVideo && !isYouTubeMusic && (
         <audio
