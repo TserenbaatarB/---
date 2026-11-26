@@ -591,58 +591,50 @@ export function toPublicExtras(
   };
 }
 
-export function parseYouTubeId(
-  url: string
-): string | null {
+export function parseYouTubeId(url: string): string | null {
   const value = url.trim();
 
   if (!value) return null;
 
-  const match =
-    /(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/))([A-Za-z0-9_-]{11})/.exec(
-      value
-    );
-
-  if (match) return match[1];
-
-  return /^[A-Za-z0-9_-]{11}$/.test(value)
-    ? value
-    : null;
-}
-
-export function parseMapsLink(
-  url: string
-): { lat: number; lng: number } | null {
-  const value = decodeURIComponent(url.trim());
-
-  const patterns = [
-    /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/,
-    /[?&](?:q|query|destination|ll)=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/,
-    /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/,
-  ];
-
-  for (const pattern of patterns) {
-    const match = pattern.exec(value);
-
-    if (match) {
-      const lat = Number(match[1]);
-      const lng = Number(match[2]);
-
-      if (
-        Math.abs(lat) <= 90 &&
-        Math.abs(lng) <= 180
-      ) {
-        return { lat, lng };
-      }
-    }
+  // Шууд 11 тэмдэгттэй YouTube video ID
+  if (/^[A-Za-z0-9_-]{11}$/.test(value)) {
+    return value;
   }
 
-  return null;
-}
+  try {
+    const normalized = value.startsWith("http")
+      ? value
+      : `https://${value}`;
 
-export function mapDirectionsUrl(
-  lat: number,
-  lng: number
-) {
-  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+    const parsed = new URL(normalized);
+    const hostname = parsed.hostname.replace(/^www\./, "");
+
+    let videoId: string | null = null;
+
+    if (hostname === "youtu.be") {
+      videoId = parsed.pathname.split("/").filter(Boolean)[0] ?? null;
+    } else if (
+      hostname === "youtube.com" ||
+      hostname === "m.youtube.com" ||
+      hostname === "music.youtube.com"
+    ) {
+      if (parsed.pathname === "/watch") {
+        videoId = parsed.searchParams.get("v");
+      } else {
+        const parts = parsed.pathname.split("/").filter(Boolean);
+
+        if (
+          ["embed", "shorts", "live"].includes(parts[0] ?? "")
+        ) {
+          videoId = parts[1] ?? null;
+        }
+      }
+    }
+
+    return videoId && /^[A-Za-z0-9_-]{11}$/.test(videoId)
+      ? videoId
+      : null;
+  } catch {
+    return null;
+  }
 }
