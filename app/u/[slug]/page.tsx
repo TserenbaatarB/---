@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -417,7 +418,7 @@ export default function PublicInvitationPage() {
         JSON.stringify({
           event: "command",
           func: command,
-          args: [],
+          args: "",
         }),
         "https://www.youtube.com"
       );
@@ -916,14 +917,33 @@ export default function PublicInvitationPage() {
   const playMusic = useCallback(async () => {
     // YouTube хөгжмийн эх үүсвэр
     if (isYouTubeMusic && youtubeVideoId) {
+      const iframe = youtubeRef.current;
+
       setYoutubeStarted(true);
       setYoutubePlaying(true);
       setMusicPlaying(true);
       setMusicNeedsInteraction(false);
       setMusicError(false);
 
-      sendYouTubeCommand("unMute");
-      sendYouTubeCommand("playVideo");
+      // Хэрэглэгчийн товшилтын үеэр iframe-ийг autoplay=1
+      // тохиргоотойгоор дахин ачаална.
+      if (iframe) {
+        const playerUrl = new URL(
+          `https://www.youtube.com/embed/${youtubeVideoId}`
+        );
+
+        playerUrl.searchParams.set("autoplay", "1");
+        playerUrl.searchParams.set("playsinline", "1");
+        playerUrl.searchParams.set("controls", "1");
+        playerUrl.searchParams.set("enablejsapi", "1");
+        playerUrl.searchParams.set(
+          "origin",
+          window.location.origin
+        );
+
+        setYoutubeIframeLoaded(false);
+        iframe.src = playerUrl.toString();
+      }
 
       return;
     }
@@ -957,7 +977,6 @@ export default function PublicInvitationPage() {
     isYouTubeMusic,
     youtubeVideoId,
     isMp3Music,
-    sendYouTubeCommand,
   ]);
 
   /* ============================================================
